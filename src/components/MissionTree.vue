@@ -177,10 +177,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
+import { useToastStore } from '@/stores/toastStore'
 import { generateMap, nodeTypeConfig, type MapNode, type MapLayer } from '@/utils'
 
 const router = useRouter()
 const gameStore = useGameStore()
+const toastStore = useToastStore()
 
 // État de la map
 const mapLayers = ref<MapLayer[]>([])
@@ -262,8 +264,9 @@ const handleNodeAction = (node: MapNode) => {
     case 'elite':
       // Simulation d'un combat
       setTimeout(() => {
-        alert(
-          `Victoire contre ${node.title}!\nRécompense: ${node.reward?.type} ${node.reward?.amount || ''}`,
+        toastStore.showSuccess(
+          `Victoire contre ${node.title}! Récompense: ${node.reward?.type} ${node.reward?.amount || ''}`,
+          { duration: 5000 },
         )
         if (node.reward?.type === 'gold') {
           // Ajouter la récompense d'or aux ressources existantes
@@ -274,25 +277,36 @@ const handleNodeAction = (node: MapNode) => {
       break
 
     case 'shop':
-      alert(`${node.title} - Magasin ouvert!\nVous pouvez acheter des améliorations.`)
+      toastStore.showInfo(
+        `${node.title} - Magasin ouvert! Vous pouvez acheter des améliorations.`,
+        { duration: 4000 },
+      )
       break
 
     case 'event':
-      alert(
-        `${node.title}\n${node.description}\nRécompense: ${node.reward?.type} ${node.reward?.name || node.reward?.amount || ''}`,
+      toastStore.showInfo(
+        `${node.title} - ${node.description} Récompense: ${node.reward?.type} ${node.reward?.name || node.reward?.amount || ''}`,
+        { duration: 6000 },
       )
       break
 
     case 'rest':
-      alert(`${node.title}\nVous récupérez ${node.reward?.amount || 0} points de vie.`)
+      toastStore.showSuccess(
+        `${node.title} - Vous récupérez ${node.reward?.amount || 0} points de vie.`,
+        { duration: 4000 },
+      )
       break
 
     case 'boss':
-      alert(`${node.title}\nBravo! Vous avez terminé cette carte!`)
+      toastStore.showSuccess(`${node.title} - Bravo! Vous avez terminé cette carte!`, {
+        duration: 7000,
+      })
       // Naviguer vers le jeu principal
       gameStore.gameState.currentGameSection = 'completed-map'
       gameStore.saveGame()
-      router.push('/game/victory')
+      setTimeout(() => {
+        router.push('/game/victory')
+      }, 1000) // Petit délai pour laisser le temps de voir le toast
       break
   }
 }

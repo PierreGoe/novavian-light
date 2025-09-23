@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@/stores/gameStore'
 import ResourcesHeader from '@/components/ResourcesHeader.vue'
+import ToastContainer from '@/components/ToastContainer.vue'
 
 const gameStore = useGameStore()
 
@@ -20,6 +21,7 @@ onUnmounted(() => {
   <div id="app">
     <ResourcesHeader />
     <RouterView />
+    <ToastContainer />
   </div>
 </template>
 
