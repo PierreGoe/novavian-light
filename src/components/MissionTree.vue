@@ -125,6 +125,22 @@
 
     <!-- Légende et contrôles -->
     <footer class="map-footer">
+      <!-- Légende des 3 voies -->
+      <div class="paths-legend">
+        <div class="path-indicator">
+          <div class="path-line military-path"></div>
+          <span>Voie Militaire</span>
+        </div>
+        <div class="path-indicator">
+          <div class="path-line balanced-path"></div>
+          <span>Voie Équilibrée</span>
+        </div>
+        <div class="path-indicator">
+          <div class="path-line economic-path"></div>
+          <span>Voie Économique</span>
+        </div>
+      </div>
+
       <div class="legend">
         <div class="legend-item">
           <span class="legend-icon" style="color: #dc143c">⚔️</span>
@@ -161,29 +177,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
-
-interface MapNode {
-  id: string
-  type: 'combat' | 'elite' | 'shop' | 'event' | 'rest' | 'boss'
-  title: string
-  description: string
-  icon: string
-  row: number
-  col: number
-  connections: string[] // IDs des nodes suivants connectés
-  completed: boolean
-  accessible: boolean
-  reward?: {
-    type: 'gold' | 'card' | 'relic' | 'health'
-    amount?: number
-    name?: string
-  }
-}
-
-interface MapLayer {
-  row: number
-  nodes: MapNode[]
-}
+import { generateMap, nodeTypeConfig, type MapNode, type MapLayer } from '@/utils'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -193,247 +187,6 @@ const mapLayers = ref<MapLayer[]>([])
 const currentPlayerRow = ref<number>(0)
 const selectedNodeId = ref<string>('')
 const mapGenerated = ref<boolean>(false)
-
-// Configuration de génération
-const MAP_ROWS = 12 // Nombre de lignes (niveaux)
-const NODES_PER_ROW_MIN = 3
-const NODES_PER_ROW_MAX = 5
-
-// Types de nodes avec leurs probabilités et propriétés
-const nodeTypeConfig = {
-  combat: {
-    icon: '⚔️',
-    color: '#dc143c',
-    probability: 0.5,
-    titles: ['Patrouille ennemie', 'Embuscade', 'Garde frontière', 'Scouts hostiles'],
-    descriptions: [
-      "Un groupe d'ennemis bloque votre chemin",
-      'Des adversaires surgissent des buissons',
-      'Les gardes vous défient',
-      'Des éclaireurs tentent de vous arrêter',
-    ],
-  },
-  elite: {
-    icon: '👑',
-    color: '#ffd700',
-    probability: 0.15,
-    titles: ['Champion ennemi', 'Général adverse', 'Héros légendaire', 'Commandant élite'],
-    descriptions: [
-      'Un adversaire redoutable vous attend',
-      'Un chef de guerre expérimenté',
-      'Une légende vivante se dresse devant vous',
-      'Un stratège de renom',
-    ],
-  },
-  shop: {
-    icon: '🏪',
-    color: '#32cd32',
-    probability: 0.15,
-    titles: ['Marchand itinérant', 'Forgeron local', 'Caravane commerciale', 'Bazar mystique'],
-    descriptions: [
-      'Un commerçant propose ses services',
-      'Un artisan offre ses créations',
-      'Des marchands font une halte',
-      'Des objets rares sont disponibles',
-    ],
-  },
-  event: {
-    icon: '❓',
-    color: '#9932cc',
-    probability: 0.1,
-    titles: [
-      'Rencontre mystérieuse',
-      'Découverte ancienne',
-      'Choix difficile',
-      'Événement inattendu',
-    ],
-    descriptions: [
-      "Quelque chose d'étrange se produit",
-      'Vous découvrez des ruines anciennes',
-      "Une décision s'impose à vous",
-      "Le destin vous met à l'épreuve",
-    ],
-  },
-  rest: {
-    icon: '🏕️',
-    color: '#4169e1',
-    probability: 0.1,
-    titles: ['Campement sûr', 'Source sacrée', 'Refuge naturel', 'Oasis de paix'],
-    descriptions: [
-      'Un lieu pour récupérer vos forces',
-      'Une source aux propriétés curatives',
-      'Un abri protégé des dangers',
-      'Un endroit paisible pour se reposer',
-    ],
-  },
-  boss: {
-    icon: '💀',
-    color: '#8b0000',
-    probability: 0,
-    titles: ['Seigneur de guerre', 'Dragon ancien', 'Nécromancien suprême', 'Empereur déchu'],
-    descriptions: [
-      "L'ennemi final vous attend",
-      'Une créature légendaire garde le trésor',
-      'Le maître des ténèbres',
-      'Le dernier obstacle vers la victoire',
-    ],
-  },
-}
-
-// Génération aléatoire de la map
-const generateMap = (): MapLayer[] => {
-  const layers: MapLayer[] = []
-  let nodeIdCounter = 1
-
-  for (let row = 0; row < MAP_ROWS; row++) {
-    const isFirstRow = row === 0
-    const isLastRow = row === MAP_ROWS - 1
-
-    let nodesCount: number
-    if (isFirstRow) {
-      nodesCount = 1 // Premier niveau : toujours 1 seul node
-    } else if (isLastRow) {
-      nodesCount = 1 // Dernier niveau : 1 boss
-    } else {
-      nodesCount =
-        Math.floor(Math.random() * (NODES_PER_ROW_MAX - NODES_PER_ROW_MIN + 1)) + NODES_PER_ROW_MIN
-    }
-
-    const layer: MapLayer = {
-      row,
-      nodes: [],
-    }
-
-    // Génération des nodes pour cette ligne
-    for (let col = 0; col < nodesCount; col++) {
-      let nodeType: keyof typeof nodeTypeConfig
-
-      if (isLastRow) {
-        nodeType = 'boss'
-      } else {
-        // Sélection aléatoire du type selon les probabilités
-        const rand = Math.random()
-        if (rand < nodeTypeConfig.combat.probability) {
-          nodeType = 'combat'
-        } else if (rand < nodeTypeConfig.combat.probability + nodeTypeConfig.elite.probability) {
-          nodeType = 'elite'
-        } else if (
-          rand <
-          nodeTypeConfig.combat.probability +
-            nodeTypeConfig.elite.probability +
-            nodeTypeConfig.shop.probability
-        ) {
-          nodeType = 'shop'
-        } else if (
-          rand <
-          nodeTypeConfig.combat.probability +
-            nodeTypeConfig.elite.probability +
-            nodeTypeConfig.shop.probability +
-            nodeTypeConfig.event.probability
-        ) {
-          nodeType = 'event'
-        } else {
-          nodeType = 'rest'
-        }
-      }
-
-      const config = nodeTypeConfig[nodeType]
-      const titleIndex = Math.floor(Math.random() * config.titles.length)
-      const descIndex = Math.floor(Math.random() * config.descriptions.length)
-
-      const node: MapNode = {
-        id: `node_${nodeIdCounter++}`,
-        type: nodeType,
-        title: config.titles[titleIndex],
-        description: config.descriptions[descIndex],
-        icon: config.icon,
-        row,
-        col: isFirstRow ? 2 : col, // Centrer le premier node (position 2 = centre)
-        connections: [],
-        completed: false,
-        accessible: false, // Aucun node n'est accessible au début
-        reward: generateReward(nodeType),
-      }
-
-      layer.nodes.push(node)
-    }
-
-    layers.push(layer)
-  }
-
-  // Générer les connexions entre les nodes
-  generateConnections(layers)
-
-  return layers
-}
-
-// Génération des récompenses selon le type de node
-const generateReward = (nodeType: keyof typeof nodeTypeConfig) => {
-  switch (nodeType) {
-    case 'combat':
-      return { type: 'gold' as const, amount: Math.floor(Math.random() * 50) + 25 }
-    case 'elite':
-      return { type: 'relic' as const, name: 'Relique ancienne' }
-    case 'event':
-      return Math.random() > 0.5
-        ? { type: 'card' as const, name: 'Carte mystique' }
-        : { type: 'gold' as const, amount: Math.floor(Math.random() * 100) + 50 }
-    case 'rest':
-      return { type: 'health' as const, amount: 25 }
-    default:
-      return undefined
-  }
-}
-
-// Génération des connexions entre nodes
-const generateConnections = (layers: MapLayer[]) => {
-  for (let rowIndex = 0; rowIndex < layers.length - 1; rowIndex++) {
-    const currentLayer = layers[rowIndex]
-    const nextLayer = layers[rowIndex + 1]
-    const isFirstRow = rowIndex === 0
-
-    currentLayer.nodes.forEach((node) => {
-      let connectionsCount: number
-
-      if (isFirstRow) {
-        // Le premier node se connecte à 3-5 nodes (ou tous si moins de 3)
-        const minConnections = Math.min(3, nextLayer.nodes.length)
-        const maxConnections = Math.min(5, nextLayer.nodes.length)
-        connectionsCount =
-          Math.floor(Math.random() * (maxConnections - minConnections + 1)) + minConnections
-      } else {
-        // Les autres nodes se connectent à 1-2 nodes comme avant
-        const maxConnections = Math.min(2, nextLayer.nodes.length)
-        connectionsCount = Math.floor(Math.random() * maxConnections) + 1
-      }
-
-      // Sélectionner aléatoirement les nodes à connecter
-      const availableTargets = [...nextLayer.nodes]
-      for (let i = 0; i < connectionsCount; i++) {
-        if (availableTargets.length === 0) break
-
-        const targetIndex = Math.floor(Math.random() * availableTargets.length)
-        const targetNode = availableTargets.splice(targetIndex, 1)[0]
-
-        node.connections.push(targetNode.id)
-      }
-    })
-
-    // S'assurer que chaque node de la ligne suivante est accessible
-    nextLayer.nodes.forEach((nextNode) => {
-      const hasConnection = currentLayer.nodes.some((node) =>
-        node.connections.includes(nextNode.id),
-      )
-
-      if (!hasConnection && currentLayer.nodes.length > 0) {
-        // Connecter le premier node disponible
-        const randomSourceNode =
-          currentLayer.nodes[Math.floor(Math.random() * currentLayer.nodes.length)]
-        randomSourceNode.connections.push(nextNode.id)
-      }
-    })
-  }
-}
 
 // Computed
 const progressPercentage = computed(() => {
@@ -576,17 +329,6 @@ const resetMap = () => {
 }
 
 // Chemin parcouru par le joueur
-const playerPath = computed(() => {
-  const path: MapNode[] = []
-  mapLayers.value.forEach((layer) => {
-    const completedNode = layer.nodes.find((node) => node.completed)
-    if (completedNode) {
-      path.push(completedNode)
-    }
-  })
-  return path
-})
-
 // Prochains nodes accessibles
 const nextAvailableNodes = computed(() => {
   const accessible: MapNode[] = []
@@ -944,6 +686,39 @@ onMounted(() => {
   backdrop-filter: blur(10px);
 }
 
+.paths-legend {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(218, 165, 32, 0.3);
+}
+
+.path-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.path-line {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.military-path {
+  background: linear-gradient(90deg, #dc143c, #ff6b6b);
+}
+
+.balanced-path {
+  background: linear-gradient(90deg, #daa520, #ffd700);
+}
+
+.economic-path {
+  background: linear-gradient(90deg, #32cd32, #98fb98);
+}
+
 .legend {
   display: flex;
   gap: 1.5rem;
@@ -1056,6 +831,15 @@ onMounted(() => {
 
   .legend {
     gap: 1rem;
+  }
+
+  .paths-legend {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .path-indicator {
+    justify-content: space-between;
   }
 
   .map-footer {
