@@ -140,6 +140,12 @@ const getPathType = (col: number): 'military' | 'economic' | 'balanced' => {
   return 'balanced' // Centre/Convergence = Équilibré
 }
 
+// Vérifier si une connexion entre deux colonnes est interdite
+const isForbiddenConnection = (sourceCol: number, targetCol: number): boolean => {
+  // Interdire les connexions directes entre extrême gauche (col 0) et extrême droite (col 4)
+  return (sourceCol === 0 && targetCol === 4) || (sourceCol === 4 && targetCol === 0)
+}
+
 // Génération des récompenses selon le type de node
 const generateReward = (nodeType: keyof typeof nodeTypeConfig) => {
   switch (nodeType) {
@@ -261,9 +267,11 @@ const generateConnections = (layers: MapLayer[]) => {
         const targetNode = nextLayer.nodes.find((n) => n.col === 2) || nextLayer.nodes[0]
         node.connections.push(targetNode.id)
 
-        // Parfois connexion croisée (20% de chance)
+        // Parfois connexion croisée (20% de chance) - mais pas entre extrêmes
         if (Math.random() < 0.2 && nextLayer.nodes.length > 1) {
-          const crossNode = nextLayer.nodes.find((n) => n.col !== 2 && n.id !== targetNode.id)
+          const crossNode = nextLayer.nodes.find(
+            (n) => n.col !== 2 && n.id !== targetNode.id && !isForbiddenConnection(node.col, n.col), // Vérifier les connexions interdites
+          )
           if (crossNode) {
             node.connections.push(crossNode.id)
           }
@@ -290,10 +298,13 @@ const connectToSamePath = (sourceNode: MapNode, nextLayer: MapLayer) => {
     sourceNode.connections.push(mainTarget.id)
   }
 
-  // Connexion croisée occasionnelle (30% de chance)
+  // Connexion croisée occasionnelle (30% de chance) - mais pas entre extrêmes
   if (Math.random() < 0.3) {
     const otherPathNodes = nextLayer.nodes.filter(
-      (n) => getPathType(n.col) !== sourcePath && !sourceNode.connections.includes(n.id),
+      (n) =>
+        getPathType(n.col) !== sourcePath &&
+        !sourceNode.connections.includes(n.id) &&
+        !isForbiddenConnection(sourceNode.col, n.col), // Vérifier les connexions interdites
     )
     if (otherPathNodes.length > 0) {
       const crossTarget = otherPathNodes[Math.floor(Math.random() * otherPathNodes.length)]
@@ -308,16 +319,67 @@ const ensureAllNodesAccessible = (currentLayer: MapLayer, nextLayer: MapLayer) =
     const hasConnection = currentLayer.nodes.some((node) => node.connections.includes(nextNode.id))
 
     if (!hasConnection && currentLayer.nodes.length > 0) {
-      // Connecter le node le plus proche
-      const nearestNode = currentLayer.nodes.reduce((nearest, current) =>
-        Math.abs(current.col - nextNode.col) < Math.abs(nearest.col - nextNode.col)
-          ? current
-          : nearest,
+      // Trouver les nodes qui peuvent se connecter (en respectant la règle des extrêmes)
+      const validSources = currentLayer.nodes.filter(
+        (node) => !isForbiddenConnection(node.col, nextNode.col),
       )
-      nearestNode.connections.push(nextNode.id)
+
+      if (validSources.length > 0) {
+        // Connecter le node valide le plus proche
+        const nearestNode = validSources.reduce((nearest, current) =>
+          Math.abs(current.col - nextNode.col) < Math.abs(nearest.col - nextNode.col)
+            ? current
+            : nearest,
+        )
+        nearestNode.connections.push(nextNode.id)
+      } else {
+        // Si aucune connexion valide n'est possible, forcer une connexion via le centre
+        const centerNode = currentLayer.nodes.find((n) => n.col === 2)
+        if (centerNode) {
+          centerNode.connections.push(nextNode.id)
+        } else {
+          // En dernier recours, connecter au premier node disponible
+          currentLayer.nodes[0].connections.push(nextNode.id)
+        }
+      }
     }
   })
 }
+
+// Valider qu'une map respecte la règle des connexions interdites
+export const validateMapConnections = (layers: MapLayer[]): boolean => {
+  for (const layer of layers) {
+    for (const node of layer.nodes) {
+      for (const connectionId of node.connections) {
+        // Trouver le node connecté
+        const targetNode = layers.flatMap((l) => l.nodes).find((n) => n.id === connectionId)
+
+        if (targetNode && isForbiddenConnection(node.col, targetNode.col)) {
+          console.warn(
+            `Connexion interdite détectée: node ${node.id} (col ${node.col}) -> node ${targetNode.id} (col ${targetNode.col})`,
+          )
+          return false
+        }
+      }
+    }
+  }
+  return true
+}
+
+/* 
+  Exemple d'utilisation pour tester :
+  
+  const map = generateMap()
+  const isValid = validateMapConnections(map)
+  console.log('Map valide:', isValid)
+  
+  // Afficher toutes les connexions pour vérification
+  map.forEach(layer => {
+    layer.nodes.forEach(node => {
+      console.log(`Node ${node.id} (col ${node.col}) -> [${node.connections.join(', ')}]`)
+    })
+  })
+*/
 
 // Export des configurations pour utilisation dans les composants
 export { nodeTypeConfig, getPathType }
