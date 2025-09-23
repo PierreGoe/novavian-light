@@ -265,13 +265,15 @@ const handleNodeAction = (node: MapNode) => {
       // Simulation d'un combat
       setTimeout(() => {
         toastStore.showSuccess(
-          `Victoire contre ${node.title}! Récompense: ${node.reward?.type} ${node.reward?.amount || ''}`,
+          `Victoire contre ${node.title}! Récompense: ${node.reward?.type} ${node.reward?.amount || node.reward?.name || ''}`,
           { duration: 5000 },
         )
         if (node.reward?.type === 'gold') {
-          // Ajouter la récompense d'or aux ressources existantes
-          gameStore.gameState.resources.wood += node.reward.amount || 0 // Temporaire - en attendant l'ajout de l'or
-          gameStore.saveGame()
+          // Ajouter la récompense d'or à l'inventaire du joueur
+          gameStore.addGold(node.reward.amount || 0)
+        } else if (node.reward?.type === 'relic' && node.type === 'elite') {
+          // Donner un artefact aléatoire pour les combats élites
+          giveRandomArtifact()
         }
       }, 500)
       break
@@ -367,6 +369,59 @@ const getConnectionX = (connectionId: string) => {
 
 const goHome = () => {
   router.push('/')
+}
+
+// Fonction pour donner un artefact aléatoire
+const giveRandomArtifact = () => {
+  const randomArtifacts = [
+    {
+      id: `artifact-${Date.now()}`,
+      name: 'Amulette de Fortune',
+      type: 'accessory' as const,
+      icon: '🧿',
+      description: 'Une amulette qui améliore les gains économiques.',
+      effects: {
+        economy: 5,
+      },
+      rarity: 'rare' as const,
+      obtainedFrom: 'Victoire contre un champion élite',
+    },
+    {
+      id: `artifact-${Date.now()}-2`,
+      name: 'Anneau de Commandement',
+      type: 'accessory' as const,
+      icon: '💍',
+      description: 'Un anneau qui renforce le leadership militaire.',
+      effects: {
+        military: 4,
+        defense: 2,
+      },
+      rarity: 'rare' as const,
+      obtainedFrom: 'Victoire contre un champion élite',
+    },
+    {
+      id: `artifact-${Date.now()}-3`,
+      name: 'Relique Ancienne',
+      type: 'relic' as const,
+      icon: '🏺',
+      description: 'Un artefact mystérieux aux pouvoirs inconnus.',
+      effects: {
+        economy: 2,
+        military: 2,
+        defense: 2,
+      },
+      rarity: 'epic' as const,
+      obtainedFrom: 'Victoire contre un champion élite',
+    },
+  ]
+
+  const randomArtifact = randomArtifacts[Math.floor(Math.random() * randomArtifacts.length)]
+  gameStore.addArtifact(randomArtifact)
+
+  toastStore.showSuccess(
+    `Nouvel artefact obtenu: ${randomArtifact.name}! Consultez votre inventaire pour l'équiper.`,
+    { duration: 6000 },
+  )
 }
 
 onMounted(() => {

@@ -1,13 +1,13 @@
 <template>
-  <header class="resources-header">
+  <header class="resources-header" v-if="shouldShowResources">
     <div class="header-content">
       <!-- Logo/Titre du jeu -->
       <div class="game-logo">
-        <h1>MiniTravian</h1>
+        <h1>MiniTravian - Ressources</h1>
       </div>
 
       <!-- Ressources -->
-      <div class="resources-display" v-if="gameStore.gameState.isGameStarted">
+      <div class="resources-display">
         <div class="resource-item">
           <span class="resource-icon">🪵</span>
           <span class="resource-amount">{{
@@ -51,7 +51,7 @@
       </div>
 
       <!-- Race et actions -->
-      <div class="header-actions" v-if="gameStore.gameState.isGameStarted">
+      <div class="header-actions">
         <div class="race-badge">
           <span class="race-icon">{{ gameStore.gameState.race?.icon }}</span>
           <span class="race-name">{{ gameStore.gameState.race?.name }}</span>
@@ -64,9 +64,39 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 
+const route = useRoute()
 const gameStore = useGameStore()
+
+// Définir quand afficher les ressources de base (bois, pierre, fer, nourriture)
+const shouldShowResources = computed(() => {
+  if (!gameStore.gameState.isGameStarted) return false
+
+  // Afficher les ressources seulement dans certaines sections de jeu
+  const gameplayRoutes = ['/game', '/mission-tree']
+  const currentPath = route.path
+
+  // Vérifier si on est dans une route de gameplay actif
+  const isInGameplayRoute = gameplayRoutes.some((path) => currentPath.startsWith(path))
+
+  // Ou si on a une section de jeu active qui nécessite des ressources
+  const gameplaySections = [
+    'fortress-battle',
+    'fertile-conquest',
+    'mountain-control',
+    'trade-network',
+    'mining-operation',
+    'agricultural-boom',
+  ]
+  const hasActiveGameplaySection = gameplaySections.includes(
+    gameStore.gameState.currentGameSection || '',
+  )
+
+  return isInGameplayRoute || hasActiveGameplaySection
+})
 
 const formatNumber = (num: number): string => {
   if (num >= 1000000) {

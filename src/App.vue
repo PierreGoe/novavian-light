@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@/stores/gameStore'
 import ResourcesHeader from '@/components/ResourcesHeader.vue'
+import InventoryHeader from '@/components/InventoryHeader.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 
 const gameStore = useGameStore()
@@ -19,7 +20,12 @@ onUnmounted(() => {
 
 <template>
   <div id="app">
+    <!-- Barre d'inventaire - Toujours affichée -->
+    <InventoryHeader />
+
+    <!-- Barre de ressources - Seulement en mode jeu actif -->
     <ResourcesHeader />
+
     <RouterView />
     <ToastContainer />
   </div>
