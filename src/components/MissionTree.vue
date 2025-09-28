@@ -31,7 +31,6 @@
       <button class="reset-button" @click="resetMap" title="Nouvelle carte">🔄New Map</button>
     </header>
 
-
     <!-- Carte verticale -->
     <main class="map-container">
       <div class="map-layers" v-if="mapGenerated">
@@ -159,21 +158,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
-import { generateMap, nodeTypeConfig, type MapNode, type MapLayer } from '@/utils'
+import { generateMap, nodeTypeConfig, type MapNode } from '@/utils'
 
 const router = useRouter()
 const gameStore = useGameStore()
 const toastStore = useToastStore()
 
-// État de la map
-const mapLayers = ref<MapLayer[]>([])
-const currentPlayerRow = ref<number>(0)
-const selectedNodeId = ref<string>('')
-const mapGenerated = ref<boolean>(false)
+// Utiliser l'état de la carte depuis le gameStore
+const mapLayers = computed(() => gameStore.gameState.mapState.layers)
+const currentPlayerRow = computed(() => gameStore.gameState.mapState.currentPlayerRow)
+const selectedNodeId = computed(() => gameStore.gameState.mapState.selectedNodeId)
+const mapGenerated = computed(() => gameStore.gameState.mapState.mapGenerated)
 
 // Computed
 const progressPercentage = computed(() => {
@@ -195,17 +194,26 @@ const allNodes = computed(() => {
 
 // Méthodes de génération et initialisation
 const initializeMap = () => {
+  console.log('initializeMap called, mapGenerated:', mapGenerated.value)
+  
   if (!mapGenerated.value) {
-    mapLayers.value = generateMap()
+    console.log('Generating new map...')
+    const newMapLayers = generateMap()
+    
     // Rendre accessible le node unique de la première ligne
-    if (mapLayers.value.length > 0 && mapLayers.value[0].nodes.length > 0) {
-      const firstLayer = mapLayers.value[0]
+    if (newMapLayers.length > 0 && newMapLayers[0].nodes.length > 0) {
+      const firstLayer = newMapLayers[0]
       // Il n'y a qu'un seul node dans la première ligne (index 0)
       firstLayer.nodes[0].accessible = true
-      currentPlayerRow.value = 0
+      console.log('First node made accessible')
     }
-    mapGenerated.value = true
-    saveMapState()
+    
+    gameStore.setMapLayers(newMapLayers)
+    gameStore.setCurrentPlayerRow(0)
+    
+    console.log('Map initialized with', newMapLayers.length, 'layers')
+  } else {
+    console.log('Map already generated, skipping initialization')
   }
 }
 
@@ -214,9 +222,9 @@ const selectNode = (node: MapNode) => {
   if (!node.accessible || node.completed) return
 
   // Marquer le node comme complété et sélectionné
-  selectedNodeId.value = node.id
-  node.completed = true
-  currentPlayerRow.value = node.row
+  gameStore.setSelectedNodeId(node.id)
+  gameStore.updateNodeInMap(node.id, { completed: true })
+  gameStore.setCurrentPlayerRow(node.row)
 
   // IMPORTANT: Rendre inaccessibles tous les autres nodes de la même ligne
   // pour empêcher le joueur de revenir en arrière
@@ -224,7 +232,7 @@ const selectNode = (node: MapNode) => {
   if (currentLayer) {
     currentLayer.nodes.forEach((layerNode) => {
       if (layerNode.id !== node.id && !layerNode.completed) {
-        layerNode.accessible = false
+        gameStore.updateNodeInMap(layerNode.id, { accessible: false })
       }
     })
   }
@@ -233,11 +241,9 @@ const selectNode = (node: MapNode) => {
   node.connections.forEach((connectionId) => {
     const nextNode = allNodes.value.find((n) => n.id === connectionId)
     if (nextNode && !nextNode.completed) {
-      nextNode.accessible = true
+      gameStore.updateNodeInMap(connectionId, { accessible: true })
     }
   })
-
-  saveMapState()
 
   // Simuler le combat/événement
   handleNodeAction(node)
@@ -327,37 +333,36 @@ const handleNodeAction = (node: MapNode) => {
   }
 }
 
-// Sauvegarde et chargement
-const saveMapState = () => {
-  const mapData = {
-    layers: mapLayers.value,
-    currentRow: currentPlayerRow.value,
-    selectedNode: selectedNodeId.value,
-    generated: mapGenerated.value,
-  }
-  localStorage.setItem('minitravian-map-state', JSON.stringify(mapData))
-}
-
-const loadMapState = () => {
-  const saved = localStorage.getItem('minitravian-map-state')
-  if (saved) {
-    const mapData = JSON.parse(saved)
-    mapLayers.value = mapData.layers || []
-    currentPlayerRow.value = mapData.currentRow || 0
-    selectedNodeId.value = mapData.selectedNode || ''
-    mapGenerated.value = mapData.generated || false
-  }
-}
+// Note: La sauvegarde et le chargement sont maintenant gérés par le gameStore
 
 const resetMap = () => {
-  mapLayers.value = []
-  currentPlayerRow.value = 0
-  selectedNodeId.value = ''
-  mapGenerated.value = false
-  localStorage.removeItem('minitravian-map-state')
-  gameStore.resetGame()
-  initializeMap()
+  console.log('Réinitialisation de la carte...')
+
+  // Vérifier qu'une race est sélectionnée
+  if (!gameStore.gameState.race) {
+    toastStore.showError('Aucune race sélectionnée !', { duration: 2000 })
+    router.push('/race-selection')
+    return
+  }
+
+  console.log('Race actuelle:', gameStore.gameState.race.name)
+
+  // Reset la progression mais garde la race
+  gameStore.resetMapOnly()
+
+  // Attendre un peu pour que l'état soit bien mis à jour, puis régénérer
+  setTimeout(() => {
+    initializeMap()
+    toastStore.showSuccess('Nouvelle carte générée !', { duration: 2000 })
+  }, 200)
 }
+
+watch(
+  () => gameStore.gameState.mapState,
+  (newMapState) => {
+    console.log('Map state changed:', newMapState)
+  },
+)
 
 // Chemin parcouru par le joueur
 // Prochains nodes accessibles
@@ -442,7 +447,6 @@ const giveRandomArtifact = () => {
 onMounted(() => {
   // S'assurer que l'état du jeu est chargé avant d'initialiser la carte
   gameStore.loadGame()
-  loadMapState()
   initializeMap()
 })
 </script>

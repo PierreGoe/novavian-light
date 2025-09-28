@@ -60,6 +60,36 @@ export interface Building {
   position: { x: number; y: number }
 }
 
+export interface MapNode {
+  id: string
+  type: 'combat' | 'elite' | 'shop' | 'event' | 'rest' | 'boss'
+  title: string
+  description: string
+  icon: string
+  row: number
+  col: number
+  connections: string[] // IDs des nodes suivants connectés
+  completed: boolean
+  accessible: boolean
+  reward?: {
+    type: 'gold' | 'card' | 'relic' | 'leadership'
+    amount?: number
+    name?: string
+  }
+}
+
+export interface MapLayer {
+  row: number
+  nodes: MapNode[]
+}
+
+export interface MapState {
+  layers: MapLayer[]
+  currentPlayerRow: number
+  selectedNodeId: string
+  mapGenerated: boolean
+}
+
 export interface GameState {
   isGameStarted: boolean
   race: Race | null
@@ -69,12 +99,7 @@ export interface GameState {
   createdAt: string | null
   currentGameSection?: string
   isMissionStarted: boolean
-  mapState: {
-    layers: any[]
-    currentPlayerRow: number
-    selectedNodeId: string
-    mapGenerated: boolean
-  }
+  mapState: MapState
 }
 
 const createInitialState = (): GameState => ({
@@ -172,19 +197,23 @@ export const useGameStore = () => {
       gameState.inventory.equippedArtifacts[artifact.type] = artifact
     })
 
-    // Donner aussi un peu d'or supplémentaire et ajuster le leadership selon la race
-    gameState.inventory.gold += 25
+    // Partir des valeurs initiales à chaque fois
+    const initial = createInitialState()
+    gameState.inventory.gold = initial.inventory.gold + 25
 
     // Ajuster le leadership selon la race
     switch (selectedRace.id) {
       case 'romans':
-        gameState.inventory.leadership += 10 // Leadership discipliné
+        gameState.inventory.leadership = initial.inventory.leadership + 10 // Leadership discipliné
         break
       case 'gauls':
-        gameState.inventory.leadership += 5 // Leadership défensif, plus prudent
+        gameState.inventory.leadership = initial.inventory.leadership + 5 // Leadership défensif, plus prudent
         break
       case 'germans':
-        gameState.inventory.leadership -= 5 // Leadership plus risqué, basé sur la force
+        gameState.inventory.leadership = initial.inventory.leadership - 5 // Leadership plus risqué, basé sur la force
+        break
+      default:
+        gameState.inventory.leadership = initial.inventory.leadership
         break
     }
   }
@@ -221,6 +250,20 @@ export const useGameStore = () => {
           gameState.inventory.equippedArtifacts = gameData.inventory.equippedArtifacts || {}
         }
 
+        // État de la carte
+        if (gameData.mapState) {
+          gameState.mapState.layers = gameData.mapState.layers || []
+          gameState.mapState.currentPlayerRow =
+            gameData.mapState.currentPlayerRow ?? initialState.mapState.currentPlayerRow
+          gameState.mapState.selectedNodeId =
+            gameData.mapState.selectedNodeId ?? initialState.mapState.selectedNodeId
+          gameState.mapState.mapGenerated =
+            gameData.mapState.mapGenerated ?? initialState.mapState.mapGenerated
+        } else {
+          // Si pas de mapState sauvegardé, utiliser l'état initial
+          gameState.mapState = { ...initialState.mapState }
+        }
+
         gameState.createdAt = gameData.createdAt || null
         gameState.currentGameSection = gameData.currentGameSection
 
@@ -228,6 +271,8 @@ export const useGameStore = () => {
           gold: gameState.inventory.gold,
           leadership: gameState.inventory.leadership,
           isGameStarted: gameState.isGameStarted,
+          mapGenerated: gameState.mapState.mapGenerated,
+          layersCount: gameState.mapState.layers.length,
         })
 
         return true
@@ -240,26 +285,132 @@ export const useGameStore = () => {
   }
 
   const saveGame = () => {
-    const gameData = {
-      isGameStarted: gameState.isGameStarted,
-      race: gameState.race,
-      inventory: {
-        gold: gameState.inventory.gold,
-        leadership: gameState.inventory.leadership,
-        artifacts: [...gameState.inventory.artifacts],
-        equippedArtifacts: { ...gameState.inventory.equippedArtifacts },
-      },
-      createdAt: gameState.createdAt,
-      currentGameSection: gameState.currentGameSection,
-    }
+    try {
+      const gameData = {
+        isGameStarted: gameState.isGameStarted,
+        race: gameState.race,
+        inventory: {
+          gold: gameState.inventory.gold,
+          leadership: gameState.inventory.leadership,
+          artifacts: [...gameState.inventory.artifacts],
+          equippedArtifacts: { ...gameState.inventory.equippedArtifacts },
+        },
+        mapState: {
+          layers: gameState.mapState.layers.map((layer) => ({
+            ...layer,
+            nodes: layer.nodes.map((node) => ({ ...node })), // Clone profond des nœuds
+          })),
+          currentPlayerRow: gameState.mapState.currentPlayerRow,
+          selectedNodeId: gameState.mapState.selectedNodeId,
+          mapGenerated: gameState.mapState.mapGenerated,
+        },
+        createdAt: gameState.createdAt,
+        currentGameSection: gameState.currentGameSection,
+      }
 
-    localStorage.setItem('minitravian-save', JSON.stringify(gameData))
+      localStorage.setItem('minitravian-save', JSON.stringify(gameData))
+      console.log('Game saved with map state:', {
+        mapGenerated: gameData.mapState.mapGenerated,
+        layersCount: gameData.mapState.layers.length,
+        currentRow: gameData.mapState.currentPlayerRow,
+      })
+    } catch (error) {
+      console.error('Error saving game:', error)
+    }
   }
 
-  const resetGame = () => {
-    console.debug('Resetting game state to initial state', initialState, gameState)
+  // Reset complet - le joueur doit resélectionner une race
+  const resetGameCompletely = () => {
+    console.debug('Resetting game completely - player will select race again')
     Object.assign(gameState, createInitialState())
     localStorage.removeItem('minitravian-save')
+  }
+
+  // Reset de la progression - garde la race sélectionnée
+  const resetMapOnly = () => {
+    console.debug('Resetting map progress - keeping selected race')
+    if (!gameState.race) {
+      console.warn('No race selected, cannot reset map only')
+      return
+    }
+
+    const currentRace = gameState.race
+
+    // Sauvegarder la race actuelle
+    const raceToKeep = { ...currentRace }
+
+    console.log('Resetting with race:', raceToKeep.name)
+
+    // Réinitialiser chaque propriété individuellement pour maintenir la réactivité
+    const freshState = createInitialState()
+
+    // Réinitialiser l'inventaire
+    gameState.inventory.gold = freshState.inventory.gold
+    gameState.inventory.leadership = freshState.inventory.leadership
+    gameState.inventory.artifacts.length = 0 // Vider le tableau existant
+    Object.keys(gameState.inventory.equippedArtifacts).forEach((key) => {
+      delete gameState.inventory.equippedArtifacts[
+        key as keyof typeof gameState.inventory.equippedArtifacts
+      ]
+    })
+
+    // Réinitialiser l'état de la carte
+    gameState.mapState.layers.length = 0 // Vider le tableau existant
+    gameState.mapState.currentPlayerRow = freshState.mapState.currentPlayerRow
+    gameState.mapState.selectedNodeId = freshState.mapState.selectedNodeId
+    gameState.mapState.mapGenerated = freshState.mapState.mapGenerated
+
+    console.log(JSON.stringify(gameState.mapState))
+
+    // Remettre les autres propriétés
+    gameState.race = raceToKeep
+    gameState.isGameStarted = true
+    gameState.createdAt = new Date().toISOString()
+    gameState.currentGameSection = freshState.currentGameSection
+    gameState.isMissionStarted = freshState.isMissionStarted
+
+    // Redonner les artefacts de démarrage
+    giveStartingArtifacts(raceToKeep)
+
+    // Force une mise à jour de l'interface
+    console.log('New gold value:', gameState.inventory.gold)
+    console.log('New leadership value:', gameState.inventory.leadership)
+
+    // Sauvegarder immédiatement
+    saveGame()
+
+    console.log('Map reset completed, race preserved:', raceToKeep.name)
+  }
+
+  // Fonctions pour la gestion de la carte
+  const setMapLayers = (layers: MapLayer[]) => {
+    gameState.mapState.layers = layers
+    gameState.mapState.mapGenerated = true
+    saveGame()
+  }
+
+  const setCurrentPlayerRow = (row: number) => {
+    gameState.mapState.currentPlayerRow = row
+    saveGame()
+  }
+
+  const setSelectedNodeId = (nodeId: string) => {
+    gameState.mapState.selectedNodeId = nodeId
+    saveGame()
+  }
+
+  const resetMapState = () => {
+    gameState.mapState = { ...createInitialState().mapState }
+    saveGame()
+  }
+
+  const updateNodeInMap = (nodeId: string, updates: Partial<MapNode>) => {
+    const allNodes = gameState.mapState.layers.flatMap((layer) => layer.nodes)
+    const node = allNodes.find((n) => n.id === nodeId)
+    if (node) {
+      Object.assign(node, updates)
+      saveGame()
+    }
   }
 
   // Auto-save périodique (toutes les 30 secondes)
@@ -317,8 +468,8 @@ export const useGameStore = () => {
 
   const triggerGameOver = () => {
     // Réinitialiser le jeu ou naviguer vers un écran de Game Over
-    // Pour l'instant, on va juste réinitialiser
-    resetGame()
+    // Pour l'instant, on va juste réinitialiser complètement
+    resetGameCompletely()
   }
 
   // Computed pour vérifier l'état du leadership
@@ -413,9 +564,17 @@ export const useGameStore = () => {
     startNewGame,
     loadGame,
     saveGame,
-    resetGame,
+    resetGameCompletely,
+    resetMapOnly,
     startAutoSave,
     stopAutoSave,
+
+    // Actions de carte
+    setMapLayers,
+    setCurrentPlayerRow,
+    setSelectedNodeId,
+    resetMapState,
+    updateNodeInMap,
 
     // Actions d'inventaire
     addGold,
