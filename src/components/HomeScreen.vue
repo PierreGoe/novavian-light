@@ -25,7 +25,7 @@
           <p>{{ gameStore.hasSavedGame.value ? 'Reprenez votre partie' : 'Aucune sauvegarde' }}</p>
         </div>
 
-        <div class="option-card settings" @click="showSettings">
+        <div class="option-card settings comming-soon" @click="showSettings">
           <div class="card-icon">⚙️</div>
           <h3>Paramètres</h3>
           <p>Configuration du jeu</p>
@@ -93,6 +93,25 @@ const showSettings = () => {
   color: #f4e4bc;
   position: relative;
   overflow: hidden;
+  margin: auto;
+}
+
+.comming-soon {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.6;
+}
+.comming-soon::after {
+  content: 'Bientôt';
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #daa520;
+  color: #1a0f08;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-weight: bold;
 }
 
 .background-overlay {

@@ -94,8 +94,8 @@
                           ? '🃏'
                           : node.reward.type === 'relic'
                             ? '💎'
-                            : node.reward.type === 'health'
-                              ? '❤️'
+                            : node.reward.type === 'leadership'
+                              ? '👑'
                               : '?'
                     }}
                   </span>
@@ -262,18 +262,33 @@ const handleNodeAction = (node: MapNode) => {
   switch (node.type) {
     case 'combat':
     case 'elite':
-      // Simulation d'un combat
+      // Simulation d'un combat avec risque/récompense
+      const combatSuccess = Math.random() > (node.type === 'elite' ? 0.2 : 0.1) // 80% succès combat normal, 90% élite
+
       setTimeout(() => {
-        toastStore.showSuccess(
-          `Victoire contre ${node.title}! Récompense: ${node.reward?.type} ${node.reward?.amount || node.reward?.name || ''}`,
-          { duration: 5000 },
-        )
-        if (node.reward?.type === 'gold') {
-          // Ajouter la récompense d'or à l'inventaire du joueur
-          gameStore.addGold(node.reward.amount || 0)
-        } else if (node.reward?.type === 'relic' && node.type === 'elite') {
-          // Donner un artefact aléatoire pour les combats élites
-          giveRandomArtifact()
+        if (combatSuccess) {
+          toastStore.showSuccess(
+            `Victoire contre ${node.title}! Récompense: ${node.reward?.type} ${node.reward?.amount || node.reward?.name || ''}`,
+            { duration: 5000 },
+          )
+
+          // Gain de leadership pour les victoires
+          const leadershipGain = node.type === 'elite' ? 5 : 2
+          gameStore.addLeadership(leadershipGain)
+
+          if (node.reward?.type === 'gold') {
+            gameStore.addGold(node.reward.amount || 0)
+          } else if (node.reward?.type === 'relic' && node.type === 'elite') {
+            giveRandomArtifact()
+          }
+        } else {
+          // Défaite - perte de leadership
+          const leadershipLoss = node.type === 'elite' ? 15 : 8
+          toastStore.showError(
+            `Défaite contre ${node.title}! Vous perdez ${leadershipLoss} points de leadership.`,
+            { duration: 6000 },
+          )
+          gameStore.loseLeadership(leadershipLoss)
         }
       }, 500)
       break
@@ -290,13 +305,24 @@ const handleNodeAction = (node: MapNode) => {
         `${node.title} - ${node.description} Récompense: ${node.reward?.type} ${node.reward?.name || node.reward?.amount || ''}`,
         { duration: 6000 },
       )
+      if (node.reward) {
+        if (node.reward.type === 'gold') {
+          gameStore.addGold(node.reward.amount || 0)
+        } else if (node.reward.type === 'relic') {
+          giveRandomArtifact()
+        }
+      }
+
       break
 
     case 'rest':
       toastStore.showSuccess(
-        `${node.title} - Vous récupérez ${node.reward?.amount || 0} points de vie.`,
+        `${node.title} - Vous regagnez ${node.reward?.amount || 0} points de leadership.`,
         { duration: 4000 },
       )
+      if (node.reward?.type === 'leadership') {
+        gameStore.addLeadership(node.reward.amount || 0)
+      }
       break
 
     case 'boss':

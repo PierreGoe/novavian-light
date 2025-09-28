@@ -43,6 +43,7 @@ export interface Artifact {
 
 export interface PlayerInventory {
   gold: number
+  leadership: number
   artifacts: Artifact[]
   equippedArtifacts: {
     weapon?: Artifact
@@ -61,6 +62,7 @@ export interface Building {
 
 export interface GameState {
   isGameStarted: boolean
+  
   race: Race | null
   resources: Resources
   inventory: PlayerInventory
@@ -82,6 +84,7 @@ const initialState: GameState = {
   },
   inventory: {
     gold: 50,
+    leadership: 100,
     artifacts: [],
     equippedArtifacts: {},
   },
@@ -175,8 +178,21 @@ export const useGameStore = () => {
       gameState.inventory.equippedArtifacts[artifact.type] = artifact
     })
 
-    // Donner aussi un peu d'or supplémentaire
+    // Donner aussi un peu d'or supplémentaire et ajuster le leadership selon la race
     gameState.inventory.gold += 25
+
+    // Ajuster le leadership selon la race
+    switch (selectedRace.id) {
+      case 'romans':
+        gameState.inventory.leadership += 10 // Leadership discipliné
+        break
+      case 'gauls':
+        gameState.inventory.leadership += 5 // Leadership défensif, plus prudent
+        break
+      case 'germans':
+        gameState.inventory.leadership -= 5 // Leadership plus risqué, basé sur la force
+        break
+    }
   }
 
   // Actions
@@ -212,6 +228,7 @@ export const useGameStore = () => {
       resources: { ...gameState.resources },
       inventory: {
         gold: gameState.inventory.gold,
+        leadership: gameState.inventory.leadership,
         artifacts: [...gameState.inventory.artifacts],
         equippedArtifacts: { ...gameState.inventory.equippedArtifacts },
       },
@@ -332,6 +349,50 @@ export const useGameStore = () => {
     return true
   }
 
+  // Fonctions de leadership
+  const addLeadership = (amount: number) => {
+    gameState.inventory.leadership += amount
+    // Limiter le leadership maximum à 200
+    if (gameState.inventory.leadership > 200) {
+      gameState.inventory.leadership = 200
+    }
+    saveGame()
+  }
+
+  const loseLeadership = (amount: number) => {
+    gameState.inventory.leadership -= amount
+    // Vérifier si le leadership tombe à 0 ou moins (Game Over)
+    if (gameState.inventory.leadership <= 0) {
+      gameState.inventory.leadership = 0
+      // Déclencher le Game Over
+      triggerGameOver()
+    }
+    saveGame()
+  }
+
+  const triggerGameOver = () => {
+    // Réinitialiser le jeu ou naviguer vers un écran de Game Over
+    // Pour l'instant, on va juste réinitialiser
+    resetGame()
+  }
+
+  // Computed pour vérifier l'état du leadership
+  const leadershipStatus = computed(() => {
+    const leadership = gameState.inventory.leadership
+    if (leadership >= 150)
+      return { level: 'excellent', color: '#22c55e', description: 'Leadership exceptionnel' }
+    if (leadership >= 100) return { level: 'good', color: '#3b82f6', description: 'Bon leadership' }
+    if (leadership >= 50)
+      return { level: 'average', color: '#f59e0b', description: 'Leadership moyen' }
+    if (leadership >= 25)
+      return { level: 'low', color: '#ef4444', description: 'Leadership faible' }
+    return {
+      level: 'critical',
+      color: '#dc2626',
+      description: 'Leadership critique - Risque de révolte !',
+    }
+  })
+
   const addArtifact = (artifact: Artifact) => {
     gameState.inventory.artifacts.push(artifact)
     saveGame()
@@ -419,6 +480,9 @@ export const useGameStore = () => {
     // Actions d'inventaire
     addGold,
     spendGold,
+    addLeadership,
+    loseLeadership,
+    leadershipStatus,
     addArtifact,
     equipArtifact,
     unequipArtifact,

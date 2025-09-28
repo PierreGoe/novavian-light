@@ -11,7 +11,7 @@ export interface MapNode {
   completed: boolean
   accessible: boolean
   reward?: {
-    type: 'gold' | 'card' | 'relic' | 'health'
+    type: 'gold' | 'card' | 'relic' | 'leadership'
     amount?: number
     name?: string
   }
@@ -158,7 +158,7 @@ const generateReward = (nodeType: keyof typeof nodeTypeConfig) => {
         ? { type: 'card' as const, name: 'Carte mystique' }
         : { type: 'gold' as const, amount: Math.floor(Math.random() * 100) + 50 }
     case 'rest':
-      return { type: 'health' as const, amount: 25 }
+      return { type: 'leadership' as const, amount: 15 }
     default:
       return undefined
   }
