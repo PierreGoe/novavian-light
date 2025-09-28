@@ -121,7 +121,6 @@ const createInitialState = (): GameState => ({
     mapGenerated: false,
   },
 })
-const initialState = createInitialState()
 
 // Store réactif avec clone profond
 const gameState = reactive<GameState>(createInitialState())
@@ -243,9 +242,8 @@ export const useGameStore = () => {
 
         // Inventaire avec gold et leadership
         if (gameData.inventory) {
-          gameState.inventory.gold = gameData.inventory.gold ?? initialState.inventory.gold
-          gameState.inventory.leadership =
-            gameData.inventory.leadership ?? initialState.inventory.leadership
+          gameState.inventory.gold = gameData.inventory.gold || 0
+          gameState.inventory.leadership = gameData.inventory.leadership || 100
           gameState.inventory.artifacts = gameData.inventory.artifacts || []
           gameState.inventory.equippedArtifacts = gameData.inventory.equippedArtifacts || {}
         }
@@ -253,15 +251,12 @@ export const useGameStore = () => {
         // État de la carte
         if (gameData.mapState) {
           gameState.mapState.layers = gameData.mapState.layers || []
-          gameState.mapState.currentPlayerRow =
-            gameData.mapState.currentPlayerRow ?? initialState.mapState.currentPlayerRow
-          gameState.mapState.selectedNodeId =
-            gameData.mapState.selectedNodeId ?? initialState.mapState.selectedNodeId
-          gameState.mapState.mapGenerated =
-            gameData.mapState.mapGenerated ?? initialState.mapState.mapGenerated
+          gameState.mapState.currentPlayerRow = gameData.mapState.currentPlayerRow ?? 0
+          gameState.mapState.selectedNodeId = gameData.mapState.selectedNodeId ?? null
+          gameState.mapState.mapGenerated = gameData.mapState.mapGenerated ?? false
         } else {
           // Si pas de mapState sauvegardé, utiliser l'état initial
-          gameState.mapState = { ...initialState.mapState }
+          gameState.mapState =  { ...createInitialState().mapState }
         }
 
         gameState.createdAt = gameData.createdAt || null

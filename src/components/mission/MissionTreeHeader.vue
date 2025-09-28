@@ -331,5 +331,5 @@ if (typeof window !== 'undefined') {
 </script>
 
 <style scoped lang="scss">
-@use '../styles/components/missionTreeHeader.scss';
+@use '../../styles/components/MissionTreeHeader.scss' as *;
 </style>

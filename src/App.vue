@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@/stores/gameStore'
 import InventoryHeader from '@/components/mission/MissionTreeHeader.vue'
-import ToastContainer from '@/components/gloabals/ToastContainer.vue'
+import ToastContainer from '@/components/globals/ToastContainer.vue'
 
 const gameStore = useGameStore()
 
