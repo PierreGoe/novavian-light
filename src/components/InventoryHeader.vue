@@ -3,7 +3,9 @@
     <div class="header-content">
       <!-- Logo/Titre du jeu pour contexte non-jeu -->
       <div class="game-logo" v-if="!gameStore.gameState.isGameStarted">
-        <h1>MiniTravian</h1>
+        <h1>
+          <a href="/mission-tree" style="color: inherit; text-decoration: none">MiniTravian</a>
+        </h1>
       </div>
 
       <!-- Inventaire du joueur -->
@@ -100,13 +102,10 @@
         :key="floating.id"
         :data-floating-id="floating.id"
         class="floating-number"
-        :class="[
-          floating.isPositive ? 'positive' : 'negative',
-          `floating-${floating.type}`
-        ]"
+        :class="[floating.isPositive ? 'positive' : 'negative', `floating-${floating.type}`]"
         :style="{
           left: floating.x + 'px',
-          top: floating.y + 'px'
+          top: floating.y + 'px',
         }"
       >
         {{ floating.isPositive ? '+' : '-' }}{{ floating.amount }}
@@ -139,7 +138,7 @@ interface FloatingNumber {
 const floatingNumbers = ref<FloatingNumber[]>([])
 let animationId = 0
 
-// Surveillez les changements d'or et de leadership  
+// Surveillez les changements d'or et de leadership
 const previousGold = ref(gameStore.gameState.inventory.gold)
 const previousLeadership = ref(gameStore.gameState.inventory.leadership)
 
@@ -212,39 +211,44 @@ const getLeadershipTooltip = (): string => {
 }
 
 // Fonctions d'animation des chiffres flottants
-const createFloatingNumber = (amount: number, type: 'gold' | 'leadership', element: HTMLElement) => {
+const createFloatingNumber = (
+  amount: number,
+  type: 'gold' | 'leadership',
+  element: HTMLElement,
+) => {
   const rect = element.getBoundingClientRect()
   const isPositive = amount > 0
-  
+
   const floating: FloatingNumber = {
     id: `floating-${++animationId}`,
     amount: Math.abs(amount),
     type,
     isPositive,
     x: rect.left + rect.width / 2,
-    y: rect.top + rect.height / 2
+    y: rect.top + rect.height / 2,
   }
-  
+
   floatingNumbers.value.push(floating)
-  
+
   // Ajouter une classe CSS pour les gros changements
   nextTick(() => {
     const floatingElement = document.querySelector(`[data-floating-id="${floating.id}"]`)
     if (floatingElement) {
       // Considérer comme "gros changement" : or >= 50, leadership >= 20
-      const isBigChange = (type === 'gold' && Math.abs(amount) >= 50) || 
-                          (type === 'leadership' && Math.abs(amount) >= 20)
-      
+      const isBigChange =
+        (type === 'gold' && Math.abs(amount) >= 50) ||
+        (type === 'leadership' && Math.abs(amount) >= 20)
+
       if (isBigChange) {
         floatingElement.classList.add('big-change')
       }
     }
   })
-  
+
   // Supprimer l'animation après 2.5 secondes
   const timeout = Math.abs(amount) >= 50 ? 2500 : 2000
   setTimeout(() => {
-    const index = floatingNumbers.value.findIndex(f => f.id === floating.id)
+    const index = floatingNumbers.value.findIndex((f) => f.id === floating.id)
     if (index > -1) {
       floatingNumbers.value.splice(index, 1)
     }
@@ -265,7 +269,7 @@ watch(
       })
       previousGold.value = newGold
     }
-  }
+  },
 )
 
 watch(
@@ -281,7 +285,7 @@ watch(
       })
       previousLeadership.value = newLeadership
     }
-  }
+  },
 )
 
 const openInventoryModal = () => {
@@ -293,12 +297,12 @@ const openInventoryModal = () => {
 const testAnimations = () => {
   // Tester gain d'or
   gameStore.addGold(25)
-  
+
   setTimeout(() => {
     // Tester perte de leadership
     gameStore.loseLeadership(10)
   }, 500)
-  
+
   setTimeout(() => {
     // Tester gros gain
     gameStore.addGold(100)

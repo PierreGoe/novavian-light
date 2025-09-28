@@ -62,26 +62,20 @@ export interface Building {
 
 export interface GameState {
   isGameStarted: boolean
-  
   race: Race | null
-  resources: Resources
+
   inventory: PlayerInventory
   buildings: Building[]
   population: number
   createdAt: string | null
   currentGameSection?: string
+  isMissionStarted: boolean
 }
 
 // État initial du jeu
 const initialState: GameState = {
   isGameStarted: false,
   race: null,
-  resources: {
-    wood: 100,
-    stone: 100,
-    iron: 50,
-    food: 100,
-  },
   inventory: {
     gold: 50,
     leadership: 100,
@@ -92,6 +86,7 @@ const initialState: GameState = {
   population: 10,
   createdAt: null,
   currentGameSection: undefined,
+  isMissionStarted: false,
 }
 
 // Store réactif
@@ -106,15 +101,6 @@ export const useGameStore = () => {
   })
 
   const isRaceSelected = computed(() => !!gameState.race)
-
-  const totalResources = computed(() => {
-    return (
-      gameState.resources.wood +
-      gameState.resources.stone +
-      gameState.resources.iron +
-      gameState.resources.food
-    )
-  })
 
   // Fonctions utilitaires
   const giveStartingArtifacts = (selectedRace: Race) => {
@@ -201,9 +187,6 @@ export const useGameStore = () => {
     gameState.isGameStarted = true
     gameState.createdAt = new Date().toISOString()
 
-    // Appliquer les bonus de race aux ressources initiales
-    applyRaceBonuses()
-
     // Donner des artefacts de démarrage selon la race
     giveStartingArtifacts(selectedRace)
 
@@ -214,9 +197,39 @@ export const useGameStore = () => {
   const loadGame = () => {
     const savedGame = localStorage.getItem('minitravian-save')
     if (savedGame) {
-      const gameData = JSON.parse(savedGame)
-      Object.assign(gameState, gameData)
-      return true
+      try {
+        const gameData = JSON.parse(savedGame)
+
+        // Charger chaque propriété individuellement pour s'assurer de la réactivité
+        gameState.isGameStarted = gameData.isGameStarted ?? false
+        gameState.race = gameData.race || null
+
+        // Inventaire avec gold et leadership
+        if (gameData.inventory) {
+          gameState.inventory.gold = gameData.inventory.gold ?? initialState.inventory.gold
+          gameState.inventory.leadership =
+            gameData.inventory.leadership ?? initialState.inventory.leadership
+          gameState.inventory.artifacts = gameData.inventory.artifacts || []
+          gameState.inventory.equippedArtifacts = gameData.inventory.equippedArtifacts || {}
+        }
+
+        // Autres propriétés
+        gameState.buildings = gameData.buildings || []
+        gameState.population = gameData.population ?? initialState.population
+        gameState.createdAt = gameData.createdAt || null
+        gameState.currentGameSection = gameData.currentGameSection
+
+        console.log('Game loaded successfully:', {
+          gold: gameState.inventory.gold,
+          leadership: gameState.inventory.leadership,
+          isGameStarted: gameState.isGameStarted,
+        })
+
+        return true
+      } catch (error) {
+        console.error('Error loading game:', error)
+        return false
+      }
     }
     return false
   }
@@ -225,7 +238,6 @@ export const useGameStore = () => {
     const gameData = {
       isGameStarted: gameState.isGameStarted,
       race: gameState.race,
-      resources: { ...gameState.resources },
       inventory: {
         gold: gameState.inventory.gold,
         leadership: gameState.inventory.leadership,
@@ -237,38 +249,13 @@ export const useGameStore = () => {
       createdAt: gameState.createdAt,
       currentGameSection: gameState.currentGameSection,
     }
+
     localStorage.setItem('minitravian-save', JSON.stringify(gameData))
   }
 
   const resetGame = () => {
     Object.assign(gameState, initialState)
     localStorage.removeItem('minitravian-save')
-  }
-
-  const addResources = (resources: Partial<Resources>) => {
-    if (resources.wood) gameState.resources.wood += resources.wood
-    if (resources.stone) gameState.resources.stone += resources.stone
-    if (resources.iron) gameState.resources.iron += resources.iron
-    if (resources.food) gameState.resources.food += resources.food
-
-    saveGame()
-  }
-
-  const spendResources = (resources: Partial<Resources>): boolean => {
-    // Vérifier si on a assez de ressources
-    if (resources.wood && gameState.resources.wood < resources.wood) return false
-    if (resources.stone && gameState.resources.stone < resources.stone) return false
-    if (resources.iron && gameState.resources.iron < resources.iron) return false
-    if (resources.food && gameState.resources.food < resources.food) return false
-
-    // Dépenser les ressources
-    if (resources.wood) gameState.resources.wood -= resources.wood
-    if (resources.stone) gameState.resources.stone -= resources.stone
-    if (resources.iron) gameState.resources.iron -= resources.iron
-    if (resources.food) gameState.resources.food -= resources.food
-
-    saveGame()
-    return true
   }
 
   const addBuilding = (building: Building) => {
@@ -284,39 +271,6 @@ export const useGameStore = () => {
     }
   }
 
-  const applyRaceBonuses = () => {
-    if (!gameState.race) return
-
-    // Appliquer les bonus de départ selon la race
-    switch (gameState.race.id) {
-      case 'romans':
-        // +25% vitesse de construction (bonus ressources pour simuler)
-        // Équilibrés avec bonus léger sur toutes les ressources
-        gameState.resources.wood = Math.floor(gameState.resources.wood * 1.15)
-        gameState.resources.stone = Math.floor(gameState.resources.stone * 1.2)
-        gameState.resources.iron = Math.floor(gameState.resources.iron * 1.15)
-        gameState.resources.food = Math.floor(gameState.resources.food * 1.1)
-        break
-      case 'gauls':
-        // Focus défensif: plus de pierre et fer pour les fortifications
-        gameState.resources.stone = Math.floor(gameState.resources.stone * 1.3)
-        gameState.resources.iron = Math.floor(gameState.resources.iron * 1.2)
-        gameState.resources.wood = Math.floor(gameState.resources.wood * 1.1)
-        // Bonus population défensive
-        gameState.population += 3
-        break
-      case 'germans':
-        // Focus offensif: moins de ressources mais plus de population militaire
-        gameState.resources.wood = Math.floor(gameState.resources.wood * 0.9)
-        gameState.resources.stone = Math.floor(gameState.resources.stone * 0.8)
-        gameState.resources.iron = Math.floor(gameState.resources.iron * 1.1)
-        gameState.resources.food = Math.floor(gameState.resources.food * 0.9)
-        // Plus de population pour les raids
-        gameState.population += 7
-        break
-    }
-  }
-
   // Auto-save périodique (toutes les 30 secondes)
   let autoSaveInterval: number | null = null
 
@@ -326,7 +280,7 @@ export const useGameStore = () => {
       if (gameState.isGameStarted) {
         saveGame()
       }
-    }, 30000) // 30 secondes
+    }, 5000) // 5 secondes
   }
 
   const stopAutoSave = () => {
@@ -461,7 +415,6 @@ export const useGameStore = () => {
     // Getters
     hasSavedGame,
     isRaceSelected,
-    totalResources,
     getEquippedArtifacts,
     getTotalArtifactEffects,
 
@@ -470,8 +423,6 @@ export const useGameStore = () => {
     loadGame,
     saveGame,
     resetGame,
-    addResources,
-    spendResources,
     addBuilding,
     upgradeBuilding,
     startAutoSave,

@@ -262,35 +262,38 @@ const handleNodeAction = (node: MapNode) => {
   switch (node.type) {
     case 'combat':
     case 'elite':
-      // Simulation d'un combat avec risque/récompense
-      const combatSuccess = Math.random() > (node.type === 'elite' ? 0.2 : 0.1) // 80% succès combat normal, 90% élite
+      // Naviguer vers la vue de missions/combat au lieu de simuler ici
+      toastStore.showInfo(`Préparation du combat contre ${node.title}...`, { duration: 2000 })
 
-      setTimeout(() => {
-        if (combatSuccess) {
-          toastStore.showSuccess(
-            `Victoire contre ${node.title}! Récompense: ${node.reward?.type} ${node.reward?.amount || node.reward?.name || ''}`,
-            { duration: 5000 },
-          )
+      // Créer une mission basée sur le node
+      const mission = {
+        id: `mission-${node.id}`,
+        name: node.title,
+        type: 'combat' as const,
+        difficulty: node.type === 'elite' ? ('elite' as const) : ('medium' as const),
+        enemy: {
+          name: node.title,
+          units: [], // TODO: Définir les unités ennemies
+        },
+        rewards: {
+          gold: node.reward?.type === 'gold' ? node.reward.amount : undefined,
+          resources:
+            node.type === 'elite'
+              ? { wood: 100, clay: 80, iron: 120, crop: 60 }
+              : { wood: 50, clay: 40, iron: 60, crop: 30 },
+        },
+        isActive: false,
+        isCompleted: false,
+      }
 
-          // Gain de leadership pour les victoires
-          const leadershipGain = node.type === 'elite' ? 5 : 2
-          gameStore.addLeadership(leadershipGain)
+      // Importer le missionStore dynamiquement
+      import('@/stores/missionStore').then(({ useMissionStore }) => {
+        const missionStore = useMissionStore()
+        missionStore.startMission(mission)
 
-          if (node.reward?.type === 'gold') {
-            gameStore.addGold(node.reward.amount || 0)
-          } else if (node.reward?.type === 'relic' && node.type === 'elite') {
-            giveRandomArtifact()
-          }
-        } else {
-          // Défaite - perte de leadership
-          const leadershipLoss = node.type === 'elite' ? 15 : 8
-          toastStore.showError(
-            `Défaite contre ${node.title}! Vous perdez ${leadershipLoss} points de leadership.`,
-            { duration: 6000 },
-          )
-          gameStore.loseLeadership(leadershipLoss)
-        }
-      }, 500)
+        // Naviguer vers la vue de missions
+        router.push('/missions-game')
+      })
       break
 
     case 'shop':
@@ -367,6 +370,7 @@ const resetMap = () => {
   selectedNodeId.value = ''
   mapGenerated.value = false
   localStorage.removeItem('minitravian-map-state')
+  gameStore.resetGame()
   initializeMap()
 }
 
@@ -451,6 +455,8 @@ const giveRandomArtifact = () => {
 }
 
 onMounted(() => {
+  // S'assurer que l'état du jeu est chargé avant d'initialiser la carte
+  gameStore.loadGame()
   loadMapState()
   initializeMap()
 })

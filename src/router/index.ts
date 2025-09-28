@@ -32,6 +32,11 @@ const router = createRouter({
       component: () => import('@/components/GameScreen.vue'),
       props: true,
     },
+    {
+      path: '/missions-game',
+      name: 'missions-game',
+      component: () => import('@/components/MissionsGameView.vue'),
+    },
   ],
 })
 
