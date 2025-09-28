@@ -210,9 +210,6 @@ export const useGameStore = () => {
           gameState.inventory.equippedArtifacts = gameData.inventory.equippedArtifacts || {}
         }
 
-        // Autres propriétés
-        gameState.buildings = gameData.buildings || []
-        gameState.population = gameData.population ?? initialState.population
         gameState.createdAt = gameData.createdAt || null
         gameState.currentGameSection = gameData.currentGameSection
 
@@ -241,8 +238,6 @@ export const useGameStore = () => {
         artifacts: [...gameState.inventory.artifacts],
         equippedArtifacts: { ...gameState.inventory.equippedArtifacts },
       },
-      buildings: [...gameState.buildings],
-      population: gameState.population,
       createdAt: gameState.createdAt,
       currentGameSection: gameState.currentGameSection,
     }
@@ -254,19 +249,6 @@ export const useGameStore = () => {
     console.debug('Resetting game state to initial state')
     Object.assign(gameState, initialState)
     localStorage.removeItem('minitravian-save')
-  }
-
-  const addBuilding = (building: Building) => {
-    gameState.buildings.push(building)
-    saveGame()
-  }
-
-  const upgradeBuilding = (buildingId: string) => {
-    const building = gameState.buildings.find((b) => b.id === buildingId)
-    if (building) {
-      building.level += 1
-      saveGame()
-    }
   }
 
   // Auto-save périodique (toutes les 30 secondes)
@@ -421,8 +403,6 @@ export const useGameStore = () => {
     loadGame,
     saveGame,
     resetGame,
-    addBuilding,
-    upgradeBuilding,
     startAutoSave,
     stopAutoSave,
 

@@ -126,12 +126,13 @@
 import { computed, ref, watch, nextTick } from 'vue'
 import { useGameStore, type Artifact } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
+import router from '@/router'
 
 const gameStore = useGameStore()
 const toastStore = useToastStore()
 
 const returnToMainMenu = () => {
-  window.location.href = '/' // Redirection vers la page d'accueil
+  router.push('/')
 }
 
 // Animation des chiffres flottants
