@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeScreen from '@/components/HomeScreen.vue'
 import RaceSelector from '@/components/RaceSelector.vue'
 import MissionTree from '@/components/MissionTree.vue'
+import CampaignView from '@/components/CampaignView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -21,21 +22,11 @@ const router = createRouter({
       name: 'mission-tree',
       component: MissionTree,
     },
+
     {
-      path: '/game',
-      name: 'game',
-      component: () => import('@/components/GameScreen.vue'),
-    },
-    {
-      path: '/game/:section',
-      name: 'game-section',
-      component: () => import('@/components/GameScreen.vue'),
-      props: true,
-    },
-    {
-      path: '/missions-game',
-      name: 'missions-game',
-      component: () => import('@/components/MissionsGameView.vue'),
+      path: '/campaign',
+      name: 'campaign',
+      component: CampaignView,
     },
   ],
 })

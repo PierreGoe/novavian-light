@@ -55,6 +55,7 @@ onMounted(() => {
 const startNewGame = () => {
   // Naviguer vers la sélection de race
   router.push('/race-selection')
+  
 }
 
 const loadGame = () => {

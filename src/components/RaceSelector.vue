@@ -142,6 +142,9 @@ const goBack = () => {
 const confirmSelection = () => {
   if (!selectedRace.value) return
 
+  // Reset l'état du jeu avant de commencer une nouvelle partie
+  gameStore.resetGame()
+
   // Démarrer une nouvelle partie avec la race sélectionnée
   gameStore.startNewGame(selectedRace.value)
 

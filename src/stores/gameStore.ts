@@ -65,8 +65,7 @@ export interface GameState {
   race: Race | null
 
   inventory: PlayerInventory
-  buildings: Building[]
-  population: number
+
   createdAt: string | null
   currentGameSection?: string
   isMissionStarted: boolean
@@ -82,8 +81,6 @@ const initialState: GameState = {
     artifacts: [],
     equippedArtifacts: {},
   },
-  buildings: [],
-  population: 10,
   createdAt: null,
   currentGameSection: undefined,
   isMissionStarted: false,
@@ -254,6 +251,7 @@ export const useGameStore = () => {
   }
 
   const resetGame = () => {
+    console.debug('Resetting game state to initial state')
     Object.assign(gameState, initialState)
     localStorage.removeItem('minitravian-save')
   }

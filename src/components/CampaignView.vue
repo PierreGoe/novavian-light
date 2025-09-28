@@ -1,10 +1,10 @@
 <template>
-  <div class="missions-game">
+  <div class="campaign-view">
     <!-- En-tête avec informations de mission -->
-    <header class="mission-header">
-      <div class="mission-info">
+    <header class="campaign-header">
+      <div class="campaign-info">
         <h1>{{ missionName }}</h1>
-        <div class="mission-status">
+        <div class="campaign-status">
           <span
             v-if="missionDifficulty"
             class="difficulty-badge"
@@ -41,12 +41,12 @@
       </div>
 
       <div class="header-actions">
-        <button class="btn-exit" @click="exitMission">🏠 Retour aux missions</button>
+        <button class="btn-exit" @click="exitCampaign">🏠 Retour aux missions</button>
       </div>
     </header>
 
     <!-- Zone principale divisée en 2 parties -->
-    <main class="mission-content">
+    <main class="campaign-content">
       <!-- Vue de la ville (gauche) -->
       <section class="town-section">
         <TownView />
@@ -91,7 +91,7 @@ const missionDifficulty = computed(() => currentMission.value?.difficulty)
 const isInCombat = computed(() => currentMission.value?.isActive || false)
 
 // Actions
-const exitMission = () => {
+const exitCampaign = () => {
   missionStore.exitMission()
   router.push('/mission-tree')
 }
@@ -101,7 +101,7 @@ const win = () => {
   toastStore.showSuccess('Attaque réussie !', { duration: 2000 })
   missionStore.completeMission(true)
   setTimeout(() => {
-    exitMission()
+    exitCampaign()
   }, 1000)
 }
 
@@ -109,7 +109,7 @@ const lose = () => {
   toastStore.showError('Vous avez perdu le combat...', { duration: 2000 })
   missionStore.completeMission(false)
   setTimeout(() => {
-    exitMission()
+    exitCampaign()
   }, 1000)
 }
 
@@ -129,7 +129,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.missions-game {
+.campaign-view {
   min-height: 100vh;
   background: linear-gradient(135deg, #2c1810 0%, #1a0f08 100%);
   color: #f4e4bc;
@@ -137,7 +137,7 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-.mission-header {
+.campaign-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -147,14 +147,14 @@ onUnmounted(() => {
   backdrop-filter: blur(10px);
 }
 
-.mission-info h1 {
+.campaign-info h1 {
   font-size: 1.8rem;
   margin: 0;
   color: #daa520;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
 }
 
-.mission-status {
+.campaign-status {
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -244,7 +244,7 @@ onUnmounted(() => {
   border-color: #daa520;
 }
 
-.mission-content {
+.campaign-content {
   display: flex;
   flex: 1;
   gap: 2rem;
@@ -333,12 +333,12 @@ onUnmounted(() => {
 
 /* Responsive */
 @media (max-width: 1024px) {
-  .mission-content {
+  .campaign-content {
     flex-direction: column;
     gap: 1rem;
   }
 
-  .mission-header {
+  .campaign-header {
     flex-direction: column;
     gap: 1rem;
     padding: 1rem;

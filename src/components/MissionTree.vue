@@ -125,22 +125,6 @@
 
     <!-- Légende et contrôles -->
     <footer class="map-footer">
-      <!-- Légende des 3 voies -->
-      <div class="paths-legend">
-        <div class="path-indicator">
-          <div class="path-line military-path"></div>
-          <span>Voie Militaire</span>
-        </div>
-        <div class="path-indicator">
-          <div class="path-line balanced-path"></div>
-          <span>Voie Équilibrée</span>
-        </div>
-        <div class="path-indicator">
-          <div class="path-line economic-path"></div>
-          <span>Voie Économique</span>
-        </div>
-      </div>
-
       <div class="legend">
         <div class="legend-item">
           <span class="legend-icon" style="color: #dc143c">⚔️</span>
@@ -291,8 +275,8 @@ const handleNodeAction = (node: MapNode) => {
         const missionStore = useMissionStore()
         missionStore.startMission(mission)
 
-        // Naviguer vers la vue de missions
-        router.push('/missions-game')
+        // Naviguer vers la vue de campagne
+        router.push('/campaign')
       })
       break
 
