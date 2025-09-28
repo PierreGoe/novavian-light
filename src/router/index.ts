@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeScreen from '@/components/HomeScreen.vue'
-import RaceSelector from '@/components/RaceSelector.vue'
-import MissionTree from '@/components/MissionTree.vue'
-import CampaignView from '@/components/CampaignView.vue'
+import HomeScreen from '@/components/home/HomeScreen.vue'
+import RaceSelector from '@/components/home/RaceSelector.vue'
+import MissionTree from '@/components/mission/MissionTree.vue'
+import CampaignView from '@/components/campaign/CampaignView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
