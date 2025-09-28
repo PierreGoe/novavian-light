@@ -69,26 +69,37 @@ export interface GameState {
   createdAt: string | null
   currentGameSection?: string
   isMissionStarted: boolean
+  mapState: {
+    layers: any[]
+    currentPlayerRow: number
+    selectedNodeId: string
+    mapGenerated: boolean
+  }
 }
 
-// État initial du jeu
-const initialState: GameState = {
+const createInitialState = (): GameState => ({
   isGameStarted: false,
   race: null,
   inventory: {
     gold: 50,
     leadership: 100,
-    artifacts: [],
-    equippedArtifacts: {},
+    artifacts: [], // ← Nouveau tableau à chaque appel
+    equippedArtifacts: {}, // ← Nouvel objet à chaque appel
   },
   createdAt: null,
   currentGameSection: undefined,
   isMissionStarted: false,
-}
+  mapState: {
+    layers: [], // ← Nouveau tableau à chaque appel
+    currentPlayerRow: 0,
+    selectedNodeId: '',
+    mapGenerated: false,
+  },
+})
+const initialState = createInitialState()
 
-// Store réactif
-const gameState = reactive<GameState>({ ...initialState })
-
+// Store réactif avec clone profond
+const gameState = reactive<GameState>(createInitialState())
 // Actions du store
 export const useGameStore = () => {
   // Getters (computed)
@@ -246,8 +257,8 @@ export const useGameStore = () => {
   }
 
   const resetGame = () => {
-    console.debug('Resetting game state to initial state')
-    Object.assign(gameState, initialState)
+    console.debug('Resetting game state to initial state', initialState, gameState)
+    Object.assign(gameState, createInitialState())
     localStorage.removeItem('minitravian-save')
   }
 

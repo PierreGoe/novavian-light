@@ -28,8 +28,9 @@
         </div>
       </div>
 
-      <button class="reset-button" @click="resetMap" title="Nouvelle carte">🔄</button>
+      <button class="reset-button" @click="resetMap" title="Nouvelle carte">🔄New Map</button>
     </header>
+
 
     <!-- Carte verticale -->
     <main class="map-container">
