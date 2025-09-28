@@ -195,11 +195,11 @@ const allNodes = computed(() => {
 // Méthodes de génération et initialisation
 const initializeMap = () => {
   console.log('initializeMap called, mapGenerated:', mapGenerated.value)
-  
+
   if (!mapGenerated.value) {
     console.log('Generating new map...')
     const newMapLayers = generateMap()
-    
+
     // Rendre accessible le node unique de la première ligne
     if (newMapLayers.length > 0 && newMapLayers[0].nodes.length > 0) {
       const firstLayer = newMapLayers[0]
@@ -207,10 +207,10 @@ const initializeMap = () => {
       firstLayer.nodes[0].accessible = true
       console.log('First node made accessible')
     }
-    
+
     gameStore.setMapLayers(newMapLayers)
     gameStore.setCurrentPlayerRow(0)
-    
+
     console.log('Map initialized with', newMapLayers.length, 'layers')
   } else {
     console.log('Map already generated, skipping initialization')
