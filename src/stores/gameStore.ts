@@ -256,7 +256,7 @@ export const useGameStore = () => {
           gameState.mapState.mapGenerated = gameData.mapState.mapGenerated ?? false
         } else {
           // Si pas de mapState sauvegardé, utiliser l'état initial
-          gameState.mapState =  { ...createInitialState().mapState }
+          gameState.mapState = { ...createInitialState().mapState }
         }
 
         gameState.createdAt = gameData.createdAt || null
@@ -304,11 +304,6 @@ export const useGameStore = () => {
       }
 
       localStorage.setItem('minitravian-save', JSON.stringify(gameData))
-      console.log('Game saved with map state:', {
-        mapGenerated: gameData.mapState.mapGenerated,
-        layersCount: gameData.mapState.layers.length,
-        currentRow: gameData.mapState.currentPlayerRow,
-      })
     } catch (error) {
       console.error('Error saving game:', error)
     }

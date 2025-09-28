@@ -108,10 +108,12 @@
           top: floating.y + 'px',
         }"
       >
-        {{ floating.isPositive ? '+' : '-' }}{{ floating.amount }}
-        <span class="floating-icon">
-          {{ floating.type === 'gold' ? '💰' : '👑' }}
-        </span>
+        <div v-if="shouldShowFloatingNumber(floating)">
+          {{ floating.isPositive ? '+' : '-' }}{{ floating.amount }}
+          <span class="floating-icon">
+            {{ floating.type === 'gold' ? '💰' : '👑' }}
+          </span>
+        </div>
       </div>
     </div>
 
@@ -301,6 +303,14 @@ watch(
 const openInventoryModal = () => {
   // TODO: Implémenter la modal d'inventaire complète
   toastStore.showInfo('Inventaire complet - À implémenter prochainement!', { duration: 3000 })
+}
+
+// Affiche ou non le chiffre flottant selon la logique métier
+const shouldShowFloatingNumber = (floating: FloatingNumber): boolean => {
+  return (
+    (floating.type === 'gold' && floating.amount !== 75) ||
+    (floating.type === 'leadership' && floating.amount !== 115)
+  )
 }
 
 // Fonction de test pour les animations (à supprimer plus tard)
