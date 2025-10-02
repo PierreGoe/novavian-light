@@ -312,32 +312,6 @@ const shouldShowFloatingNumber = (floating: FloatingNumber): boolean => {
     (floating.type === 'leadership' && floating.amount !== 115)
   )
 }
-
-// Fonction de test pour les animations (à supprimer plus tard)
-const testAnimations = () => {
-  // Tester gain d'or
-  gameStore.addGold(25)
-
-  setTimeout(() => {
-    // Tester perte de leadership
-    gameStore.loseLeadership(10)
-  }, 500)
-
-  setTimeout(() => {
-    // Tester gros gain
-    gameStore.addGold(100)
-  }, 1000)
-}
-
-// Temporaire : ajouter un écouteur pour tester avec Ctrl+T
-if (typeof window !== 'undefined') {
-  document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === 't') {
-      e.preventDefault()
-      testAnimations()
-    }
-  })
-}
 </script>
 
 <style scoped lang="scss">
