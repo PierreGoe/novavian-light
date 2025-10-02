@@ -244,7 +244,7 @@ export const useGameStore = () => {
         // Inventaire avec gold et leadership
         if (gameData.inventory) {
           gameState.inventory.gold = gameData.inventory.gold || 0
-          gameState.inventory.leadership = gameData.inventory.leadership || 100
+          gameState.inventory.leadership = gameData.inventory.leadership ?? 100
           gameState.inventory.artifacts = gameData.inventory.artifacts || []
           gameState.inventory.equippedArtifacts = gameData.inventory.equippedArtifacts || {}
         }
