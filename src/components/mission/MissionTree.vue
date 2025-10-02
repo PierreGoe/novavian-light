@@ -162,7 +162,7 @@ import { computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
-import { generateMap, nodeTypeConfig, type MapNode } from '@/utils'
+import { nodeTypeConfig, type MapNode } from '@/utils'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -192,145 +192,16 @@ const allNodes = computed(() => {
   return nodes
 })
 
-// Méthodes de génération et initialisation
+// Méthodes de génération et initialisation (maintenant dans le store)
 const initializeMap = () => {
-  console.log('initializeMap called, mapGenerated:', mapGenerated.value)
-
-  if (!mapGenerated.value) {
-    console.log('Generating new map...')
-    const newMapLayers = generateMap()
-
-    // Rendre accessible le node unique de la première ligne
-    if (newMapLayers.length > 0 && newMapLayers[0].nodes.length > 0) {
-      const firstLayer = newMapLayers[0]
-      // Il n'y a qu'un seul node dans la première ligne (index 0)
-      firstLayer.nodes[0].accessible = true
-      console.log('First node made accessible')
-    }
-
-    gameStore.setMapLayers(newMapLayers)
-    gameStore.setCurrentPlayerRow(0)
-
-    console.log('Map initialized with', newMapLayers.length, 'layers')
-  } else {
-    console.log('Map already generated, skipping initialization')
-  }
+  gameStore.initializeMapIfNeeded()
 }
 
-// Navigation et sélection des nodes
+// Navigation et sélection des nodes (maintenant dans le store)
 const selectNode = (node: MapNode) => {
-  if (!node.accessible || node.completed) return
-
-  // Marquer le node comme complété et sélectionné
-  gameStore.setSelectedNodeId(node.id)
-  gameStore.updateNodeInMap(node.id, { completed: true })
-  gameStore.setCurrentPlayerRow(node.row)
-
-  // IMPORTANT: Rendre inaccessibles tous les autres nodes de la même ligne
-  // pour empêcher le joueur de revenir en arrière
-  const currentLayer = mapLayers.value.find((layer) => layer.row === node.row)
-  if (currentLayer) {
-    currentLayer.nodes.forEach((layerNode) => {
-      if (layerNode.id !== node.id && !layerNode.completed) {
-        gameStore.updateNodeInMap(layerNode.id, { accessible: false })
-      }
-    })
-  }
-
-  // Rendre accessibles UNIQUEMENT les nodes directement connectés à ce node
-  node.connections.forEach((connectionId) => {
-    const nextNode = allNodes.value.find((n) => n.id === connectionId)
-    if (nextNode && !nextNode.completed) {
-      gameStore.updateNodeInMap(connectionId, { accessible: true })
-    }
-  })
-
-  // Simuler le combat/événement
-  handleNodeAction(node)
-}
-
-const handleNodeAction = (node: MapNode) => {
-  switch (node.type) {
-    case 'combat':
-    case 'elite':
-      // Naviguer vers la vue de missions/combat au lieu de simuler ici
-      toastStore.showInfo(`Préparation du combat contre ${node.title}...`, { duration: 2000 })
-
-      // Créer une mission basée sur le node
-      const mission = {
-        id: `mission-${node.id}`,
-        name: node.title,
-        type: 'combat' as const,
-        difficulty: node.type === 'elite' ? ('elite' as const) : ('medium' as const),
-        enemy: {
-          name: node.title,
-          units: [], // TODO: Définir les unités ennemies
-        },
-        rewards: {
-          gold: node.reward?.type === 'gold' ? node.reward.amount : undefined,
-          resources:
-            node.type === 'elite'
-              ? { wood: 100, clay: 80, iron: 120, crop: 60 }
-              : { wood: 50, clay: 40, iron: 60, crop: 30 },
-        },
-        isActive: false,
-        isCompleted: false,
-      }
-
-      // Importer le missionStore dynamiquement
-      import('@/stores/missionStore').then(({ useMissionStore }) => {
-        const missionStore = useMissionStore()
-        missionStore.startMission(mission)
-
-        // Naviguer vers la vue de campagne
-        router.push('/campaign')
-      })
-      break
-
-    case 'shop':
-      toastStore.showInfo(
-        `${node.title} - Magasin ouvert! Vous pouvez acheter des améliorations.`,
-        { duration: 4000 },
-      )
-      break
-
-    case 'event':
-      toastStore.showInfo(
-        `${node.title} - ${node.description} Récompense: ${node.reward?.type} ${node.reward?.name || node.reward?.amount || ''}`,
-        { duration: 6000 },
-      )
-      if (node.reward) {
-        if (node.reward.type === 'gold') {
-          gameStore.addGold(node.reward.amount || 0)
-        } else if (node.reward.type === 'relic') {
-          giveRandomArtifact()
-        }
-      }
-
-      break
-
-    case 'rest':
-      toastStore.showSuccess(
-        `${node.title} - Vous regagnez ${node.reward?.amount || 0} points de leadership.`,
-        { duration: 4000 },
-      )
-      if (node.reward?.type === 'leadership') {
-        gameStore.addLeadership(node.reward.amount || 0)
-      }
-      break
-
-    case 'boss':
-      toastStore.showSuccess(`${node.title} - Bravo! Vous avez terminé cette carte!`, {
-        duration: 7000,
-      })
-      // Naviguer vers le jeu principal
-      gameStore.gameState.currentGameSection = 'completed-map'
-      gameStore.saveGame()
-      setTimeout(() => {
-        router.push('/game/victory')
-      }, 1000) // Petit délai pour laisser le temps de voir le toast
-      break
-  }
+  gameStore.selectMapNode(node)
+  // Déclencher l'action avec les dépendances UI
+  gameStore.handleMapNodeAction(node, router, toastStore)
 }
 
 // Note: La sauvegarde et le chargement sont maintenant gérés par le gameStore
@@ -352,7 +223,7 @@ const resetMap = () => {
 
   // Attendre un peu pour que l'état soit bien mis à jour, puis régénérer
   setTimeout(() => {
-    initializeMap()
+    gameStore.initializeMapIfNeeded()
     toastStore.showSuccess('Nouvelle carte générée !', { duration: 2000 })
   }, 200)
 }
@@ -389,59 +260,6 @@ const getConnectionX = (connectionId: string) => {
 
 const goHome = () => {
   router.push('/')
-}
-
-// Fonction pour donner un artefact aléatoire
-const giveRandomArtifact = () => {
-  const randomArtifacts = [
-    {
-      id: `artifact-${Date.now()}`,
-      name: 'Amulette de Fortune',
-      type: 'accessory' as const,
-      icon: '🧿',
-      description: 'Une amulette qui améliore les gains économiques.',
-      effects: {
-        economy: 5,
-      },
-      rarity: 'rare' as const,
-      obtainedFrom: 'Victoire contre un champion élite',
-    },
-    {
-      id: `artifact-${Date.now()}-2`,
-      name: 'Anneau de Commandement',
-      type: 'accessory' as const,
-      icon: '💍',
-      description: 'Un anneau qui renforce le leadership militaire.',
-      effects: {
-        military: 4,
-        defense: 2,
-      },
-      rarity: 'rare' as const,
-      obtainedFrom: 'Victoire contre un champion élite',
-    },
-    {
-      id: `artifact-${Date.now()}-3`,
-      name: 'Relique Ancienne',
-      type: 'relic' as const,
-      icon: '🏺',
-      description: 'Un artefact mystérieux aux pouvoirs inconnus.',
-      effects: {
-        economy: 2,
-        military: 2,
-        defense: 2,
-      },
-      rarity: 'epic' as const,
-      obtainedFrom: 'Victoire contre un champion élite',
-    },
-  ]
-
-  const randomArtifact = randomArtifacts[Math.floor(Math.random() * randomArtifacts.length)]
-  gameStore.addArtifact(randomArtifact)
-
-  toastStore.showSuccess(
-    `Nouvel artefact obtenu: ${randomArtifact.name}! Consultez votre inventaire pour l'équiper.`,
-    { duration: 6000 },
-  )
 }
 
 onMounted(() => {

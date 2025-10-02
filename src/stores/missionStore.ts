@@ -54,6 +54,11 @@ export interface Mission {
     gold?: number
     experience?: number
   }
+  losePenalty: {
+    gold?: number
+    leadership?: number
+  }
+  narrative?: string // Texte narratif pour la mission
   isActive: boolean
   isCompleted: boolean
 }
@@ -115,7 +120,7 @@ const initialState: MissionState = {
       },
     ],
     units: [],
-    population: 50,
+    population: 10,
   },
   lastUpdateTime: Date.now(),
 }
@@ -187,11 +192,16 @@ export const useMissionStore = () => {
   // Fonctions auxiliaires
   const getLeadershipReward = (difficulty: 'easy' | 'medium' | 'hard' | 'elite'): number => {
     switch (difficulty) {
-      case 'easy': return 5
-      case 'medium': return 10
-      case 'hard': return 15
-      case 'elite': return 25
-      default: return 5
+      case 'easy':
+        return 5
+      case 'medium':
+        return 10
+      case 'hard':
+        return 15
+      case 'elite':
+        return 25
+      default:
+        return 5
     }
   }
 
@@ -207,27 +217,43 @@ export const useMissionStore = () => {
     if (missionState.currentMission && success) {
       // Obtenir le gameStore pour les récompenses principales
       const gameStore = useGameStore()
-      
+
       // Ajouter les récompenses Travian (ressources mission)
       if (missionState.currentMission.rewards.resources) {
         addResources(missionState.currentMission.rewards.resources)
       }
-      
+
       // Ajouter les récompenses principales (or et leadership)
       if (missionState.currentMission.rewards.gold) {
         gameStore.addGold(missionState.currentMission.rewards.gold)
       }
-      
+
       // Ajouter du leadership basé sur la difficulté
       const leadershipReward = getLeadershipReward(missionState.currentMission.difficulty)
       gameStore.addLeadership(leadershipReward)
 
       missionState.currentMission.isCompleted = true
       missionState.currentMission.isActive = false
-      
+
+      //
+
       // Réinitialiser complètement l'état pour la prochaine partie (seulement en cas de succès)
       resetMissionState()
+    } else if (missionState.currentMission && !success) {
+      // En cas d'échec, appliquer les pénalités
+      const gameStore = useGameStore()
+      if (missionState.currentMission.losePenalty?.gold) {
+        gameStore.spendGold(missionState.currentMission.losePenalty.gold)
+      }
+      if (missionState.currentMission.losePenalty?.leadership) {
+        gameStore.addLeadership(-missionState.currentMission.losePenalty.leadership)
+      }
+
+      missionState.currentMission.isActive = false
+      missionState.currentMission.isCompleted = false
     }
+
+    // Réinitialiser complètement l'état pour la prochaine partie (seulement en cas de succès)
 
     missionState.isInMission = false
     missionState.currentMission = null

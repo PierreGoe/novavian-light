@@ -1,4 +1,5 @@
 import { reactive, computed } from 'vue'
+import { generateMap, nodeTypeConfig } from '@/utils'
 
 export interface Race {
   id: string
@@ -540,6 +541,237 @@ export const useGameStore = () => {
     return effects
   })
 
+  // ====== FONCTIONS DE GESTION DE CARTE ======
+
+  const initializeMapIfNeeded = () => {
+    console.log('initializeMapIfNeeded called, mapGenerated:', gameState.mapState.mapGenerated)
+
+    if (!gameState.mapState.mapGenerated) {
+      console.log('Generating new map...')
+      const newMapLayers = generateMap()
+
+      // Rendre accessible le node unique de la première ligne
+      if (newMapLayers.length > 0 && newMapLayers[0].nodes.length > 0) {
+        const firstLayer = newMapLayers[0]
+        // Il n'y a qu'un seul node dans la première ligne (index 0)
+        firstLayer.nodes[0].accessible = true
+        console.log('First node made accessible')
+      }
+
+      setMapLayers(newMapLayers)
+      setCurrentPlayerRow(0)
+      gameState.mapState.mapGenerated = true
+
+      console.log('Map initialized with', newMapLayers.length, 'layers')
+      saveGame()
+    } else {
+      console.log('Map already generated, skipping initialization')
+    }
+  }
+
+  const selectMapNode = (node: MapNode) => {
+    if (!node.accessible || node.completed) return
+
+    // Marquer le node comme complété et sélectionné
+    setSelectedNodeId(node.id)
+    updateNodeInMap(node.id, { completed: true })
+    setCurrentPlayerRow(node.row)
+
+    // IMPORTANT: Rendre inaccessibles tous les autres nodes de la même ligne
+    // pour empêcher le joueur de revenir en arrière
+    const currentLayer = gameState.mapState.layers.find((layer) => layer.row === node.row)
+    if (currentLayer) {
+      currentLayer.nodes.forEach((layerNode) => {
+        if (layerNode.id !== node.id && !layerNode.completed) {
+          updateNodeInMap(layerNode.id, { accessible: false })
+        }
+      })
+    }
+
+    // Rendre accessibles UNIQUEMENT les nodes directement connectés à ce node
+    const allNodes: MapNode[] = []
+    gameState.mapState.layers.forEach((layer) => {
+      allNodes.push(...layer.nodes)
+    })
+
+    node.connections.forEach((connectionId) => {
+      const nextNode = allNodes.find((n) => n.id === connectionId)
+      if (nextNode && !nextNode.completed) {
+        updateNodeInMap(connectionId, { accessible: true })
+      }
+    })
+
+    // Déclencher l'action du node
+    handleMapNodeAction(node)
+    saveGame()
+  }
+
+  const handleMapNodeAction = async (
+    node: MapNode,
+    router?: { push: (path: string) => void },
+    toastStore?: {
+      showInfo: (msg: string, opts?: any) => void
+      showSuccess: (msg: string, opts?: any) => void
+    },
+  ) => {
+    switch (node.type) {
+      case 'combat':
+      case 'elite':
+        // Naviguer vers la vue de missions/combat
+        if (toastStore) {
+          toastStore.showInfo(`Préparation du combat contre ${node.title}...`, { duration: 2000 })
+        }
+
+        // Créer une mission basée sur le node
+        const mission = {
+          id: `mission-${node.id}`,
+          name: node.title,
+          type: 'combat' as const,
+          difficulty: node.type === 'elite' ? ('elite' as const) : ('medium' as const),
+          enemy: {
+            name: node.title,
+            units: [], // TODO: Définir les unités ennemies
+          },
+          rewards: {
+            gold: node.reward?.type === 'gold' ? node.reward.amount : undefined,
+            resources:
+              node.type === 'elite'
+                ? { wood: 100, clay: 80, iron: 120, crop: 60 }
+                : { wood: 50, clay: 40, iron: 60, crop: 30 },
+          },
+          losePenalty: {
+            gold: 0,
+            leadership: 10,
+          },
+          isActive: false,
+          isCompleted: false,
+        }
+
+        // Importer le missionStore dynamiquement
+        try {
+          const { useMissionStore } = await import('@/stores/missionStore')
+          const missionStore = useMissionStore()
+          missionStore.startMission(mission)
+
+          // Naviguer vers la vue de campagne
+          if (router) {
+            router.push('/campaign')
+          }
+        } catch (error) {
+          console.error('Error loading mission store:', error)
+        }
+        break
+
+      case 'shop':
+        if (toastStore) {
+          toastStore.showInfo(
+            `${node.title} - Magasin ouvert! Vous pouvez acheter des améliorations.`,
+            { duration: 4000 },
+          )
+        }
+        break
+
+      case 'event':
+        if (toastStore) {
+          toastStore.showInfo(
+            `${node.title} - ${node.description} Récompense: ${node.reward?.type} ${node.reward?.name || node.reward?.amount || ''}`,
+            { duration: 6000 },
+          )
+        }
+        if (node.reward) {
+          if (node.reward.type === 'gold') {
+            addGold(node.reward.amount || 0)
+          } else if (node.reward.type === 'relic') {
+            const artifact = giveRandomArtifact()
+            if (toastStore) {
+              toastStore.showSuccess(
+                `Nouvel artefact obtenu: ${artifact.name}! Consultez votre inventaire pour l'équiper.`,
+                { duration: 6000 },
+              )
+            }
+          }
+        }
+        break
+
+      case 'rest':
+        if (toastStore) {
+          toastStore.showSuccess(
+            `${node.title} - Vous regagnez ${node.reward?.amount || 0} points de leadership.`,
+            { duration: 4000 },
+          )
+        }
+        if (node.reward?.type === 'leadership') {
+          addLeadership(node.reward.amount || 0)
+        }
+        break
+
+      case 'boss':
+        if (toastStore) {
+          toastStore.showSuccess(`${node.title} - Bravo! Vous avez terminé cette carte!`, {
+            duration: 7000,
+          })
+        }
+        // Naviguer vers le jeu principal
+        gameState.currentGameSection = 'completed-map'
+        saveGame()
+        if (router) {
+          setTimeout(() => {
+            router.push('/game/victory')
+          }, 1000) // Petit délai pour laisser le temps de voir le toast
+        }
+        break
+    }
+  }
+
+  const giveRandomArtifact = () => {
+    const randomArtifacts = [
+      {
+        id: `artifact-${Date.now()}`,
+        name: 'Amulette de Fortune',
+        type: 'accessory' as const,
+        icon: '🧿',
+        description: 'Une amulette qui améliore les gains économiques.',
+        effects: {
+          economy: 5,
+        },
+        rarity: 'rare' as const,
+        obtainedFrom: 'Victoire contre un champion élite',
+      },
+      {
+        id: `artifact-${Date.now()}-2`,
+        name: 'Anneau de Commandement',
+        type: 'accessory' as const,
+        icon: '💍',
+        description: 'Un anneau qui renforce le leadership militaire.',
+        effects: {
+          military: 4,
+          defense: 2,
+        },
+        rarity: 'rare' as const,
+        obtainedFrom: 'Victoire contre un champion élite',
+      },
+      {
+        id: `artifact-${Date.now()}-3`,
+        name: 'Relique Ancienne',
+        type: 'relic' as const,
+        icon: '🏺',
+        description: 'Un artefact mystérieux aux pouvoirs inconnus.',
+        effects: {
+          economy: 2,
+          military: 2,
+          defense: 2,
+        },
+        rarity: 'epic' as const,
+        obtainedFrom: 'Victoire contre un champion élite',
+      },
+    ]
+
+    const randomArtifact = randomArtifacts[Math.floor(Math.random() * randomArtifacts.length)]
+    addArtifact(randomArtifact)
+
+    return randomArtifact
+  }
+
   return {
     // État
     gameState,
@@ -565,6 +797,10 @@ export const useGameStore = () => {
     setSelectedNodeId,
     resetMapState,
     updateNodeInMap,
+    initializeMapIfNeeded,
+    selectMapNode,
+    handleMapNodeAction,
+    giveRandomArtifact,
 
     // Actions d'inventaire
     addGold,
