@@ -436,24 +436,52 @@ export const useGameStore = () => {
     return true
   }
 
-  // Fonctions de leadership
-  const addLeadership = (amount: number) => {
-    gameState.inventory.leadership += amount
-    // Limiter le leadership maximum à 200
-    if (gameState.inventory.leadership > 200) {
-      gameState.inventory.leadership = 200
-    }
-    saveGame()
-  }
+  // Fonction de leadership unifiée
+  const updateLeadership = (change: number, mode: 'add' | 'lose' | 'set' = 'set') => {
+    const previousLeadership = gameState.inventory.leadership
 
-  const loseLeadership = (amount: number) => {
-    gameState.inventory.leadership -= amount
-    // Vérifier si le leadership tombe à 0 ou moins (Game Over)
-    if (gameState.inventory.leadership <= 0) {
-      gameState.inventory.leadership = 0
-      // Déclencher le Game Over
-      triggerGameOver()
+    switch (mode) {
+      case 'add':
+        gameState.inventory.leadership += change
+        // Limiter le leadership maximum à 200
+        if (gameState.inventory.leadership > 200) {
+          gameState.inventory.leadership = 200
+        }
+        console.log(
+          `Leadership gained: +${change}. Previous: ${previousLeadership}, Current: ${gameState.inventory.leadership}`,
+        )
+        break
+
+      case 'lose':
+        gameState.inventory.leadership -= change
+        console.log(
+          `Leadership lost: -${change}. Previous: ${previousLeadership}, Current: ${gameState.inventory.leadership}`,
+        )
+
+        // Vérifier si le leadership tombe à 0 ou moins (Game Over)
+        if (gameState.inventory.leadership <= 0) {
+          gameState.inventory.leadership = 0
+          console.log('🚨 Leadership reached 0 - triggering Game Over!')
+
+          // Déclencher le Game Over avec une raison détaillée
+          triggerGameOver(`Leadership épuisé après avoir perdu ${change} points`)
+        }
+        break
+
+      case 'set':
+      default:
+        gameState.inventory.leadership = change
+        console.log(`Leadership set to: ${change}. Previous: ${previousLeadership}`)
+
+        // Vérifier Game Over même en mode 'set'
+        if (gameState.inventory.leadership <= 0) {
+          gameState.inventory.leadership = 0
+          console.log('🚨 Leadership set to 0 or below - triggering Game Over!')
+          triggerGameOver(`Leadership défini à ${change}`)
+        }
+        break
     }
+
     saveGame()
   }
 
@@ -701,7 +729,7 @@ export const useGameStore = () => {
           )
         }
         if (node.reward?.type === 'leadership') {
-          addLeadership(node.reward.amount || 0)
+          updateLeadership(node.reward.amount || 0, 'add')
         }
         break
 
@@ -789,6 +817,7 @@ export const useGameStore = () => {
     // Getters
     hasSavedGame,
     isRaceSelected,
+
     getEquippedArtifacts,
     getTotalArtifactEffects,
 
@@ -815,8 +844,7 @@ export const useGameStore = () => {
     // Actions d'inventaire
     addGold,
     spendGold,
-    addLeadership,
-    loseLeadership,
+    updateLeadership,
     leadershipStatus,
     addArtifact,
     equipArtifact,

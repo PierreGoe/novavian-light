@@ -230,7 +230,7 @@ export const useMissionStore = () => {
 
       // Ajouter du leadership basé sur la difficulté
       const leadershipReward = getLeadershipReward(missionState.currentMission.difficulty)
-      gameStore.addLeadership(leadershipReward)
+      gameStore.updateLeadership(leadershipReward, 'add')
 
       missionState.currentMission.isCompleted = true
       missionState.currentMission.isActive = false
@@ -246,7 +246,7 @@ export const useMissionStore = () => {
         gameStore.spendGold(missionState.currentMission.losePenalty.gold)
       }
       if (missionState.currentMission.losePenalty?.leadership) {
-        gameStore.addLeadership(-missionState.currentMission.losePenalty.leadership)
+        gameStore.updateLeadership(missionState.currentMission.losePenalty.leadership, 'lose')
       }
 
       missionState.currentMission.isActive = false
