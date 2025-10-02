@@ -1,5 +1,5 @@
 import { reactive, computed } from 'vue'
-import { generateMap, nodeTypeConfig } from '@/utils'
+import { generateMap } from '@/utils'
 
 export interface Race {
   id: string
@@ -641,7 +641,7 @@ export const useGameStore = () => {
           },
           losePenalty: {
             gold: 0,
-            leadership: 10,
+            leadership: randomLeadershipLoss(node.type),
           },
           isActive: false,
           isCompleted: false,
@@ -770,6 +770,16 @@ export const useGameStore = () => {
     addArtifact(randomArtifact)
 
     return randomArtifact
+  }
+
+  function randomLeadershipLoss(type: string) {
+    // Loss is higher for elite, lower for combat
+    if (type === 'elite') {
+      // Elite nodes: lose between 150 and 250 leadership
+      return Math.floor(Math.random() * 101) + 150
+    }
+    // Regular combat: lose between 50 and 120 leadership
+    return Math.floor(Math.random() * 71) + 50
   }
 
   return {
