@@ -1,6 +1,7 @@
 import { reactive, computed } from 'vue'
 import { generateMap } from '@/utils'
 import router from '@/router'
+import { useMissionStore } from '@/stores/missionStore'
 
 export interface Race {
   id: string
@@ -686,18 +687,13 @@ export const useGameStore = () => {
           isCompleted: false,
         }
 
-        // Importer le missionStore dynamiquement
-        try {
-          const { useMissionStore } = await import('@/stores/missionStore')
-          const missionStore = useMissionStore()
-          missionStore.startMission(mission)
+        // Utiliser le missionStore
+        const missionStore = useMissionStore()
+        missionStore.startMission(mission)
 
-          // Naviguer vers la vue de campagne
-          if (router) {
-            router.push('/campaign')
-          }
-        } catch (error) {
-          console.error('Error loading mission store:', error)
+        // Naviguer vers la vue de campagne
+        if (router) {
+          router.push('/campaign')
         }
         break
 

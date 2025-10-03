@@ -87,7 +87,7 @@
         <!-- Race actuelle si en jeu -->
         <div
           class="race-badge"
-          v-if="gameStore.gameState.isGameStarted && gameStore.gameState.race"
+          v-if="gameStore.gameState.currentStatus === 'in-progress' && gameStore.gameState.race"
         >
           <span class="race-icon">{{ gameStore.gameState.race.icon }}</span>
           <span class="race-name">{{ gameStore.gameState.race.name }}</span>
