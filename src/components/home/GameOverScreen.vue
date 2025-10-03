@@ -92,9 +92,9 @@
     </div>
   </div>
 </template>
-<!--
+
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
@@ -104,27 +104,18 @@ const gameStore = useGameStore()
 const toastStore = useToastStore()
 
 const gameState = computed(() => gameStore.gameState)
-const gameOverReason = computed(() => gameStore.gameState.gameOverReason)
-
-onMounted(() => {
-  console.log('🎮 GameOverScreen component mounted!')
-  console.log('📊 Game Over state:', {
-    isGameOver: gameState.value.isGameOver,
-    reason: gameOverReason.value,
-    leadership: gameState.value.inventory.leadership
-  })
-})
+const gameOverReason = computed(() => 'gameStore.gameState.gameOverReason')
 
 const formatPlayTime = () => {
   if (!gameState.value.createdAt) return 'Inconnu'
-  
+
   const startTime = new Date(gameState.value.createdAt)
   const now = new Date()
   const diffMs = now.getTime() - startTime.getTime()
-  
+
   const minutes = Math.floor(diffMs / (1000 * 60))
   const hours = Math.floor(minutes / 60)
-  
+
   if (hours > 0) {
     return `${hours}h ${minutes % 60}min`
   }
@@ -133,53 +124,53 @@ const formatPlayTime = () => {
 
 const restartWithSameRace = () => {
   console.log('🔄 Restarting with same race...')
-  
+
   if (!gameState.value.race) {
     toastStore.showError('Aucune race sélectionnée', { duration: 2000 })
     return
   }
-  
+
   // Sauvegarder la race actuelle
   const currentRace = { ...gameState.value.race }
-  
+
   // Reset seulement la progression, pas la race
   gameStore.resetMapOnly()
-  
+
   // Réinitialiser l'état Game Over
-  gameStore.gameState.isGameOver = false
-  gameStore.gameState.gameOverReason = undefined
+  //  gameStore.gameState.isGameOver = false
+  //  gameStore.gameState.gameOverReason = undefined
   gameStore.gameState.currentGameSection = undefined
-  
+
   gameStore.saveGame()
-  
+
   toastStore.showSuccess(`Nouvelle partie commencée avec ${currentRace.name}!`, { duration: 3000 })
-  
+
   // Naviguer vers la carte des missions
   router.push('/mission-tree')
 }
 
 const changeRace = () => {
   console.log('🎭 Changing race...')
-  
+
   // Reset complet
   gameStore.resetGameCompletely()
-  
+
   toastStore.showInfo('Choisissez votre nouvelle race', { duration: 2000 })
-  
+
   // Naviguer vers la sélection de race
   router.push('/race-selection')
 }
 
 const goHome = () => {
   console.log('🏠 Going to home...')
-  
+
   // On garde l'état Game Over pour permettre de revenir
   toastStore.showInfo('Retour au menu principal', { duration: 2000 })
-  
+
   // Naviguer vers l'accueil
   router.push('/')
 }
-</script>-->
+</script>
 
 <style scoped>
 .game-over-screen {

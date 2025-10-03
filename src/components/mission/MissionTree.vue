@@ -2,6 +2,8 @@
   <div class="mission-map">
     <div class="map-background"></div>
 
+    {{ gameStore.gameState.currentStatus }}
+
     <!-- En-tête avec progression -->
     <header class="map-header">
       <h1>Carte de Mission</h1>
@@ -234,6 +236,15 @@ watch(
     console.log('Map state changed:', newMapState)
   },
 )
+
+onMounted(() => {
+  // check if game is note game over
+  console.log('Current game status on mount:', gameStore.gameState.currentStatus)
+  if (gameStore.gameState.currentStatus === 'game-over') {
+    console.log('🚨 Game Over detected on mount - redirecting...')
+    router.push('/game-over')
+  }
+})
 
 // Chemin parcouru par le joueur
 // Prochains nodes accessibles

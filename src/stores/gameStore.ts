@@ -1,5 +1,6 @@
 import { reactive, computed } from 'vue'
 import { generateMap } from '@/utils'
+import router from '@/router'
 
 export interface Race {
   id: string
@@ -92,7 +93,7 @@ export interface MapState {
 }
 
 export interface GameState {
-  isGameStarted: boolean
+  currentStatus: 'not-started' | 'in-progress' | 'game-over' | 'completed'
   race: Race | null
 
   inventory: PlayerInventory
@@ -104,7 +105,7 @@ export interface GameState {
 }
 
 const createInitialState = (): GameState => ({
-  isGameStarted: false,
+  currentStatus: 'not-started',
   race: null,
   inventory: {
     gold: 50,
@@ -221,7 +222,7 @@ export const useGameStore = () => {
   // Actions
   const startNewGame = (selectedRace: Race) => {
     gameState.race = selectedRace
-    gameState.isGameStarted = true
+    gameState.currentStatus = 'in-progress'
     gameState.createdAt = new Date().toISOString()
 
     // Donner des artefacts de démarrage selon la race
@@ -233,12 +234,18 @@ export const useGameStore = () => {
 
   const loadGame = () => {
     const savedGame = localStorage.getItem('minitravian-save')
+
+    if (!savedGame) return router.push('/')
     if (savedGame) {
+      // if game over, redirect to game over screen
+      if (gameState.currentStatus === 'game-over') {
+        router.push('/game-over')
+      }
       try {
         const gameData = JSON.parse(savedGame)
 
         // Charger chaque propriété individuellement pour s'assurer de la réactivité
-        gameState.isGameStarted = gameData.isGameStarted ?? false
+        gameState.currentStatus = gameData.currentStatus ?? 'not-started'
         gameState.race = gameData.race || null
 
         // Inventaire avec gold et leadership
@@ -266,7 +273,7 @@ export const useGameStore = () => {
         console.log('Game loaded successfully:', {
           gold: gameState.inventory.gold,
           leadership: gameState.inventory.leadership,
-          isGameStarted: gameState.isGameStarted,
+          currentStatus: gameState.currentStatus,
           mapGenerated: gameState.mapState.mapGenerated,
           layersCount: gameState.mapState.layers.length,
         })
@@ -283,7 +290,7 @@ export const useGameStore = () => {
   const saveGame = () => {
     try {
       const gameData = {
-        isGameStarted: gameState.isGameStarted,
+        currentStatus: gameState.currentStatus,
         race: gameState.race,
         inventory: {
           gold: gameState.inventory.gold,
@@ -355,7 +362,7 @@ export const useGameStore = () => {
 
     // Remettre les autres propriétés
     gameState.race = raceToKeep
-    gameState.isGameStarted = true
+    gameState.currentStatus = 'in-progress'
     gameState.createdAt = new Date().toISOString()
     gameState.currentGameSection = freshState.currentGameSection
     gameState.isMissionStarted = freshState.isMissionStarted
@@ -410,7 +417,7 @@ export const useGameStore = () => {
   const startAutoSave = () => {
     if (autoSaveInterval) return
     autoSaveInterval = window.setInterval(() => {
-      if (gameState.isGameStarted) {
+      if (gameState.currentStatus === 'in-progress') {
         saveGame()
       }
     }, 5000) // 5 secondes
@@ -464,7 +471,7 @@ export const useGameStore = () => {
           console.log('🚨 Leadership reached 0 - triggering Game Over!')
 
           // Déclencher le Game Over avec une raison détaillée
-          triggerGameOver(`Leadership épuisé après avoir perdu ${change} points`)
+          triggerGameOver()
         }
         break
 
@@ -477,7 +484,7 @@ export const useGameStore = () => {
         if (gameState.inventory.leadership <= 0) {
           gameState.inventory.leadership = 0
           console.log('🚨 Leadership set to 0 or below - triggering Game Over!')
-          triggerGameOver(`Leadership défini à ${change}`)
+          triggerGameOver()
         }
         break
     }
@@ -488,7 +495,11 @@ export const useGameStore = () => {
   const triggerGameOver = () => {
     // Réinitialiser le jeu ou naviguer vers un écran de Game Over
     // Pour l'instant, on va juste réinitialiser complètement
-    resetGameCompletely()
+    //resetGameCompletely()
+
+    gameState.currentStatus = 'game-over'
+    router.push('/game-over')
+    saveGame()
   }
 
   // Computed pour vérifier l'état du leadership
