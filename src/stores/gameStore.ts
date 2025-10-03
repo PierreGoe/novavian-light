@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { reactive, computed } from 'vue'
 import { generateMap } from '@/utils'
 import router from '@/router'

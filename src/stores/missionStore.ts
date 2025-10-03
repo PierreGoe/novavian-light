@@ -1,12 +1,12 @@
 import { reactive, computed } from 'vue'
 import { useGameStore } from './gameStore'
 
-// Ressources Travian pour les missions
+// Ressources Travian pour les missions (avec précision décimale)
 export interface TravianResources {
-  wood: number // Bois
-  clay: number // Argile/Terre
-  iron: number // Fer
-  crop: number // Céréales
+  wood: number // Bois (peut être décimal)
+  clay: number // Argile/Terre (peut être décimal)
+  iron: number // Fer (peut être décimal)
+  crop: number // Céréales (peut être décimal)
 }
 
 // Production par minute
@@ -128,12 +128,43 @@ const initialState: MissionState = {
 // Store réactif
 const missionState = reactive<MissionState>({ ...initialState })
 
+// Variable pour déclencher les recalculs d'affichage
+const displayTrigger = reactive({ timestamp: Date.now() })
+
 // Actions du store
 export const useMissionStore = () => {
   // Getters
   const isInMission = computed(() => missionState.isInMission)
   const currentMission = computed(() => missionState.currentMission)
   const town = computed(() => missionState.town)
+
+  // Ressources affichées en temps réel (computed réactif) - arrondies pour l'UI
+  const displayResources = computed(() => {
+    // Cette dépendance force le recalcul quand displayTrigger change
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _ = displayTrigger.timestamp
+
+    const now = Date.now()
+    const lastUpdate = missionState.lastUpdateTime || now
+    const timeElapsed = (now - lastUpdate) / 1000 / 60 // Minutes écoulées
+
+    if (timeElapsed <= 0) {
+      return {
+        wood: Math.floor(missionState.town.resources.wood),
+        clay: Math.floor(missionState.town.resources.clay),
+        iron: Math.floor(missionState.town.resources.iron),
+        crop: Math.floor(missionState.town.resources.crop),
+      }
+    }
+
+    const production = missionState.town.production
+    return {
+      wood: Math.floor(missionState.town.resources.wood + production.wood * timeElapsed),
+      clay: Math.floor(missionState.town.resources.clay + production.clay * timeElapsed),
+      iron: Math.floor(missionState.town.resources.iron + production.iron * timeElapsed),
+      crop: Math.floor(missionState.town.resources.crop + production.crop * timeElapsed),
+    }
+  })
 
   const totalResources = computed(() => {
     return (
@@ -170,8 +201,9 @@ export const useMissionStore = () => {
     return true
   }
 
-  // Production automatique de ressources
+  // Production automatique de ressources (synchronisation réelle)
   const updateResourceProduction = () => {
+    console.log('Updating resource production...')
     const now = Date.now()
     const lastUpdate = missionState.lastUpdateTime || now
     const timeElapsed = (now - lastUpdate) / 1000 / 60 // Minutes écoulées
@@ -179,12 +211,17 @@ export const useMissionStore = () => {
     if (timeElapsed > 0) {
       const production = missionState.town.production
 
-      missionState.town.resources.wood += Math.floor(production.wood * timeElapsed)
-      missionState.town.resources.clay += Math.floor(production.clay * timeElapsed)
-      missionState.town.resources.iron += Math.floor(production.iron * timeElapsed)
-      missionState.town.resources.crop += Math.floor(production.crop * timeElapsed)
+      // Garder la précision décimale pour éviter les pertes
+      missionState.town.resources.wood += production.wood * timeElapsed
+      missionState.town.resources.clay += production.clay * timeElapsed
+      missionState.town.resources.iron += production.iron * timeElapsed
+      missionState.town.resources.crop += production.crop * timeElapsed
 
       missionState.lastUpdateTime = now
+
+      // Synchroniser l'affichage après la mise à jour réelle
+      displayTrigger.timestamp = now
+
       saveMissionState()
     }
   }
@@ -387,9 +424,10 @@ export const useMissionStore = () => {
     localStorage.removeItem('minitravian-missions')
   }
 
-  // Auto-save et production automatique
+  // Auto-save, production et affichage temps réel
   let autoSaveInterval: number | null = null
   let productionInterval: number | null = null
+  let displayUpdateInterval: number | null = null
 
   const startAutoSave = () => {
     if (autoSaveInterval) return
@@ -415,6 +453,35 @@ export const useMissionStore = () => {
     }
   }
 
+  // Timer pour l'affichage en temps réel (ne met pas à jour les vraies ressources)
+  const startDisplayUpdates = () => {
+    console.log('Starting display updates...')
+    if (displayUpdateInterval) return
+    displayUpdateInterval = window.setInterval(() => {
+      displayTrigger.timestamp = Date.now()
+    }, 1000) // 1 seconde pour un affichage fluide
+  }
+
+  const stopDisplayUpdates = () => {
+    if (displayUpdateInterval) {
+      clearInterval(displayUpdateInterval)
+      displayUpdateInterval = null
+    }
+  }
+
+  // Fonctions utilitaires pour gérer tous les services
+  const startAllServices = () => {
+    startAutoSave()
+    startResourceProduction()
+    startDisplayUpdates()
+  }
+
+  const stopAllServices = () => {
+    stopAutoSave()
+    stopResourceProduction()
+    stopDisplayUpdates()
+  }
+
   return {
     // État
     missionState,
@@ -424,6 +491,9 @@ export const useMissionStore = () => {
     currentMission,
     town,
     totalResources,
+
+    // Ressources temps réel pour l'affichage
+    displayResources,
 
     // Actions ressources
     addResources,
@@ -446,11 +516,15 @@ export const useMissionStore = () => {
     loadMissionState,
     resetMissionState,
 
-    // Auto-save et production
+    // Auto-save, production et affichage
     startAutoSave,
     stopAutoSave,
     startResourceProduction,
     stopResourceProduction,
+    startDisplayUpdates,
+    stopDisplayUpdates,
+    startAllServices,
+    stopAllServices,
   }
 }
 

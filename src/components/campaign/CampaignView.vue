@@ -15,28 +15,35 @@
           <span class="population">👥 Population: {{ town?.population || 0 }}</span>
         </div>
       </div>
-
       <!-- Ressources Travian -->
       <div class="resources-display">
         <div class="resource-item wood">
           <span class="resource-icon">🪵</span>
-          <span class="resource-amount">{{ town?.resources?.wood || 0 }}</span>
-          <span class="resource-production">+{{ town?.production?.wood || 0 }}/min</span>
+          <span class="resource-amount">{{ Math.floor(town?.resources?.wood || 0) }}</span>
+          <span class="resource-production"
+            >+{{ Math.floor(town?.production?.wood || 0) }}/min</span
+          >
         </div>
         <div class="resource-item clay">
           <span class="resource-icon">🧱</span>
-          <span class="resource-amount">{{ town?.resources?.clay || 0 }}</span>
-          <span class="resource-production">+{{ town?.production?.clay || 0 }}/min</span>
+          <span class="resource-amount">{{ Math.floor(town?.resources?.clay || 0) }}</span>
+          <span class="resource-production"
+            >+{{ Math.floor(town?.production?.clay || 0) }}/min</span
+          >
         </div>
         <div class="resource-item iron">
           <span class="resource-icon">⚒️</span>
-          <span class="resource-amount">{{ town?.resources?.iron || 0 }}</span>
-          <span class="resource-production">+{{ town?.production?.iron || 0 }}/min</span>
+          <span class="resource-amount">{{ Math.floor(town?.resources?.iron || 0) }}</span>
+          <span class="resource-production"
+            >+{{ Math.floor(town?.production?.iron || 0) }}/min</span
+          >
         </div>
         <div class="resource-item crop">
           <span class="resource-icon">🌾</span>
-          <span class="resource-amount">{{ town?.resources?.crop || 0 }}</span>
-          <span class="resource-production">+{{ town?.production?.crop || 0 }}/min</span>
+          <span class="resource-amount">{{ Math.floor(town?.resources?.crop || 0) }}</span>
+          <span class="resource-production"
+            >+{{ Math.floor(town?.production?.crop || 0) }}/min</span
+          >
         </div>
       </div>
 
@@ -89,6 +96,16 @@ const town = computed(() => missionStore.town.value)
 const missionName = computed(() => currentMission.value?.name || 'Camp de Base')
 const missionDifficulty = computed(() => currentMission.value?.difficulty)
 const isInCombat = computed(() => currentMission.value?.isActive || false)
+
+// Rerender every seconde for show resources production update
+const resourceIntervalId = setInterval(() => {
+  missionStore.updateResourceProduction()
+}, 1000)
+
+onUnmounted(() => {
+  clearInterval(resourceIntervalId)
+})
+ 
 
 // Actions
 const exitCampaign = () => {
