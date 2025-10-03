@@ -9,7 +9,7 @@
       </div>
 
       <!-- Inventaire du joueur -->
-      <div class="inventory-display">
+      <div class="inventory-display" v-if="gameStore.gameState.currentStatus === 'in-progress'">
         <!-- Or du joueur -->
         <div class="inventory-item gold">
           <span class="inventory-icon">💰</span>
@@ -93,6 +93,10 @@
           <span class="race-name">{{ gameStore.gameState.race.name }}</span>
         </div>
       </div>
+      <!-- Bouton pour retourner au menu principal -->
+      <div class="inventory-actions" v-if="gameStore.gameState.currentStatus === 'in-progress'">
+        <button class="inventory-button" @click="returnToMainMenu()">🏠 Retour au menu</button>
+      </div>
     </div>
 
     <!-- Chiffres flottants pour les animations -->
@@ -115,11 +119,6 @@
           </span>
         </div>
       </div>
-    </div>
-
-    <!-- Bouton pour retourner au menu principal -->
-    <div class="inventory-actions">
-      <button class="inventory-button" @click="returnToMainMenu()">🏠 Retour au menu</button>
     </div>
   </header>
 </template>
