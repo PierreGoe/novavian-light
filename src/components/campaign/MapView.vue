@@ -325,10 +325,11 @@ onMounted(() => {
 
 .terrain-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 0.5rem;
   max-width: 400px;
   margin: 0 auto;
+  padding: 0 0 2rem;
 }
 
 .terrain-tile {
