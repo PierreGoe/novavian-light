@@ -61,7 +61,7 @@
 
       <!-- Vue de la carte/combat (droite) -->
       <section class="map-section">
-        <MapView />
+        <LargeMapExplorationView />
       </section>
     </main>
 
@@ -84,7 +84,7 @@ import { useRouter } from 'vue-router'
 import { useMissionStore } from '@/stores/missionStore'
 import { useToastStore } from '@/stores/toastStore'
 import TownView from './TownView.vue' // Composants enfants
-import MapView from './MapView.vue' // Composants enfants
+import LargeMapExplorationView from '../map/LargeMapExplorationView.vue' // Nouvelle carte
 
 const router = useRouter()
 const missionStore = useMissionStore()

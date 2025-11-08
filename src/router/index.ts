@@ -4,7 +4,7 @@ import RaceSelector from '@/components/home/RaceSelector.vue'
 import MissionTree from '@/components/mission/MissionTree.vue'
 import CampaignView from '@/components/campaign/CampaignView.vue'
 import GameOverScreen from '@/components/home/GameOverScreen.vue'
-import { MapExplorationView } from '@/components/map'
+import { MapExplorationView, LargeMapExplorationView } from '@/components/map'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -33,6 +33,11 @@ const router = createRouter({
       path: '/map',
       name: 'map-exploration',
       component: MapExplorationView,
+    },
+    {
+      path: '/map-large',
+      name: 'map-exploration-large',
+      component: LargeMapExplorationView,
     },
     {
       path: '/game-over',

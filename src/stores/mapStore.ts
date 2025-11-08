@@ -51,28 +51,42 @@ export interface ExplorationState {
   maxExplorationPoints: number
   lastExplorationTime: number
   discoveredLocations: string[]
+  viewportOffset: { x: number; y: number } // Position du viewport pour le scroll
+  zoomLevel: number // Niveau de zoom (nombre de tuiles visibles: 5, 6, 7... 15, 20, etc.)
+}
+
+// Configuration de la carte
+export const MAP_CONFIG = {
+  size: 100, // Taille de la carte (100x100)
+  chunkSize: 20, // Taille d'un chunk pour le chargement par sections
+  defaultViewportSize: 15, // Nombre de tuiles visibles par défaut dans le viewport
+  minViewportSize: 5, // Zoom max (5x5 tuiles)
+  maxViewportSize: 25, // Dézoom max (25x25 tuiles)
+  tileSize: 40, // Taille d'une tuile en pixels (constante)
 }
 
 // État initial de la carte
 const initialMapState: ExplorationState = {
-  currentPosition: { x: 5, y: 5 }, // Position de départ au centre
+  currentPosition: { x: 50, y: 50 }, // Position de départ au centre (50, 50 pour 100x100)
   mapTiles: [],
   selectedTileId: null,
   explorationPoints: 3,
   maxExplorationPoints: 3,
   lastExplorationTime: Date.now(),
   discoveredLocations: [],
+  viewportOffset: { x: 50 - Math.floor(MAP_CONFIG.defaultViewportSize / 2), y: 50 - Math.floor(MAP_CONFIG.defaultViewportSize / 2) },
+  zoomLevel: MAP_CONFIG.defaultViewportSize, // Le zoom est maintenant le nombre de tuiles visibles
 }
 
-// Générer la carte initiale
+// Générer la carte initiale (lazy loading - génère seulement ce qui est nécessaire)
 const generateInitialMap = (): MapTile[] => {
   const tiles: MapTile[] = []
-  const mapSize = 11 // Grille 11x11
+  const mapSize = MAP_CONFIG.size
 
   for (let x = 0; x < mapSize; x++) {
     for (let y = 0; y < mapSize; y++) {
       const id = `${x}-${y}`
-      const isCenter = x === 5 && y === 5
+      const isCenter = x === 50 && y === 50
 
       let type: TerrainType = 'plains'
 
@@ -141,17 +155,13 @@ export const useMapStore = () => {
   const getAdjacentTiles = (x: number, y: number): MapTile[] => {
     const adjacent: MapTile[] = []
     const directions = [
-      { dx: -1, dy: 0 },
-      { dx: 1, dy: 0 }, // gauche, droite
-      { dx: 0, dy: -1 },
-      { dx: 0, dy: 1 }, // haut, bas
-      { dx: -1, dy: -1 },
-      { dx: -1, dy: 1 }, // diagonales
-      { dx: 1, dy: -1 },
-      { dx: 1, dy: 1 },
+      { dx: -1, dy: 0 }, { dx: 1, dy: 0 },  // gauche, droite
+      { dx: 0, dy: -1 }, { dx: 0, dy: 1 },  // haut, bas
+      { dx: -1, dy: -1 }, { dx: -1, dy: 1 }, // diagonales
+      { dx: 1, dy: -1 }, { dx: 1, dy: 1 }
     ]
 
-    directions.forEach((dir) => {
+    directions.forEach(dir => {
       const tile = getTileAt(x + dir.dx, y + dir.dy)
       if (tile) adjacent.push(tile)
     })
@@ -159,7 +169,62 @@ export const useMapStore = () => {
     return adjacent
   }
 
-  // Actions de sélection
+  // Obtenir les tuiles dans une zone (pour viewport)
+  const getTilesInRange = (startX: number, startY: number, endX: number, endY: number): MapTile[] => {
+    return mapState.mapTiles.filter((tile: MapTile) => 
+      tile.position.x >= startX && 
+      tile.position.x < endX &&
+      tile.position.y >= startY && 
+      tile.position.y < endY
+    )
+  }
+
+  // Déplacer le viewport
+  const moveViewport = (x: number, y: number) => {
+    const currentViewportSize = mapState.zoomLevel // zoomLevel = nombre de tuiles visibles
+    mapState.viewportOffset = {
+      x: Math.max(0, Math.min(MAP_CONFIG.size - currentViewportSize, x)),
+      y: Math.max(0, Math.min(MAP_CONFIG.size - currentViewportSize, y))
+    }
+    saveMapState()
+  }
+
+  // Centrer le viewport sur une position
+  const centerViewportOn = (x: number, y: number) => {
+    const currentViewportSize = mapState.zoomLevel
+    const halfView = Math.floor(currentViewportSize / 2)
+    moveViewport(x - halfView, y - halfView)
+  }
+
+  // Changer le zoom (nombre de tuiles visibles)
+  const setZoomLevel = (viewportSize: number) => {
+    const oldViewportSize = mapState.zoomLevel
+    const newViewportSize = Math.max(MAP_CONFIG.minViewportSize, Math.min(MAP_CONFIG.maxViewportSize, viewportSize))
+    
+    // Ajuster l'offset pour garder le centre approximativement au même endroit
+    const centerX = mapState.viewportOffset.x + oldViewportSize / 2
+    const centerY = mapState.viewportOffset.y + oldViewportSize / 2
+    
+    mapState.zoomLevel = newViewportSize
+    
+    // Recentrer
+    mapState.viewportOffset = {
+      x: Math.max(0, Math.min(MAP_CONFIG.size - newViewportSize, centerX - newViewportSize / 2)),
+      y: Math.max(0, Math.min(MAP_CONFIG.size - newViewportSize, centerY - newViewportSize / 2))
+    }
+    
+    saveMapState()
+  }
+  
+  // Zoom in (voir moins de tuiles)
+  const zoomIn = () => {
+    setZoomLevel(mapState.zoomLevel - 1)
+  }
+  
+  // Zoom out (voir plus de tuiles)
+  const zoomOut = () => {
+    setZoomLevel(mapState.zoomLevel + 1)
+  }  // Actions de sélection
   const selectTile = (tileId: string) => {
     const tile = getTileById(tileId)
     if (tile && tile.explored) {
@@ -382,9 +447,17 @@ export const useMapStore = () => {
     getTileById,
     getTileAt,
     getAdjacentTiles,
+    getTilesInRange,
     getTileName,
     getTileIcon,
     getTileDescription,
+
+    // Viewport et navigation
+    moveViewport,
+    centerViewportOn,
+    setZoomLevel,
+    zoomIn,
+    zoomOut,
 
     // Points d'exploration
     regenerateExplorationPoints,
