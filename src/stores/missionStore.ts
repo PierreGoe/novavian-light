@@ -88,10 +88,10 @@ const initialState: MissionState = {
   town: {
     name: 'Camp de Base',
     resources: {
-      wood: 500,
-      clay: 500,
-      iron: 300,
-      crop: 400,
+      wood: 0,
+      clay: 0,
+      iron: 0,
+      crop: 0,
     },
     production: {
       wood: 50, // par minute
@@ -272,9 +272,7 @@ export const useMissionStore = () => {
       missionState.currentMission.isCompleted = true
       missionState.currentMission.isActive = false
 
-      //
-
-      // Réinitialiser complètement l'état pour la prochaine partie (seulement en cas de succès)
+      // Réinitialiser complètement l'état pour préparer la prochaine mission
       resetMissionState()
     } else if (missionState.currentMission && !success) {
       // En cas d'échec, appliquer les pénalités
@@ -288,13 +286,12 @@ export const useMissionStore = () => {
 
       missionState.currentMission.isActive = false
       missionState.currentMission.isCompleted = false
+
+      // En cas d'échec, on sort juste de la mission sans reset complet
+      missionState.isInMission = false
+      missionState.currentMission = null
+      saveMissionState()
     }
-
-    // Réinitialiser complètement l'état pour la prochaine partie (seulement en cas de succès)
-
-    missionState.isInMission = false
-    missionState.currentMission = null
-    saveMissionState()
   }
 
   const exitMission = () => {
@@ -420,7 +417,51 @@ export const useMissionStore = () => {
   }
 
   const resetMissionState = () => {
-    Object.assign(missionState, { ...initialState })
+    // Création d'une copie profonde de l'état initial pour éviter les références partagées
+    const freshInitialState: MissionState = {
+      isInMission: false,
+      currentMission: null,
+      town: {
+        name: 'Camp de Base',
+        resources: {
+          wood: 0,
+          clay: 0,
+          iron: 0,
+          crop: 0,
+        },
+        production: {
+          wood: 50, // par minute
+          clay: 40,
+          iron: 30,
+          crop: 60,
+        },
+        buildings: [
+          {
+            id: 'barracks-1',
+            type: 'barracks',
+            level: 1,
+            position: { x: 2, y: 2 },
+          },
+          {
+            id: 'farm-1',
+            type: 'farm',
+            level: 1,
+            position: { x: 1, y: 1 },
+          },
+          {
+            id: 'lumbermill-1',
+            type: 'lumbermill',
+            level: 1,
+            position: { x: 3, y: 1 },
+          },
+        ],
+        units: [],
+        population: 10,
+      },
+      lastUpdateTime: Date.now(),
+    }
+
+    Object.assign(missionState, freshInitialState)
     localStorage.removeItem('minitravian-missions')
   }
 
