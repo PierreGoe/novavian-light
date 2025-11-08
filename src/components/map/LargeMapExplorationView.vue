@@ -1,14 +1,5 @@
 <template>
   <div class="large-map-exploration-view">
-    <header class="map-header">
-      <h2>🗺️ Grande Carte d'Exploration ({{ MAP_CONFIG.size }}x{{ MAP_CONFIG.size }})</h2>
-      <div class="header-info">
-        <span class="map-size-info">
-          {{ exploredCount }} / {{ totalTiles }} tuiles explorées
-        </span>
-      </div>
-    </header>
-
     <!-- Instructions -->
     <div class="controls-help">
       <div class="help-item">🖱️ <strong>Clic & Glisser</strong>: Déplacer la carte</div>
@@ -17,15 +8,9 @@
       <div class="help-item">⌨️ <strong>Espace</strong>: Centrer sur position</div>
     </div>
 
-    <!-- Panneau d'exploration -->
-    <ExplorationPanel 
-      :selected-tile="selectedTile"
-      @exploration-result="handleExplorationResult"
-    />
-
     <!-- Grande grille de la carte -->
     <section class="map-section">
-      <LargeMapGrid 
+      <LargeMapGrid
         :tiles="mapTiles"
         :selected-tile-id="selectedTileId"
         @select-tile="handleTileSelect"
@@ -33,7 +18,7 @@
     </section>
 
     <!-- Détails de la tuile sélectionnée -->
-    <TileDetails 
+    <TileDetails
       v-if="selectedTile"
       :tile="selectedTile"
       @attack-tile="handleAttackTile"
@@ -44,11 +29,7 @@
 
     <!-- Toast de notification -->
     <Transition name="slide-fade">
-      <div 
-        v-if="notification" 
-        class="notification"
-        :class="notification.type"
-      >
+      <div v-if="notification" class="notification" :class="notification.type">
         {{ notification.message }}
       </div>
     </Transition>
@@ -57,19 +38,21 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useMapStore, type ScoutInfo, MAP_CONFIG } from '../../stores/mapStore'
+import { useMapStore } from '../../stores/mapStore'
+import { useMissionStore } from '../../stores/missionStore'
 
 // Composants
 import LargeMapGrid from './LargeMapGrid.vue'
-import ExplorationPanel from './ExplorationPanel.vue'
 import TileDetails from './TileDetails.vue'
 
 // Stores
 const mapStore = useMapStore()
+const missionStore = useMissionStore()
 
 // État local
 const selectedTileId = ref<string | null>(null)
 const notification = ref<{ message: string; type: string } | null>(null)
+const currentTime = ref(Date.now())
 
 // Computed
 const mapTiles = computed(() => mapStore.mapTiles.value)
@@ -78,29 +61,43 @@ const selectedTile = computed(() => {
   return mapStore.getTileById(selectedTileId.value)
 })
 
-const exploredCount = computed(() => {
-  return mapTiles.value.filter(tile => tile.explored).length
-})
-
-const totalTiles = computed(() => {
-  return MAP_CONFIG.size * MAP_CONFIG.size
-})
-
 // Methods
 const handleTileSelect = (tileId: string) => {
+  const tile = mapStore.getTileById(tileId)
+
+  if (!tile) {
+    showNotification('Case introuvable', 'error')
+    return
+  }
+
+  // Si la case n'est pas explorée, proposer une mission d'éclaireur
+  if (!tile.explored) {
+    const target = { x: tile.position.x, y: tile.position.y }
+
+    // Vérifier si on peut lancer une mission
+    if (!missionStore.canStartScoutMission(target)) {
+      if (missionStore.scoutsAvailable.value <= 0) {
+        showNotification('Aucun éclaireur disponible', 'warning')
+      } else {
+        showNotification("Cette case est déjà en cours d'exploration", 'warning')
+      }
+      return
+    }
+
+    // Lancer la mission d'éclaireur
+    const success = missionStore.startScoutMission(target)
+    if (success) {
+      showNotification(`🔭 Éclaireur envoyé vers (${target.x}, ${target.y})`, 'success')
+    } else {
+      showNotification("Impossible de lancer la mission d'éclaireur", 'error')
+    }
+    return
+  }
+
+  // Si la case est explorée, la sélectionner normalement
   const success = mapStore.selectTile(tileId)
   if (success) {
     selectedTileId.value = tileId
-  } else {
-    showNotification('Cette zone n\'a pas encore été explorée', 'warning')
-  }
-}
-
-const handleExplorationResult = (result: { success: boolean; message: string; info?: ScoutInfo }) => {
-  if (result.success) {
-    showNotification(result.message, 'success')
-  } else {
-    showNotification(result.message, 'error')
   }
 }
 
@@ -124,7 +121,11 @@ const handleExploreTile = (tileId: string) => {
 
 const handleScoutTile = (tileId: string) => {
   const result = mapStore.scout(tileId)
-  handleExplorationResult(result)
+  if (result.success) {
+    showNotification(result.message, 'success')
+  } else {
+    showNotification(result.message, 'error')
+  }
 }
 
 const showNotification = (message: string, type: string) => {
@@ -136,24 +137,76 @@ const showNotification = (message: string, type: string) => {
 
 // Timer pour la régénération automatique des points
 let regenerationTimer: number | null = null
+let displayRefreshTimer: number | null = null
 
 // Lifecycle
 onMounted(() => {
-  // Charger l'état de la carte
-  mapStore.loadMapState()
-  
+  // Charger l'état de la carte (doit être fait AVANT tout le reste)
+  const hasLoadedMap = mapStore.loadMapState()
+  console.log('Map loaded:', hasLoadedMap, 'Tiles count:', mapStore.mapTiles.value.length)
+
+  // Charger l'état du mission store
+  missionStore.loadMissionState()
+
+  // Démarrer les services du mission store
+  missionStore.startAllServices()
+
+  // Synchroniser immédiatement les cases découvertes au chargement
+  const discoveredTiles = missionStore.getDiscoveredTiles.value
+  let hasChanges = false
+  discoveredTiles.forEach((tileKey: string) => {
+    const [x, y] = tileKey.split(',').map(Number)
+    const tile = mapStore.getTileAt(x, y)
+    if (tile && !tile.explored) {
+      tile.explored = true
+      hasChanges = true
+    }
+  })
+  if (hasChanges) {
+    mapStore.saveMapState()
+  }
+
   // Démarrer le timer de régénération automatique
   regenerationTimer = window.setInterval(() => {
     mapStore.regenerateExplorationPoints()
   }, 60000) // Vérifier toutes les minutes
+
+  // Timer pour forcer le rafraîchissement de l'affichage des timers
+  // Les computed vérifieront automatiquement l'état des missions
+  displayRefreshTimer = window.setInterval(() => {
+    // Mettre à jour le temps pour forcer le recalcul des timers
+    currentTime.value = Date.now()
+
+    // Synchroniser les cases découvertes avec le mapStore
+    const discoveredTiles = missionStore.getDiscoveredTiles.value
+    let hasChanges = false
+    discoveredTiles.forEach((tileKey: string) => {
+      const [x, y] = tileKey.split(',').map(Number)
+      const tile = mapStore.getTileAt(x, y)
+      if (tile && !tile.explored) {
+        tile.explored = true
+        hasChanges = true
+      }
+    })
+    // Ne sauvegarder qu'une seule fois s'il y a eu des changements
+    if (hasChanges) {
+      mapStore.saveMapState()
+    }
+  }, 1000) // Vérifier toutes les secondes pour un affichage fluide
 })
 
 onUnmounted(() => {
-  // Nettoyer le timer
+  // Nettoyer les timers
   if (regenerationTimer) {
     clearInterval(regenerationTimer)
   }
-  
+  if (displayRefreshTimer) {
+    clearInterval(displayRefreshTimer)
+  }
+
+  // Arrêter les services du mission store
+  missionStore.stopAllServices()
+
   // Sauvegarder l'état
   mapStore.saveMapState()
 })
@@ -275,17 +328,17 @@ onUnmounted(() => {
   .large-map-exploration-view {
     padding: 10px;
   }
-  
+
   .map-header {
     flex-direction: column;
     gap: 15px;
     text-align: center;
   }
-  
+
   .map-header h2 {
     font-size: 1.2em;
   }
-  
+
   .controls-help {
     flex-direction: column;
     gap: 8px;

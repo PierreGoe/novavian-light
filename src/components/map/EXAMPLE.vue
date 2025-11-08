@@ -5,7 +5,7 @@
       <router-link to="/map">Petite Carte (11x11)</router-link>
       <router-link to="/map-large">Grande Carte (100x100)</router-link>
     </nav>
-    
+
     <main>
       <router-view />
     </main>

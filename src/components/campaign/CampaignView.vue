@@ -105,7 +105,6 @@ const resourceIntervalId = setInterval(() => {
 onUnmounted(() => {
   clearInterval(resourceIntervalId)
 })
- 
 
 // Actions
 const exitCampaign = () => {

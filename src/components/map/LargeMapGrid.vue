@@ -1,14 +1,11 @@
 <template>
   <div class="large-map-container">
-
     <!-- Contrôles de zoom -->
     <div class="map-controls">
-  <button @click="zoomOut" :disabled="viewportSize === 5" class="control-btn">-</button>
-  <span class="zoom-level">{{ viewportSize }}x{{ viewportSize }}</span>
-  <button @click="zoomIn" :disabled="viewportSize === 11" class="control-btn">+</button>
-      <button @click="centerOnPlayer" class="control-btn">
-        🎯 Centre
-      </button>
+      <button @click="zoomOut" :disabled="viewportSize === 5" class="control-btn">-</button>
+      <span class="zoom-level">{{ viewportSize }}x{{ viewportSize }}</span>
+      <button @click="zoomIn" :disabled="viewportSize === 11" class="control-btn">+</button>
+      <button @click="centerOnPlayer" class="control-btn">🎯 Centre</button>
     </div>
 
     <!-- Coordonnées actuelles -->
@@ -17,7 +14,7 @@
     </div>
 
     <!-- Viewport principal avec défilement -->
-    <div 
+    <div
       ref="mapViewport"
       class="map-viewport"
       @mousedown="startPan"
@@ -26,30 +23,54 @@
       @mouseleave="endPan"
       :style="{ cursor: isPanning ? 'grabbing' : 'grab' }"
     >
-      <div 
-        class="map-grid-large"
-        :style="getGridStyle()"
-      >
+      <div class="map-grid-large" :style="getGridStyle()">
         <!-- Rendu uniquement des tuiles visibles -->
         <div
           v-for="tile in visibleTiles"
           :key="tile.id"
           class="map-tile"
           :class="getTileClasses(tile)"
-          :style="getTileStyle(tile)"
+          :style="{
+            ...getTileStyle(tile),
+            opacity: isBeingExplored(tile) ? getTileExploringOpacity(tile) : '1',
+          }"
           @click="selectTile(tile.id)"
         >
-          <div class="tile-icon">{{ getTileIcon(tile.type) }}</div>
-          <div class="tile-overlay" v-if="!tile.explored">?</div>
+          <!-- Icône du terrain visible uniquement si exploré -->
+          <div class="tile-icon" v-if="tile.explored">{{ getTileIcon(tile.type) }}</div>
+
+          <!-- Case inconnue (pas explorée, pas en cours d'exploration) -->
+          <div class="tile-overlay" v-if="!tile.explored && !isBeingExplored(tile)">?</div>
+
+          <!-- Case en cours d'exploration -->
+          <div class="tile-exploring" v-if="isBeingExplored(tile)">
+            <svg class="progress-circle" viewBox="0 0 36 36">
+              <path
+                class="circle-bg"
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+              <path
+                class="circle-progress"
+                :stroke-dasharray="`${getExploringProgress(tile)}, 100`"
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+            </svg>
+            <div class="exploring-content">
+              <span class="exploring-icon">🔭</span>
+              <span class="exploring-timer">{{ getExploringTimer(tile) }}</span>
+            </div>
+          </div>
           <div class="current-marker" v-if="tile.current">📍</div>
         </div>
       </div>
     </div>
 
     <!-- Indicateur de chargement -->
-    <div v-if="isLoading" class="loading-indicator">
-      ⏳ Chargement de la carte...
-    </div>
+    <div v-if="isLoading" class="loading-indicator">⏳ Chargement de la carte...</div>
   </div>
 </template>
 
@@ -73,6 +94,7 @@ function zoomOut() {
 }
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useMapStore, type MapTile, MAP_CONFIG } from '../../stores/mapStore'
+import { useMissionStore, type ScoutMission } from '../../stores/missionStore'
 
 // Props
 interface Props {
@@ -89,10 +111,12 @@ const emit = defineEmits<{
 
 // Store
 const mapStore = useMapStore()
+const missionStore = useMissionStore()
 
 // Refs
 const mapViewport = ref<HTMLElement | null>(null)
 const isLoading = ref(false)
+const currentTime = ref(Date.now())
 
 // État du viewport
 const viewportOffset = ref({ ...mapStore.mapState.viewportOffset })
@@ -110,11 +134,13 @@ const visibleTiles = computed(() => {
   const endX = Math.min(MAP_CONFIG.size, startX + viewportSize.value)
   const endY = Math.min(MAP_CONFIG.size, startY + viewportSize.value)
 
-  return props.tiles.filter(tile => {
-    return tile.position.x >= startX && 
-           tile.position.x < endX &&
-           tile.position.y >= startY && 
-           tile.position.y < endY
+  return props.tiles.filter((tile) => {
+    return (
+      tile.position.x >= startX &&
+      tile.position.x < endX &&
+      tile.position.y >= startY &&
+      tile.position.y < endY
+    )
   })
 })
 
@@ -123,7 +149,7 @@ const viewportCenter = computed(() => {
   const halfView = Math.floor(viewportSize.value / 2)
   return {
     x: viewportOffset.value.x + halfView,
-    y: viewportOffset.value.y + halfView
+    y: viewportOffset.value.y + halfView,
   }
 })
 
@@ -131,8 +157,8 @@ const viewportCenter = computed(() => {
 const getGridStyle = () => {
   // Adapter la taille des tuiles en fonction du zoom pour maximiser la visibilité
   const containerSize = 600 - 40 // height - padding
-  const tileSizeAdaptive = Math.floor((containerSize - (viewportSize.value * 2)) / viewportSize.value)
-  
+  const tileSizeAdaptive = Math.floor((containerSize - viewportSize.value * 2) / viewportSize.value)
+
   return {
     display: 'grid',
     gridTemplateColumns: `repeat(${viewportSize.value}, ${tileSizeAdaptive}px)`,
@@ -144,7 +170,7 @@ const getGridStyle = () => {
 const getTileStyle = (tile: MapTile) => {
   const relativeX = tile.position.x - viewportOffset.value.x
   const relativeY = tile.position.y - viewportOffset.value.y
-  
+
   return {
     gridColumn: relativeX + 1,
     gridRow: relativeY + 1,
@@ -158,9 +184,17 @@ const getTileClasses = (tile: MapTile) => {
       'tile-explored': tile.explored,
       'tile-current': tile.current,
       'tile-selected': props.selectedTileId === tile.id,
-      'tile-unexplored': !tile.explored
-    }
+      'tile-unexplored': !tile.explored,
+      'tile-being-explored': isBeingExplored(tile),
+    },
   ]
+}
+
+const getTileExploringOpacity = (tile: MapTile): string => {
+  const progress = getExploringProgress(tile)
+  // Opacité diminue de 1 (100%) à 0.3 (30%) au fur et à mesure de la progression
+  const opacity = 1 - (progress / 100) * 0.7
+  return opacity.toFixed(2)
 }
 
 // Methods
@@ -172,12 +206,71 @@ const getTileIcon = (type: MapTile['type']) => {
   return mapStore.getTileIcon(type)
 }
 
+// Fonctions pour la gestion des éclaireurs
+const isBeingExplored = (tile: MapTile): boolean => {
+  const missions = missionStore.getScoutMissions.value
+  return missions.some(
+    (mission: ScoutMission) =>
+      mission.status === 'pending' &&
+      mission.target.x === tile.position.x &&
+      mission.target.y === tile.position.y,
+  )
+}
+
+const getExploringTimer = (tile: MapTile): string => {
+  const missions = missionStore.getScoutMissions.value
+  const mission = missions.find(
+    (m: ScoutMission) =>
+      m.status === 'pending' && m.target.x === tile.position.x && m.target.y === tile.position.y,
+  )
+
+  if (!mission) return ''
+
+  // Utiliser currentTime pour forcer la réactivité
+  const now = currentTime.value
+  const remaining = Math.max(0, mission.endsAt - now)
+  const seconds = Math.floor(remaining / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${minutes}:${secs.toString().padStart(2, '0')}`
+}
+
+const getExploringProgress = (tile: MapTile): number => {
+  const missions = missionStore.getScoutMissions.value
+  const mission = missions.find(
+    (m: ScoutMission) =>
+      m.status === 'pending' && m.target.x === tile.position.x && m.target.y === tile.position.y,
+  )
+
+  if (!mission) return 0
+
+  const now = currentTime.value
+  const total = mission.endsAt - mission.startedAt
+  const elapsed = now - mission.startedAt
+  return Math.min(100, Math.max(0, (elapsed / total) * 100))
+}
+
+// Timer pour rafraîchir l'affichage
+let displayTimer: number | null = null
+
 // Zoom
 onMounted(() => {
   mapStore.setZoomLevel(11)
   viewportOffset.value = { ...mapStore.mapState.viewportOffset }
   window.addEventListener('keydown', handleKeyboard)
   centerOnPlayer()
+
+  // Timer pour mettre à jour l'affichage des timers
+  displayTimer = window.setInterval(() => {
+    currentTime.value = Date.now()
+  }, 1000)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyboard)
+  if (displayTimer !== null) {
+    clearInterval(displayTimer)
+  }
 })
 
 // Panning (déplacement à la souris)
@@ -189,15 +282,15 @@ const startPan = (event: MouseEvent) => {
 
 const handlePan = (event: MouseEvent) => {
   if (!isPanning.value) return
-  
+
   const deltaX = event.clientX - panStart.value.x
   const deltaY = event.clientY - panStart.value.y
-  
+
   // Convertir les pixels en tuiles
   const tileSize = MAP_CONFIG.tileSize
   const tileDeltaX = -Math.floor(deltaX / tileSize)
   const tileDeltaY = -Math.floor(deltaY / tileSize)
-  
+
   if (tileDeltaX !== panOffset.value.x || tileDeltaY !== panOffset.value.y) {
     const dx = tileDeltaX - panOffset.value.x
     const dy = tileDeltaY - panOffset.value.y
@@ -212,15 +305,15 @@ const endPan = () => {
 
 // Déplacement du viewport
 const moveViewport = (deltaX: number, deltaY: number) => {
-  const newX = Math.max(0, Math.min(
-    MAP_CONFIG.size - viewportSize.value,
-    viewportOffset.value.x + deltaX
-  ))
-  const newY = Math.max(0, Math.min(
-    MAP_CONFIG.size - viewportSize.value,
-    viewportOffset.value.y + deltaY
-  ))
-  
+  const newX = Math.max(
+    0,
+    Math.min(MAP_CONFIG.size - viewportSize.value, viewportOffset.value.x + deltaX),
+  )
+  const newY = Math.max(
+    0,
+    Math.min(MAP_CONFIG.size - viewportSize.value, viewportOffset.value.y + deltaY),
+  )
+
   viewportOffset.value = { x: newX, y: newY }
   mapStore.mapState.viewportOffset = viewportOffset.value
   mapStore.saveMapState()
@@ -230,14 +323,14 @@ const moveViewport = (deltaX: number, deltaY: number) => {
 const centerOnPlayer = () => {
   const halfView = Math.floor(viewportSize.value / 2)
   viewportOffset.value = {
-    x: Math.max(0, Math.min(
-      MAP_CONFIG.size - viewportSize.value,
-      mapStore.currentPosition.value.x - halfView
-    )),
-    y: Math.max(0, Math.min(
-      MAP_CONFIG.size - viewportSize.value,
-      mapStore.currentPosition.value.y - halfView
-    ))
+    x: Math.max(
+      0,
+      Math.min(MAP_CONFIG.size - viewportSize.value, mapStore.currentPosition.value.x - halfView),
+    ),
+    y: Math.max(
+      0,
+      Math.min(MAP_CONFIG.size - viewportSize.value, mapStore.currentPosition.value.y - halfView),
+    ),
   }
   mapStore.mapState.viewportOffset = viewportOffset.value
   mapStore.saveMapState()
@@ -248,7 +341,7 @@ const centerOnPlayer = () => {
 // Déplacement au clavier
 const handleKeyboard = (event: KeyboardEvent) => {
   const speed = event.shiftKey ? 5 : 1
-  
+
   switch (event.key) {
     case 'ArrowUp':
     case 'w':
@@ -288,10 +381,13 @@ onUnmounted(() => {
 })
 
 // Watch pour synchroniser avec le store
-watch(() => mapStore.currentPosition.value, () => {
-  // Optionnel: centrer automatiquement quand le joueur se déplace
-  // centerOnPlayer()
-})
+watch(
+  () => mapStore.currentPosition.value,
+  () => {
+    // Optionnel: centrer automatiquement quand le joueur se déplace
+    // centerOnPlayer()
+  },
+)
 </script>
 
 <style scoped>
@@ -350,19 +446,39 @@ watch(() => mapStore.currentPosition.value, () => {
 }
 
 .tile-unexplored {
-  background: #1a1a1a;
-  opacity: 0.6;
+  background: #1a1a1a !important;
+  opacity: 0.8;
 }
 
-/* Terrains */
-.terrain-plains { background: linear-gradient(135deg, #8bc34a, #689f38); }
-.terrain-forest { background: linear-gradient(135deg, #4caf50, #2e7d32); }
-.terrain-mountain { background: linear-gradient(135deg, #78909c, #455a64); }
-.terrain-water { background: linear-gradient(135deg, #2196f3, #1565c0); }
-.terrain-village_player { background: linear-gradient(135deg, #ff9800, #f57c00); }
-.terrain-village_enemy { background: linear-gradient(135deg, #f44336, #c62828); }
-.terrain-ruins { background: linear-gradient(135deg, #9e9e9e, #424242); }
-.terrain-stronghold { background: linear-gradient(135deg, #673ab7, #4527a0); }
+.tile-being-explored {
+  background: #2a2a2a !important;
+}
+
+/* Terrains (visibles uniquement si exploré) */
+.tile-explored.terrain-plains {
+  background: linear-gradient(135deg, #8bc34a, #689f38);
+}
+.tile-explored.terrain-forest {
+  background: linear-gradient(135deg, #4caf50, #2e7d32);
+}
+.tile-explored.terrain-mountain {
+  background: linear-gradient(135deg, #78909c, #455a64);
+}
+.tile-explored.terrain-water {
+  background: linear-gradient(135deg, #2196f3, #1565c0);
+}
+.tile-explored.terrain-village_player {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+}
+.tile-explored.terrain-village_enemy {
+  background: linear-gradient(135deg, #f44336, #c62828);
+}
+.tile-explored.terrain-ruins {
+  background: linear-gradient(135deg, #9e9e9e, #424242);
+}
+.tile-explored.terrain-stronghold {
+  background: linear-gradient(135deg, #673ab7, #4527a0);
+}
 
 .tile-icon {
   font-size: clamp(12px, 2vw, 24px);
@@ -381,6 +497,64 @@ watch(() => mapStore.currentPosition.value, () => {
   font-weight: bold;
   border-radius: 3px;
   z-index: 3;
+}
+
+.tile-exploring {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  z-index: 3;
+  overflow: hidden;
+}
+
+.progress-circle {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.circle-bg {
+  fill: none;
+  stroke: rgba(74, 158, 255, 0.2);
+  stroke-width: 2;
+}
+
+.circle-progress {
+  fill: none;
+  stroke: #4a9eff;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.3s ease;
+}
+
+.exploring-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 50%;
+  width: 70%;
+  height: 70%;
+}
+
+.exploring-icon {
+  font-size: clamp(14px, 2.5vw, 24px);
+}
+
+.exploring-timer {
+  font-size: clamp(8px, 1.2vw, 12px);
+  color: #4a9eff;
+  font-weight: bold;
+  font-family: monospace;
 }
 
 .current-marker {
@@ -465,8 +639,13 @@ watch(() => mapStore.currentPosition.value, () => {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /* Responsive */
@@ -474,22 +653,22 @@ watch(() => mapStore.currentPosition.value, () => {
   .large-map-container {
     height: 400px;
   }
-  
+
   .minimap {
     width: 120px;
     height: 120px;
   }
-  
+
   .minimap-content {
     width: 100px;
     height: 100px;
   }
-  
+
   .map-controls {
     flex-wrap: wrap;
     gap: 4px;
   }
-  
+
   .control-btn {
     padding: 4px 8px;
     font-size: 0.75em;

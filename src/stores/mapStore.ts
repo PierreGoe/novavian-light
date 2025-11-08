@@ -74,12 +74,16 @@ const initialMapState: ExplorationState = {
   maxExplorationPoints: 3,
   lastExplorationTime: Date.now(),
   discoveredLocations: [],
-  viewportOffset: { x: 50 - Math.floor(MAP_CONFIG.defaultViewportSize / 2), y: 50 - Math.floor(MAP_CONFIG.defaultViewportSize / 2) },
+  viewportOffset: {
+    x: 50 - Math.floor(MAP_CONFIG.defaultViewportSize / 2),
+    y: 50 - Math.floor(MAP_CONFIG.defaultViewportSize / 2),
+  },
   zoomLevel: MAP_CONFIG.defaultViewportSize, // Le zoom est maintenant le nombre de tuiles visibles
 }
 
 // Générer la carte initiale (lazy loading - génère seulement ce qui est nécessaire)
 const generateInitialMap = (): MapTile[] => {
+  console.log('🗺️ generateInitialMap() called - Generating new random map')
   const tiles: MapTile[] = []
   const mapSize = MAP_CONFIG.size
 
@@ -104,6 +108,11 @@ const generateInitialMap = (): MapTile[] => {
         else type = 'plains'
       }
 
+      // Log des premières tuiles pour debug
+      if (x <= 2 && y <= 2) {
+        console.log(`  Tile ${id}: type=${type}`)
+      }
+
       tiles.push({
         id,
         type,
@@ -122,13 +131,13 @@ const generateInitialMap = (): MapTile[] => {
     }
   }
 
+  console.log(`🗺️ Generated ${tiles.length} tiles`)
   return tiles
 }
 
-// État réactif
+// État réactif (commence vide, sera chargé ou généré par loadMapState)
 const mapState = reactive<ExplorationState>({
   ...initialMapState,
-  mapTiles: generateInitialMap(),
 })
 
 // Store principal
@@ -155,13 +164,17 @@ export const useMapStore = () => {
   const getAdjacentTiles = (x: number, y: number): MapTile[] => {
     const adjacent: MapTile[] = []
     const directions = [
-      { dx: -1, dy: 0 }, { dx: 1, dy: 0 },  // gauche, droite
-      { dx: 0, dy: -1 }, { dx: 0, dy: 1 },  // haut, bas
-      { dx: -1, dy: -1 }, { dx: -1, dy: 1 }, // diagonales
-      { dx: 1, dy: -1 }, { dx: 1, dy: 1 }
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 }, // gauche, droite
+      { dx: 0, dy: -1 },
+      { dx: 0, dy: 1 }, // haut, bas
+      { dx: -1, dy: -1 },
+      { dx: -1, dy: 1 }, // diagonales
+      { dx: 1, dy: -1 },
+      { dx: 1, dy: 1 },
     ]
 
-    directions.forEach(dir => {
+    directions.forEach((dir) => {
       const tile = getTileAt(x + dir.dx, y + dir.dy)
       if (tile) adjacent.push(tile)
     })
@@ -170,12 +183,18 @@ export const useMapStore = () => {
   }
 
   // Obtenir les tuiles dans une zone (pour viewport)
-  const getTilesInRange = (startX: number, startY: number, endX: number, endY: number): MapTile[] => {
-    return mapState.mapTiles.filter((tile: MapTile) => 
-      tile.position.x >= startX && 
-      tile.position.x < endX &&
-      tile.position.y >= startY && 
-      tile.position.y < endY
+  const getTilesInRange = (
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+  ): MapTile[] => {
+    return mapState.mapTiles.filter(
+      (tile: MapTile) =>
+        tile.position.x >= startX &&
+        tile.position.x < endX &&
+        tile.position.y >= startY &&
+        tile.position.y < endY,
     )
   }
 
@@ -184,7 +203,7 @@ export const useMapStore = () => {
     const currentViewportSize = mapState.zoomLevel // zoomLevel = nombre de tuiles visibles
     mapState.viewportOffset = {
       x: Math.max(0, Math.min(MAP_CONFIG.size - currentViewportSize, x)),
-      y: Math.max(0, Math.min(MAP_CONFIG.size - currentViewportSize, y))
+      y: Math.max(0, Math.min(MAP_CONFIG.size - currentViewportSize, y)),
     }
     saveMapState()
   }
@@ -199,32 +218,35 @@ export const useMapStore = () => {
   // Changer le zoom (nombre de tuiles visibles)
   const setZoomLevel = (viewportSize: number) => {
     const oldViewportSize = mapState.zoomLevel
-    const newViewportSize = Math.max(MAP_CONFIG.minViewportSize, Math.min(MAP_CONFIG.maxViewportSize, viewportSize))
-    
+    const newViewportSize = Math.max(
+      MAP_CONFIG.minViewportSize,
+      Math.min(MAP_CONFIG.maxViewportSize, viewportSize),
+    )
+
     // Ajuster l'offset pour garder le centre approximativement au même endroit
     const centerX = mapState.viewportOffset.x + oldViewportSize / 2
     const centerY = mapState.viewportOffset.y + oldViewportSize / 2
-    
+
     mapState.zoomLevel = newViewportSize
-    
+
     // Recentrer
     mapState.viewportOffset = {
       x: Math.max(0, Math.min(MAP_CONFIG.size - newViewportSize, centerX - newViewportSize / 2)),
-      y: Math.max(0, Math.min(MAP_CONFIG.size - newViewportSize, centerY - newViewportSize / 2))
+      y: Math.max(0, Math.min(MAP_CONFIG.size - newViewportSize, centerY - newViewportSize / 2)),
     }
-    
+
     saveMapState()
   }
-  
+
   // Zoom in (voir moins de tuiles)
   const zoomIn = () => {
     setZoomLevel(mapState.zoomLevel - 1)
   }
-  
+
   // Zoom out (voir plus de tuiles)
   const zoomOut = () => {
     setZoomLevel(mapState.zoomLevel + 1)
-  }  // Actions de sélection
+  } // Actions de sélection
   const selectTile = (tileId: string) => {
     const tile = getTileById(tileId)
     if (tile && tile.explored) {
@@ -387,6 +409,13 @@ export const useMapStore = () => {
 
   // Sauvegarde et chargement
   const saveMapState = () => {
+    // PROTECTION: Ne jamais sauvegarder une carte vide
+    // Cela évite d'écraser une carte valide existante avec des données vides
+    if (mapState.mapTiles.length === 0) {
+      console.warn('⚠️ Attempt to save empty map prevented')
+      return
+    }
+
     const data = {
       currentPosition: mapState.currentPosition,
       mapTiles: mapState.mapTiles,
@@ -395,24 +424,54 @@ export const useMapStore = () => {
       lastExplorationTime: mapState.lastExplorationTime,
       discoveredLocations: mapState.discoveredLocations,
     }
+
     localStorage.setItem('novavian-map', JSON.stringify(data))
   }
 
   const loadMapState = (): boolean => {
+    console.log('📂 loadMapState() called')
     try {
       const saved = localStorage.getItem('novavian-map')
       if (saved) {
         const data = JSON.parse(saved)
+        console.log('📂 Found saved data in localStorage:', {
+          tilesCount: data.mapTiles?.length,
+          firstTiles: data.mapTiles?.slice(0, 3).map((t: MapTile) => `${t.id}:${t.type}`),
+        })
+
+        // Si les données sauvegardées ont des tuiles, les charger
+        if (data.mapTiles && data.mapTiles.length > 0) {
+          Object.assign(mapState, {
+            ...initialMapState,
+            ...data,
+          })
+          console.log('✅ Map loaded from localStorage:', {
+            tilesCount: mapState.mapTiles.length,
+            firstTiles: mapState.mapTiles.slice(0, 3).map((t) => `${t.id}:${t.type}`),
+          })
+          return true
+        }
+
+        // Sinon, charger les autres données mais générer une nouvelle carte
+        console.log('⚠️ Saved map has no tiles, generating new map')
         Object.assign(mapState, {
           ...initialMapState,
           ...data,
-          mapTiles: data.mapTiles || generateInitialMap(),
+          mapTiles: generateInitialMap(),
         })
+        console.log('Generated tiles:', mapState.mapTiles.length)
+        saveMapState()
         return true
       }
     } catch (error) {
-      console.error('Erreur lors du chargement de la carte:', error)
+      console.error('❌ Error loading map:', error)
     }
+
+    // Si aucune carte sauvegardée, générer une nouvelle carte et la sauvegarder
+    console.log('📂 No saved map found, generating new map')
+    mapState.mapTiles = generateInitialMap()
+    saveMapState()
+
     return false
   }
 
