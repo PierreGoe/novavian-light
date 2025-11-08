@@ -543,7 +543,8 @@ onMounted(() => {
 }
 
 @keyframes progressPulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
   }
   50% {

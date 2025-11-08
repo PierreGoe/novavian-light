@@ -1,5 +1,6 @@
 import { reactive, computed } from 'vue'
 import { useGameStore } from './gameStore'
+import { useMapStore } from './mapStore'
 
 // Ressources Travian pour les missions (avec précision décimale)
 export interface TravianResources {
@@ -91,6 +92,7 @@ export interface MissionState {
   scoutsAvailable: number
   scoutMissions: ScoutMission[]
   discoveredTiles: Set<string>
+  isTransitioning: boolean // Écran de chargement entre missions
 }
 
 // État initial
@@ -138,6 +140,7 @@ const initialState: MissionState = {
   scoutsAvailable: 4,
   scoutMissions: [],
   discoveredTiles: new Set<string>(),
+  isTransitioning: false,
 }
 
 // Store réactif
@@ -152,6 +155,7 @@ export const useMissionStore = () => {
   const isInMission = computed(() => missionState.isInMission)
   const currentMission = computed(() => missionState.currentMission)
   const town = computed(() => missionState.town)
+  const isTransitioning = computed(() => missionState.isTransitioning)
 
   // Ressources affichées en temps réel (computed réactif) - arrondies pour l'UI
   const displayResources = computed(() => {
@@ -291,8 +295,23 @@ export const useMissionStore = () => {
       missionState.currentMission.isCompleted = true
       missionState.currentMission.isActive = false
 
-      // Réinitialiser complètement l'état pour préparer la prochaine mission
-      resetMissionState()
+      // Activer l'écran de transition
+      missionState.isTransitioning = true
+
+      // Attendre un peu pour afficher l'écran de chargement
+      setTimeout(() => {
+        // Réinitialiser complètement l'état pour préparer la prochaine mission
+        resetMissionState()
+
+        // Réinitialiser également la carte de campagne (exploration)
+        const mapStore = useMapStore()
+        mapStore.resetMapState()
+
+        // Désactiver l'écran de transition après le reset
+        setTimeout(() => {
+          missionState.isTransitioning = false
+        }, 500)
+      }, 1500) // Afficher l'écran pendant 1.5 secondes
     } else if (missionState.currentMission && !success) {
       // En cas d'échec, appliquer les pénalités
       const gameStore = useGameStore()
@@ -499,6 +518,7 @@ export const useMissionStore = () => {
       scoutsAvailable: 4,
       scoutMissions: [],
       discoveredTiles: new Set<string>(),
+      isTransitioning: false,
     }
 
     Object.assign(missionState, freshInitialState)
@@ -689,6 +709,7 @@ export const useMissionStore = () => {
     currentMission,
     town,
     totalResources,
+    isTransitioning,
 
     // Ressources temps réel pour l'affichage
     displayResources,

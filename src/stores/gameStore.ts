@@ -720,6 +720,8 @@ export const useGameStore = () => {
             { duration: 4000 },
           )
         }
+        // Compléter immédiatement le node (pas de mission)
+        completeMapNode(node.id)
         break
 
       case 'event':
@@ -742,6 +744,8 @@ export const useGameStore = () => {
             }
           }
         }
+        // Compléter immédiatement le node (pas de mission)
+        completeMapNode(node.id)
         break
 
       case 'rest':
@@ -754,6 +758,8 @@ export const useGameStore = () => {
         if (node.reward?.type === 'leadership') {
           updateLeadership(node.reward.amount || 0, 'add')
         }
+        // Compléter immédiatement le node (pas de mission)
+        completeMapNode(node.id)
         break
 
       case 'boss':
@@ -762,6 +768,8 @@ export const useGameStore = () => {
             duration: 7000,
           })
         }
+        // Compléter immédiatement le node (pas de mission)
+        completeMapNode(node.id)
         // Naviguer vers le jeu principal
         gameState.currentGameSection = 'completed-map'
         saveGame()

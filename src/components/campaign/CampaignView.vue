@@ -1,5 +1,16 @@
 <template>
   <div class="campaign-view">
+    <!-- Écran de transition/chargement -->
+    <Transition name="fade">
+      <div v-if="missionStore.isTransitioning.value" class="transition-overlay">
+        <div class="transition-content">
+          <div class="spinner"></div>
+          <h2>🏆 Mission Réussie !</h2>
+          <p>Préparation de la prochaine mission...</p>
+        </div>
+      </div>
+    </Transition>
+
     <!-- En-tête avec informations de mission -->
     <header class="campaign-header">
       <div class="campaign-info">
@@ -345,6 +356,64 @@ onUnmounted(() => {
 .btn-retreat:hover {
   background: #d97706;
   transform: translateY(-2px);
+}
+
+/* Écran de transition */
+.transition-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.transition-content {
+  text-align: center;
+  color: #f4e4bc;
+}
+
+.transition-content h2 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  color: #ffd700;
+  text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+}
+
+.transition-content p {
+  font-size: 1.2rem;
+  margin-top: 1rem;
+  opacity: 0.8;
+}
+
+.spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid rgba(255, 215, 0, 0.2);
+  border-top-color: #ffd700;
+  border-radius: 50%;
+  margin: 0 auto 2rem;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* Responsive */
