@@ -283,6 +283,11 @@ export const useMissionStore = () => {
       const leadershipReward = getLeadershipReward(missionState.currentMission.difficulty)
       gameStore.updateLeadership(leadershipReward, 'add')
 
+      // IMPORTANT: Marquer le node de carte comme complété
+      if (gameStore.gameState.mapState.selectedNodeId) {
+        gameStore.completeMapNode(gameStore.gameState.mapState.selectedNodeId)
+      }
+
       missionState.currentMission.isCompleted = true
       missionState.currentMission.isActive = false
 

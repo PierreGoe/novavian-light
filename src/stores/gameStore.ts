@@ -75,6 +75,7 @@ export interface MapNode {
   connections: string[] // IDs des nodes suivants connectés
   completed: boolean
   accessible: boolean
+  inProgress?: boolean // Mission en cours (pas encore terminée)
   reward?: {
     type: 'gold' | 'card' | 'relic' | 'leadership'
     amount?: number
@@ -611,15 +612,15 @@ export const useGameStore = () => {
   }
 
   const selectMapNode = (node: MapNode) => {
-    if (!node.accessible || node.completed) return
+    if (!node.accessible || node.completed || node.inProgress) return
 
-    // Marquer le node comme complété et sélectionné
+    // Marquer le node comme EN COURS (pas encore completed)
     setSelectedNodeId(node.id)
-    updateNodeInMap(node.id, { completed: true })
+    updateNodeInMap(node.id, { inProgress: true })
     setCurrentPlayerRow(node.row)
 
     // IMPORTANT: Rendre inaccessibles tous les autres nodes de la même ligne
-    // pour empêcher le joueur de revenir en arrière
+    // pour empêcher le joueur de choisir un autre chemin
     const currentLayer = gameState.mapState.layers.find((layer) => layer.row === node.row)
     if (currentLayer) {
       currentLayer.nodes.forEach((layerNode) => {
@@ -629,12 +630,28 @@ export const useGameStore = () => {
       })
     }
 
-    // Rendre accessibles UNIQUEMENT les nodes directement connectés à ce node
+    // Ne PAS rendre accessibles les nodes suivants maintenant
+    // Ils le seront seulement quand la mission sera complétée
+
+    // Déclencher l'action du node (démarrer la mission)
+    handleMapNodeAction(node)
+    saveGame()
+  }
+
+  // Nouvelle fonction à appeler quand une mission est complétée
+  const completeMapNode = (nodeId: string) => {
     const allNodes: MapNode[] = []
     gameState.mapState.layers.forEach((layer) => {
       allNodes.push(...layer.nodes)
     })
 
+    const node = allNodes.find((n) => n.id === nodeId)
+    if (!node) return
+
+    // Marquer comme complété (plus en cours)
+    updateNodeInMap(nodeId, { completed: true, inProgress: false })
+
+    // Maintenant rendre accessibles les nodes suivants
     node.connections.forEach((connectionId) => {
       const nextNode = allNodes.find((n) => n.id === connectionId)
       if (nextNode && !nextNode.completed) {
@@ -642,8 +659,6 @@ export const useGameStore = () => {
       }
     })
 
-    // Déclencher l'action du node
-    handleMapNodeAction(node)
     saveGame()
   }
 
@@ -846,6 +861,7 @@ export const useGameStore = () => {
     updateNodeInMap,
     initializeMapIfNeeded,
     selectMapNode,
+    completeMapNode,
     handleMapNodeAction,
     giveRandomArtifact,
 

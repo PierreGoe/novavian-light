@@ -71,8 +71,9 @@
                 `node-${node.type}`,
                 {
                   'node-completed': node.completed,
-                  'node-accessible': node.accessible && !node.completed,
-                  'node-locked': !node.accessible,
+                  'node-in-progress': node.inProgress,
+                  'node-accessible': node.accessible && !node.completed && !node.inProgress,
+                  'node-locked': !node.accessible && !node.inProgress,
                   'node-selected': node.id === selectedNodeId,
                 },
               ]"
@@ -513,10 +514,41 @@ onMounted(() => {
   border-color: #228b22 !important;
 }
 
+.node-in-progress {
+  animation: progressPulse 1.5s infinite;
+  border: 3px solid #ffd700 !important;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+  cursor: default;
+}
+
+.node-in-progress::after {
+  content: '⚔️ EN COURS';
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffd700;
+  color: #1a1a1a;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
 .node-locked {
   opacity: 0.3;
   cursor: not-allowed;
   filter: grayscale(100%);
+}
+
+@keyframes progressPulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.9);
+  }
 }
 
 .node-selected {
