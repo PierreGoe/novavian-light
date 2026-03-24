@@ -2,6 +2,15 @@ import { reactive, computed } from 'vue'
 import { useGameStore } from './gameStore'
 import { useMapStore } from './mapStore'
 import type { SavedBattleReport } from '../combat/types'
+import {
+  MAX_OFFLINE_MS,
+  AUTOSAVE_INTERVAL_MS,
+  PRODUCTION_INTERVAL_MS,
+  SCOUT_MISSION_DURATION_MS,
+} from '../config'
+
+// Ré-export pour compatibilité avec les imports existants
+export { MAX_OFFLINE_MS }
 
 // Ressources Travian pour les missions (avec précision décimale)
 export interface TravianResources {
@@ -83,9 +92,6 @@ export interface MissionTown {
   units: MilitaryUnit[]
   population: number
 }
-
-// Temps in-game : max 2h créditées en offline
-export const MAX_OFFLINE_MS = 2 * 60 * 60 * 1000 // 2 heures
 
 // État global des missions
 export interface MissionState {
@@ -591,7 +597,7 @@ export const useMissionStore = () => {
 
   const startAutoSave = () => {
     if (autoSaveInterval) return
-    autoSaveInterval = window.setInterval(saveMissionState, 30000) // 30 secondes
+    autoSaveInterval = window.setInterval(saveMissionState, AUTOSAVE_INTERVAL_MS)
   }
 
   const stopAutoSave = () => {
@@ -603,7 +609,7 @@ export const useMissionStore = () => {
 
   const startResourceProduction = () => {
     if (productionInterval) return
-    productionInterval = window.setInterval(updateResourceProduction, 60000) // 1 minute
+    productionInterval = window.setInterval(updateResourceProduction, PRODUCTION_INTERVAL_MS)
   }
 
   const stopResourceProduction = () => {
@@ -615,7 +621,6 @@ export const useMissionStore = () => {
 
   // Timer pour l'affichage en temps réel (ne met pas à jour les vraies ressources)
   const startDisplayUpdates = () => {
-    console.log('Starting display updates...')
     if (displayUpdateInterval) return
     displayUpdateInterval = window.setInterval(() => {
       displayTrigger.timestamp = Date.now()
@@ -675,7 +680,7 @@ export const useMissionStore = () => {
       id: `scout-${now}-${target.x}-${target.y}`,
       target,
       startedAt: now,
-      endsAt: now + 10 * 1000, // 10 secondes (test)
+      endsAt: now + SCOUT_MISSION_DURATION_MS,
       status: 'pending',
     }
 
@@ -711,23 +716,11 @@ export const useMissionStore = () => {
     }
   }
 
-  const getScoutMissions = computed(() => {
-    // Toujours vérifier les missions avant de retourner la liste (sans sauvegarder)
-    updateScoutMissions(false)
-    return missionState.scoutMissions
-  })
+  const getScoutMissions = computed(() => missionState.scoutMissions)
 
-  const getDiscoveredTiles = computed(() => {
-    // Vérifier les missions pour s'assurer que les découvertes sont à jour (sans sauvegarder)
-    updateScoutMissions(false)
-    return Array.from(missionState.discoveredTiles)
-  })
+  const getDiscoveredTiles = computed(() => Array.from(missionState.discoveredTiles))
 
-  const scoutsAvailable = computed(() => {
-    // Vérifier les missions pour libérer les éclaireurs si nécessaire (sans sauvegarder)
-    updateScoutMissions(false)
-    return missionState.scoutsAvailable
-  })
+  const scoutsAvailable = computed(() => missionState.scoutsAvailable)
 
   const canStartScoutMission = (target: { x: number; y: number }): boolean => {
     if (missionState.scoutsAvailable <= 0) return false
@@ -749,7 +742,7 @@ export const useMissionStore = () => {
     if (scoutMissionInterval) return
     scoutMissionInterval = window.setInterval(() => {
       updateScoutMissions(true) // Sauvegarder lors des vérifications périodiques
-    }, 10000) // Vérifier toutes les 10 secondes
+    }, 1000) // Vérifier toutes les secondes
   }
 
   const stopScoutMissionUpdates = () => {

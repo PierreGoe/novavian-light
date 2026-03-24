@@ -205,6 +205,7 @@ import { useMapStore, type MapTile } from '../../stores/mapStore'
 import { useMissionStore } from '../../stores/missionStore'
 import { defaultResolver } from '../../combat/combatResolver'
 import type { Army, CombatReport, CombatUnit, SavedBattleReport } from '../../combat/types'
+import { ENEMY_BASE_INFANTRY, ENEMY_STRONGHOLD_INFANTRY } from '../../config'
 
 // Composants
 import LargeMapGrid from './LargeMapGrid.vue'
@@ -360,7 +361,9 @@ const handleAttackTile = (tileId: string) => {
   }
 
   // Sauvegarder le rapport
-  const tileName = mapStore.getTileName(tile.type === 'ruins' ? (isStronghold ? 'stronghold' : 'village_enemy') : tile.type)
+  const tileName = mapStore.getTileName(
+    tile.type === 'ruins' ? (isStronghold ? 'stronghold' : 'village_enemy') : tile.type,
+  )
   const saved: SavedBattleReport = {
     ...report,
     id: `battle-${Date.now()}`,
@@ -379,7 +382,7 @@ const handleAttackTile = (tileId: string) => {
 /** Génère une garnison ennemie selon le type de case (appelé une seule fois au 1er combat) */
 function generateEnemyGarrison(tile: MapTile): { units: CombatUnit[] } {
   const isStronghold = tile.type === 'stronghold'
-  const baseCount = isStronghold ? 8 : 3
+  const baseCount = isStronghold ? ENEMY_STRONGHOLD_INFANTRY : ENEMY_BASE_INFANTRY
   const variation = Math.floor(Math.random() * 3)
 
   const units: CombatUnit[] = [
@@ -454,7 +457,12 @@ const viewSavedReport = (report: SavedBattleReport) => {
 /** Formate une date ISO en label court */
 const formatReportDate = (iso: string): string => {
   const d = new Date(iso)
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 // Timer pour la régénération automatique des points
@@ -465,7 +473,6 @@ let displayRefreshTimer: number | null = null
 onMounted(() => {
   // Charger l'état de la carte (doit être fait AVANT tout le reste)
   const hasLoadedMap = mapStore.loadMapState()
-  console.log('Map loaded:', hasLoadedMap, 'Tiles count:', mapStore.mapTiles.value.length)
 
   // Charger l'état du mission store
   missionStore.loadMissionState()

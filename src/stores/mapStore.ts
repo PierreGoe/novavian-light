@@ -429,7 +429,6 @@ export const useMapStore = () => {
     // PROTECTION: Ne jamais sauvegarder une carte vide
     // Cela évite d'écraser une carte valide existante avec des données vides
     if (mapState.mapTiles.length === 0) {
-      console.warn('⚠️ Attempt to save empty map prevented')
       return
     }
 
@@ -446,25 +445,16 @@ export const useMapStore = () => {
   }
 
   const loadMapState = (): boolean => {
-    console.log('📂 loadMapState() called')
     try {
       const saved = localStorage.getItem('novavian-map')
       if (saved) {
         const data = JSON.parse(saved)
-        console.log('📂 Found saved data in localStorage:', {
-          tilesCount: data.mapTiles?.length,
-          firstTiles: data.mapTiles?.slice(0, 3).map((t: MapTile) => `${t.id}:${t.type}`),
-        })
 
         // Si les données sauvegardées ont des tuiles, les charger
         if (data.mapTiles && data.mapTiles.length > 0) {
           Object.assign(mapState, {
             ...initialMapState,
             ...data,
-          })
-          console.log('✅ Map loaded from localStorage:', {
-            tilesCount: mapState.mapTiles.length,
-            firstTiles: mapState.mapTiles.slice(0, 3).map((t) => `${t.id}:${t.type}`),
           })
           return true
         }

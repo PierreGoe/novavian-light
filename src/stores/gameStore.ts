@@ -275,14 +275,6 @@ export const useGameStore = () => {
         gameState.createdAt = gameData.createdAt || null
         gameState.currentGameSection = gameData.currentGameSection
 
-        console.log('Game loaded successfully:', {
-          gold: gameState.inventory.gold,
-          leadership: gameState.inventory.leadership,
-          currentStatus: gameState.currentStatus,
-          mapGenerated: gameState.mapState.mapGenerated,
-          layersCount: gameState.mapState.layers.length,
-        })
-
         return true
       } catch (error) {
         console.error('Error loading game:', error)
