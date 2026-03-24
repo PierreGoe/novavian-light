@@ -59,6 +59,15 @@
       </div>
 
       <div class="header-actions">
+        <div class="time-display">
+          <span class="time-item" title="Temps de mission (plafonne à 2h en offline)">
+            ⏱️ {{ formattedGameTime }}
+          </span>
+          <span class="time-separator">|</span>
+          <span class="time-item time-real" title="Heure réelle">
+            🕒 {{ formattedRealTime }}
+          </span>
+        </div>
         <button class="btn-exit" @click="exitCampaign">🏠 Retour aux missions</button>
       </div>
     </header>
@@ -75,12 +84,11 @@
         <LargeMapExplorationView />
       </section>
     </main>
-
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMissionStore } from '@/stores/missionStore'
 import { useToastStore } from '@/stores/toastStore'
@@ -97,9 +105,35 @@ const town = computed(() => missionStore.town.value)
 const missionName = computed(() => currentMission.value?.name || 'Camp de Base')
 const missionDifficulty = computed(() => currentMission.value?.difficulty)
 
+// Temps
+const now = ref(Date.now())
+
+const formattedGameTime = computed(() => {
+  // Force reactivity on `now`
+  void now.value
+  const ms = missionStore.getGameTimestamp()
+  return formatDuration(ms)
+})
+
+const formattedRealTime = computed(() => {
+  const d = new Date(now.value)
+  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+})
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000)
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  const s = totalSeconds % 60
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`
+  if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`
+  return `${s}s`
+}
+
 // Rerender every second for resources production update
 const resourceIntervalId = setInterval(() => {
   missionStore.updateResourceProduction()
+  now.value = Date.now()
 }, 1000)
 
 // Actions
@@ -222,7 +256,33 @@ onUnmounted(() => {
 
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 1rem;
+}
+
+.time-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(218, 165, 32, 0.2);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.time-item {
+  color: #daa520;
+  white-space: nowrap;
+}
+
+.time-real {
+  color: #94a3b8;
+}
+
+.time-separator {
+  color: rgba(218, 165, 32, 0.3);
 }
 
 .btn-exit {

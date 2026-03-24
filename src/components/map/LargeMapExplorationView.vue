@@ -92,12 +92,56 @@
       </div>
     </section>
 
-    <!-- Rapport de combat -->
+    <!-- Bouton + panneau historique des rapports -->
+    <section class="reports-panel">
+      <button class="reports-toggle" @click="showReportsPanel = !showReportsPanel">
+        📜 Rapports ({{ missionStore.battleReports.value.length }})
+        <span v-if="missionStore.unreadReportsCount.value > 0" class="unread-badge">
+          {{ missionStore.unreadReportsCount.value }}
+        </span>
+      </button>
+
+      <div v-if="showReportsPanel" class="reports-list">
+        <div v-if="missionStore.battleReports.value.length === 0" class="reports-empty">
+          Aucun rapport de bataille
+        </div>
+        <div
+          v-for="report in missionStore.battleReports.value"
+          :key="report.id"
+          class="report-entry"
+          :class="[
+            report.attackerVictory ? 'entry-victory' : 'entry-defeat',
+            { 'entry-unread': !report.read },
+          ]"
+          @click="viewSavedReport(report)"
+        >
+          <span class="report-entry-icon">{{ report.attackerVictory ? '🏆' : '💔' }}</span>
+          <div class="report-entry-info">
+            <span class="report-entry-name">
+              <span v-if="!report.read" class="new-dot"></span>
+              {{ report.tileName }}
+            </span>
+            <span class="report-entry-date">{{ formatReportDate(report.date) }}</span>
+          </div>
+          <button
+            class="report-delete-btn"
+            title="Supprimer"
+            @click.stop="missionStore.deleteBattleReport(report.id)"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rapport de combat (overlay) -->
     <Transition name="slide-fade">
       <section v-if="combatReport" class="combat-report-panel">
         <div class="report-header" :class="combatReport.attackerVictory ? 'victory' : 'defeat'">
           <span class="report-icon">{{ combatReport.attackerVictory ? '🏆' : '💔' }}</span>
-          <span class="report-title">{{ combatReport.attackerVictory ? 'Victoire !' : 'Défaite' }}</span>
+          <span class="report-title">{{
+            combatReport.attackerVictory ? 'Victoire !' : 'Défaite'
+          }}</span>
         </div>
 
         <p class="report-summary">{{ combatReport.summary }}</p>
@@ -106,11 +150,18 @@
           <div class="report-side">
             <h4>{{ combatReport.attacker.army.label }}</h4>
             <div class="report-stat">⚔️ Force : {{ combatReport.attacker.totalPowerUsed }}</div>
-            <div v-for="(killed, type) in combatReport.attacker.losses.killed" :key="type" class="report-loss">
+            <div
+              v-for="(killed, type) in combatReport.attacker.losses.killed"
+              :key="type"
+              class="report-loss"
+            >
               {{ type }} : -{{ killed }} tué(s)
             </div>
             <div v-if="combatReport.attacker.losses.survivors.length > 0" class="report-survivors">
-              Survivants : {{ combatReport.attacker.losses.survivors.map(u => `${u.count} ${u.type}`).join(', ') }}
+              Survivants :
+              {{
+                combatReport.attacker.losses.survivors.map((u) => `${u.count} ${u.type}`).join(', ')
+              }}
             </div>
           </div>
 
@@ -119,11 +170,18 @@
           <div class="report-side">
             <h4>{{ combatReport.defender.army.label }}</h4>
             <div class="report-stat">🛡️ Force : {{ combatReport.defender.totalPowerUsed }}</div>
-            <div v-for="(killed, type) in combatReport.defender.losses.killed" :key="type" class="report-loss">
+            <div
+              v-for="(killed, type) in combatReport.defender.losses.killed"
+              :key="type"
+              class="report-loss"
+            >
               {{ type }} : -{{ killed }} tué(s)
             </div>
             <div v-if="combatReport.defender.losses.survivors.length > 0" class="report-survivors">
-              Survivants : {{ combatReport.defender.losses.survivors.map(u => `${u.count} ${u.type}`).join(', ') }}
+              Survivants :
+              {{
+                combatReport.defender.losses.survivors.map((u) => `${u.count} ${u.type}`).join(', ')
+              }}
             </div>
           </div>
         </div>
@@ -146,7 +204,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMapStore, type MapTile } from '../../stores/mapStore'
 import { useMissionStore } from '../../stores/missionStore'
 import { defaultResolver } from '../../combat/combatResolver'
-import type { Army, CombatReport, CombatUnit } from '../../combat/types'
+import type { Army, CombatReport, CombatUnit, SavedBattleReport } from '../../combat/types'
 
 // Composants
 import LargeMapGrid from './LargeMapGrid.vue'
@@ -161,6 +219,7 @@ const selectedTileId = ref<string | null>(null)
 const notification = ref<{ message: string; type: string } | null>(null)
 const currentTime = ref(Date.now())
 const combatReport = ref<CombatReport | null>(null)
+const showReportsPanel = ref(false)
 
 // Computed
 const mapTiles = computed(() => mapStore.mapTiles.value)
@@ -237,11 +296,11 @@ const handleAttackTile = (tileId: string) => {
 
   const playerUnits = missionStore.town.value?.units || []
   if (playerUnits.length === 0 || playerUnits.every((u) => u.count <= 0)) {
-    showNotification('Vous n\'avez aucune unité à envoyer !', 'warning')
+    showNotification("Vous n'avez aucune unité à envoyer !", 'warning')
     return
   }
 
-  // Construire l'armée attaquante depuis les unités du joueur
+  // Construire l'armée attaquante
   const attackerUnits: CombatUnit[] = playerUnits
     .filter((u) => u.count > 0)
     .map((u) => ({
@@ -255,33 +314,70 @@ const handleAttackTile = (tileId: string) => {
   const attackerArmy: Army = {
     label: 'Vos troupes',
     units: attackerUnits,
-    modifiers: [], // ici viendront les bonus de race / artefacts
+    modifiers: [],
   }
 
-  // Générer la garnison ennemie selon le type de case
-  const defenderArmy = generateEnemyGarrison(tile)
+  // Utiliser la garnison mémorisée ou en générer une nouvelle (snapshot)
+  if (!tile.garrison) {
+    const generated = generateEnemyGarrison(tile)
+    tile.garrison = { units: generated.units }
+  }
 
-  // Résoudre le combat
+  // Si la garnison est vide (déjà vaincue)
+  if (tile.garrison.units.length === 0 || tile.garrison.units.every((u) => u.count <= 0)) {
+    tile.type = 'ruins'
+    tile.garrison = undefined
+    mapStore.saveMapState()
+    showNotification('Ce village est déjà sans défenses — converti en ruines.', 'info')
+    return
+  }
+
+  const isStronghold = tile.type === 'stronghold'
+  const defenderArmy: Army = {
+    label: isStronghold ? 'Garnison de la Forteresse' : 'Garnison du Village Ennemi',
+    units: tile.garrison.units.filter((u) => u.count > 0),
+    modifiers: [],
+  }
+
+  // Résoudre
   const report = defaultResolver.resolve(attackerArmy, defenderArmy)
   combatReport.value = report
 
-  // Appliquer les pertes aux unités du joueur
+  // Appliquer les pertes joueur
   applyPlayerLosses(report)
+
+  // Mettre à jour la garnison ennemie avec les survivants
+  tile.garrison.units = report.defender.losses.survivors
+  tile.garrison.lastAttackedAt = missionStore.getGameTimestamp()
 
   // Si victoire, convertir la case
   if (report.attackerVictory) {
-    tile.type = 'ruins' // la case vaincue devient des ruines
-    mapStore.saveMapState()
+    tile.type = 'ruins'
+    tile.garrison = undefined
     showNotification(report.summary, 'success')
   } else {
     showNotification(report.summary, 'error')
   }
 
+  // Sauvegarder le rapport
+  const tileName = mapStore.getTileName(tile.type === 'ruins' ? (isStronghold ? 'stronghold' : 'village_enemy') : tile.type)
+  const saved: SavedBattleReport = {
+    ...report,
+    id: `battle-${Date.now()}`,
+    gameTimestamp: missionStore.getGameTimestamp(),
+    tileId: tile.id,
+    tileName,
+    date: new Date().toISOString(),
+    read: false,
+  }
+  missionStore.addBattleReport(saved)
+
+  mapStore.saveMapState()
   missionStore.saveMissionState()
 }
 
-/** Génère une garnison ennemie selon le type de case */
-function generateEnemyGarrison(tile: MapTile): Army {
+/** Génère une garnison ennemie selon le type de case (appelé une seule fois au 1er combat) */
+function generateEnemyGarrison(tile: MapTile): { units: CombatUnit[] } {
   const isStronghold = tile.type === 'stronghold'
   const baseCount = isStronghold ? 8 : 3
   const variation = Math.floor(Math.random() * 3)
@@ -296,16 +392,10 @@ function generateEnemyGarrison(tile: MapTile): Army {
       { type: 'cavalry', count: 2, attack: 80, defense: 40, health: 120 },
     )
   } else if (Math.random() > 0.5) {
-    units.push(
-      { type: 'archer', count: 1 + variation, attack: 20, defense: 10, health: 70 },
-    )
+    units.push({ type: 'archer', count: 1 + variation, attack: 20, defense: 10, health: 70 })
   }
 
-  return {
-    label: isStronghold ? 'Garnison de la Forteresse' : 'Garnison du Village Ennemi',
-    units,
-    modifiers: [], // modifiers terrain etc. viendront ici
-  }
+  return { units }
 }
 
 /** Applique les pertes du rapport aux unités du joueur dans le missionStore */
@@ -349,6 +439,22 @@ const showNotification = (message: string, type: string) => {
   setTimeout(() => {
     notification.value = null
   }, 3000)
+}
+
+/** Ouvre un rapport sauvegardé dans l'overlay */
+const viewSavedReport = (report: SavedBattleReport) => {
+  missionStore.markReportRead(report.id)
+  showReportsPanel.value = false
+  combatReport.value = null
+  requestAnimationFrame(() => {
+    combatReport.value = report
+  })
+}
+
+/** Formate une date ISO en label court */
+const formatReportDate = (iso: string): string => {
+  const d = new Date(iso)
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 // Timer pour la régénération automatique des points
@@ -645,7 +751,9 @@ onUnmounted(() => {
   width: 420px;
   max-width: 90vw;
   z-index: 1100;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(59, 130, 246, 0.1);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.7),
+    0 0 40px rgba(59, 130, 246, 0.1);
   color: #e2e8f0;
 }
 
@@ -764,6 +872,156 @@ onUnmounted(() => {
   background: linear-gradient(135deg, #60a5fa, #3b82f6);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Reports History Panel */
+.reports-panel {
+  margin-top: 12px;
+  background: linear-gradient(145deg, #1e293b, #0f172a);
+  border: 1px solid #334155;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.reports-toggle {
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.reports-toggle:hover {
+  color: #e2e8f0;
+  background: rgba(51, 65, 85, 0.4);
+}
+
+.reports-list {
+  max-height: 260px;
+  overflow-y: auto;
+  border-top: 1px solid #334155;
+}
+
+.reports-empty {
+  font-size: 0.82rem;
+  color: #475569;
+  text-align: center;
+  padding: 14px;
+  font-style: italic;
+}
+
+.report-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+}
+
+.report-entry:last-child {
+  border-bottom: none;
+}
+
+.report-entry:hover {
+  background: rgba(51, 65, 85, 0.5);
+}
+
+.report-entry-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.report-entry-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.report-entry-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entry-victory .report-entry-name {
+  color: #4ade80;
+}
+
+.entry-defeat .report-entry-name {
+  color: #f87171;
+}
+
+.report-entry-date {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.report-entry-arrow {
+  color: #475569;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.entry-unread {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.new-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3b82f6;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: 8px;
+}
+
+.report-delete-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.report-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
 }
 
 .notification {

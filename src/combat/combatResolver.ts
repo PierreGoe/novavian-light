@@ -103,7 +103,8 @@ class NaiveCombatResolver implements ICombatResolver {
     const defenderSurvivorsCount = defenderLosses.survivors.reduce((s, u) => s + u.count, 0)
     const attackerSurvivorsCount = attackerLosses.survivors.reduce((s, u) => s + u.count, 0)
 
-    const attackerVictory = defenderSurvivorsCount === 0 || attackPower > defenderDefense + defenderPower
+    const attackerVictory =
+      defenderSurvivorsCount === 0 || attackPower > defenderDefense + defenderPower
 
     // Résumé
     const attackerKilledTotal = Object.values(attackerLosses.killed).reduce((s, n) => s + n, 0)

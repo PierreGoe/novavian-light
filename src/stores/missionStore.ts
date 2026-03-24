@@ -1,6 +1,7 @@
 import { reactive, computed } from 'vue'
 import { useGameStore } from './gameStore'
 import { useMapStore } from './mapStore'
+import type { SavedBattleReport } from '../combat/types'
 
 // Ressources Travian pour les missions (avec précision décimale)
 export interface TravianResources {
@@ -83,16 +84,23 @@ export interface MissionTown {
   population: number
 }
 
+// Temps in-game : max 2h créditées en offline
+export const MAX_OFFLINE_MS = 2 * 60 * 60 * 1000 // 2 heures
+
 // État global des missions
 export interface MissionState {
   isInMission: boolean
   currentMission: Mission | null
   town: MissionTown
   lastUpdateTime: number
+  /** Temps in-game cumulé en ms (plafonne le temps offline) */
+  gameElapsedMs: number
   scoutsAvailable: number
   scoutMissions: ScoutMission[]
   discoveredTiles: Set<string>
-  isTransitioning: boolean // Écran de chargement entre missions
+  isTransitioning: boolean
+  /** Historique des rapports de bataille */
+  battleReports: SavedBattleReport[]
 }
 
 // État initial
@@ -137,10 +145,12 @@ const initialState: MissionState = {
     population: 10,
   },
   lastUpdateTime: Date.now(),
+  gameElapsedMs: 0,
   scoutsAvailable: 4,
   scoutMissions: [],
   discoveredTiles: new Set<string>(),
   isTransitioning: false,
+  battleReports: [],
 }
 
 // Store réactif
@@ -224,25 +234,64 @@ export const useMissionStore = () => {
   const updateResourceProduction = () => {
     const now = Date.now()
     const lastUpdate = missionState.lastUpdateTime || now
-    const timeElapsed = (now - lastUpdate) / 1000 / 60 // Minutes écoulées
+    const realDeltaMs = now - lastUpdate
+
+    // Plafonner le temps offline pour éviter l'accumulation excessive
+    const cappedDeltaMs = Math.min(realDeltaMs, MAX_OFFLINE_MS)
+    const timeElapsed = cappedDeltaMs / 1000 / 60 // Minutes écoulées (plafondées)
 
     if (timeElapsed > 0) {
       const production = missionState.town.production
 
-      // Garder la précision décimale pour éviter les pertes
       missionState.town.resources.wood += production.wood * timeElapsed
       missionState.town.resources.clay += production.clay * timeElapsed
       missionState.town.resources.iron += production.iron * timeElapsed
       missionState.town.resources.crop += production.crop * timeElapsed
 
+      // Avancer le temps in-game (plafondé)
+      missionState.gameElapsedMs += cappedDeltaMs
       missionState.lastUpdateTime = now
 
-      // Synchroniser l'affichage après la mise à jour réelle
       displayTrigger.timestamp = now
 
       saveMissionState()
     }
   }
+
+  /** Retourne le timestamp in-game courant (gameElapsed + temps depuis dernier update, plafondé) */
+  const getGameTimestamp = (): number => {
+    const realDelta = Date.now() - (missionState.lastUpdateTime || Date.now())
+    return missionState.gameElapsedMs + Math.min(realDelta, MAX_OFFLINE_MS)
+  }
+
+  // --- Rapports de bataille ---
+
+  const addBattleReport = (report: SavedBattleReport) => {
+    missionState.battleReports.unshift(report)
+    if (missionState.battleReports.length > 50) {
+      missionState.battleReports.length = 50
+    }
+    saveMissionState()
+  }
+
+  const markReportRead = (reportId: string) => {
+    const report = missionState.battleReports.find((r) => r.id === reportId)
+    if (report && !report.read) {
+      report.read = true
+      saveMissionState()
+    }
+  }
+
+  const deleteBattleReport = (reportId: string) => {
+    missionState.battleReports = missionState.battleReports.filter((r) => r.id !== reportId)
+    saveMissionState()
+  }
+
+  const unreadReportsCount = computed(
+    () => missionState.battleReports.filter((r) => !r.read).length,
+  )
+
+  const battleReports = computed(() => missionState.battleReports)
 
   // Fonctions auxiliaires
   const getLeadershipReward = (difficulty: 'easy' | 'medium' | 'hard' | 'elite'): number => {
@@ -428,9 +477,11 @@ export const useMissionStore = () => {
       currentMission: missionState.currentMission,
       town: { ...missionState.town },
       lastUpdateTime: missionState.lastUpdateTime,
+      gameElapsedMs: missionState.gameElapsedMs,
       scoutsAvailable: missionState.scoutsAvailable,
       scoutMissions: missionState.scoutMissions,
       discoveredTiles: Array.from(missionState.discoveredTiles),
+      battleReports: missionState.battleReports,
     }
     localStorage.setItem('minitravian-missions', JSON.stringify(data))
   }
@@ -457,6 +508,12 @@ export const useMissionStore = () => {
         }
         if (data.discoveredTiles) {
           missionState.discoveredTiles = new Set(data.discoveredTiles)
+        }
+        if (data.gameElapsedMs !== undefined) {
+          missionState.gameElapsedMs = data.gameElapsedMs
+        }
+        if (data.battleReports) {
+          missionState.battleReports = data.battleReports
         }
 
         // Vérifier immédiatement les missions au chargement et sauvegarder si nécessaire
@@ -515,10 +572,12 @@ export const useMissionStore = () => {
         population: 10,
       },
       lastUpdateTime: Date.now(),
+      gameElapsedMs: 0,
       scoutsAvailable: 4,
       scoutMissions: [],
       discoveredTiles: new Set<string>(),
       isTransitioning: false,
+      battleReports: [],
     }
 
     Object.assign(missionState, freshInitialState)
@@ -729,6 +788,16 @@ export const useMissionStore = () => {
 
     // Actions unités
     trainUnit,
+
+    // Temps in-game
+    getGameTimestamp,
+
+    // Rapports de bataille
+    addBattleReport,
+    markReportRead,
+    deleteBattleReport,
+    unreadReportsCount,
+    battleReports,
 
     // Sauvegarde
     saveMissionState,

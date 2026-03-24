@@ -62,3 +62,13 @@ export interface CombatReport {
   /** Données arbitraires que le resolver peut ajouter (butin, etc.) */
   extra?: Record<string, unknown>
 }
+
+/** Rapport sauvegardé (pour l'historique consultable) */
+export interface SavedBattleReport extends CombatReport {
+  id: string
+  gameTimestamp: number // temps in-game en ms
+  tileId: string
+  tileName: string
+  date: string // date lisible (ISO)
+  read: boolean
+}

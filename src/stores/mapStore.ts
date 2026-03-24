@@ -24,6 +24,21 @@ export interface ScoutInfo {
   message?: string
 }
 
+/** Unité de garnison persistée sur une tuile ennemie */
+export interface GarrisonUnit {
+  type: string
+  count: number
+  attack: number
+  defense: number
+  health: number
+}
+
+/** Garnison ennemie mémorisée (snapshot après 1re attaque) */
+export interface TileGarrison {
+  units: GarrisonUnit[]
+  lastAttackedAt?: number // game-time en ms
+}
+
 export interface MapTile {
   id: string
   type: TerrainType
@@ -41,6 +56,8 @@ export interface MapTile {
     type: string
     strength: number
   }[]
+  /** Garnison persistée — remplie au premier combat, mise à jour ensuite */
+  garrison?: TileGarrison
 }
 
 export interface ExplorationState {
