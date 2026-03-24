@@ -17,21 +17,89 @@
           v-for="building in town?.buildings || []"
           :key="building.id"
           class="building-card"
-          :class="`building-${building.type}`"
-          @click="selectBuilding(building)"
+          :class="[`building-${building.type}`, { 'can-upgrade': canUpgradeBuilding(building) }]"
         >
-          <div class="building-icon">{{ getBuildingIcon(building.type) }}</div>
-          <div class="building-info">
-            <div class="building-name">{{ getBuildingName(building.type) }}</div>
-            <div class="building-level">Niveau {{ building.level }}</div>
+          <!-- En-tête de la carte -->
+          <div class="building-header">
+            <div class="building-header-left">
+              <span class="building-icon">{{ getBuildingIcon(building.type) }}</span>
+              <div>
+                <div class="building-name">{{ getBuildingName(building.type) }}</div>
+                <div class="building-level-badges">
+                  <span
+                    v-for="i in 5"
+                    :key="i"
+                    class="level-pip"
+                    :class="{ active: i <= building.level }"
+                  ></span>
+                  <span class="level-text">Niv. {{ building.level }}</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <button
-            class="upgrade-btn"
-            @click.stop="upgradeBuilding(building.id)"
-            :disabled="!canUpgradeBuilding(building)"
-          >
-            ⬆️
-          </button>
+
+          <!-- Gain de production actuel (si bâtiment de ressources) -->
+          <div v-if="getBuildingProductionGain(building.type)" class="building-production">
+            <span class="production-label">Production actuelle</span>
+            <span class="production-value">
+              {{ getBuildingProductionIcon(building.type) }}
+              +{{ getBuildingProductionGain(building.type)! * building.level }}/min
+            </span>
+          </div>
+
+          <!-- Séparateur upgrade -->
+          <div class="upgrade-section">
+            <div class="upgrade-header">
+              <span class="upgrade-label">⬆️ Niveau {{ building.level + 1 }}</span>
+              <!-- Gain si bâtiment de ressources -->
+              <span
+                v-if="getBuildingProductionGain(building.type)"
+                class="upgrade-gain"
+              >
+                {{ getBuildingProductionIcon(building.type) }}
+                {{ getBuildingProductionGain(building.type)! * building.level }}
+                <span class="gain-arrow">→</span>
+                {{ getBuildingProductionGain(building.type)! * (building.level + 1) }}/min
+              </span>
+            </div>
+
+            <!-- Coût de l'upgrade -->
+            <div class="upgrade-costs">
+              <span
+                class="cost-chip"
+                :class="{ insufficient: (town?.resources?.wood || 0) < getUpgradeCost(building.level).wood }"
+              >🪵 {{ getUpgradeCost(building.level).wood }}</span>
+              <span
+                class="cost-chip"
+                :class="{ insufficient: (town?.resources?.clay || 0) < getUpgradeCost(building.level).clay }"
+              >🧱 {{ getUpgradeCost(building.level).clay }}</span>
+              <span
+                class="cost-chip"
+                :class="{ insufficient: (town?.resources?.iron || 0) < getUpgradeCost(building.level).iron }"
+              >⚒️ {{ getUpgradeCost(building.level).iron }}</span>
+              <span
+                class="cost-chip"
+                :class="{ insufficient: (town?.resources?.crop || 0) < getUpgradeCost(building.level).crop }"
+              >🌾 {{ getUpgradeCost(building.level).crop }}</span>
+            </div>
+
+            <!-- ETA si ressources insuffisantes -->
+            <div
+              v-if="!canUpgradeBuilding(building) && getTimeUntilUpgrade(building.level)"
+              class="upgrade-eta"
+            >
+              ⏱️ Disponible dans {{ getTimeUntilUpgrade(building.level) }}
+            </div>
+
+            <button
+              class="upgrade-btn"
+              :class="{ 'upgrade-btn-ready': canUpgradeBuilding(building) }"
+              @click="upgradeBuilding(building.id)"
+              :disabled="!canUpgradeBuilding(building)"
+            >
+              {{ canUpgradeBuilding(building) ? 'Améliorer' : 'Ressources insuffisantes' }}
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -178,28 +246,83 @@ const getUnitCost = (type: string) => {
   return costs[type as keyof typeof costs] || { wood: 0, clay: 0, iron: 0, crop: 0 }
 }
 
-const selectBuilding = (building: { type: string; level: number }) => {
-  toastStore.showInfo(`${getBuildingName(building.type)} niveau ${building.level} sélectionné`, {
-    duration: 2000,
-  })
+const getUpgradeCost = (level: number) => ({
+  wood: level * 100,
+  clay: level * 80,
+  iron: level * 60,
+  crop: level * 40,
+})
+
+// Gain de production par niveau selon le type de bâtiment (null = pas de production)
+const getBuildingProductionGain = (type: string): number | null => {
+  const gains: Record<string, number> = {
+    lumbermill: 10,
+    quarry: 8,
+    mine: 6,
+    farm: 12,
+  }
+  return gains[type] ?? null
+}
+
+const getBuildingProductionIcon = (type: string): string => {
+  const icons: Record<string, string> = {
+    lumbermill: '🪵',
+    quarry: '🧱',
+    mine: '⛒️',
+    farm: '🌾',
+  }
+  return icons[type] ?? ''
 }
 
 const canUpgradeBuilding = (building: { level: number }): boolean => {
   if (!town.value?.resources) return false
-
-  const cost = {
-    wood: building.level * 100,
-    clay: building.level * 80,
-    iron: building.level * 60,
-    crop: building.level * 40,
-  }
-
+  const cost = getUpgradeCost(building.level)
   return (
     town.value.resources.wood >= cost.wood &&
     town.value.resources.clay >= cost.clay &&
     town.value.resources.iron >= cost.iron &&
     town.value.resources.crop >= cost.crop
   )
+}
+
+// Calcule le temps d'attente (en chaîne lisible) avant d'avoir les ressources suffisantes
+const getTimeUntilUpgrade = (level: number): string | null => {
+  const resources = town.value?.resources
+  const production = town.value?.production
+  if (!resources || !production) return null
+
+  const cost = getUpgradeCost(level)
+
+  // Pour chaque ressource insuffisante, calcule les minutes manquantes
+  const minutesNeeded: number[] = []
+
+  const check = (current: number, needed: number, rate: number) => {
+    if (current >= needed) return
+    if (rate <= 0) {
+      minutesNeeded.push(Infinity)
+      return
+    }
+    minutesNeeded.push((needed - current) / rate)
+  }
+
+  check(resources.wood, cost.wood, production.wood)
+  check(resources.clay, cost.clay, production.clay)
+  check(resources.iron, cost.iron, production.iron)
+  check(resources.crop, cost.crop, production.crop)
+
+  if (minutesNeeded.length === 0) return null
+
+  const maxMin = Math.max(...minutesNeeded)
+  if (!isFinite(maxMin)) return 'Production nulle'
+
+  const totalSec = Math.ceil(maxMin * 60)
+  if (totalSec < 60) return `${totalSec}s`
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (h > 0) return `${h}h ${m}min`
+  if (s === 0) return `${m}min`
+  return `${m}min ${s}s`
 }
 
 const upgradeBuilding = (buildingId: string) => {
@@ -285,63 +408,196 @@ const trainUnits = (unitType: MilitaryUnit['type'], quantity: number) => {
 
 .buildings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
   gap: 1rem;
 }
 
 .building-card {
   display: flex;
-  align-items: center;
-  padding: 1rem;
-  background: rgba(139, 69, 19, 0.1);
-  border: 1px solid rgba(218, 165, 32, 0.3);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  flex-direction: column;
+  gap: 0;
+  background: rgba(20, 12, 5, 0.6);
+  border: 1px solid rgba(218, 165, 32, 0.25);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
-.building-card:hover {
-  background: rgba(139, 69, 19, 0.2);
-  border-color: #daa520;
+.building-card.can-upgrade {
+  border-color: rgba(34, 197, 94, 0.5);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.08);
+}
+
+/* En-tête */
+.building-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1rem 0.75rem;
+  background: rgba(139, 69, 19, 0.15);
+  border-bottom: 1px solid rgba(218, 165, 32, 0.15);
+}
+
+.building-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .building-icon {
-  font-size: 2rem;
-  margin-right: 1rem;
-}
-
-.building-info {
-  flex: 1;
+  font-size: 1.8rem;
+  line-height: 1;
 }
 
 .building-name {
-  font-weight: bold;
+  font-weight: 600;
   color: #f4e4bc;
-  margin-bottom: 0.25rem;
+  font-size: 0.95rem;
+  margin-bottom: 0.35rem;
 }
 
-.building-level {
-  font-size: 0.8rem;
+.building-level-badges {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.level-pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(218, 165, 32, 0.2);
+  border: 1px solid rgba(218, 165, 32, 0.3);
+  transition: background 0.2s;
+}
+
+.level-pip.active {
+  background: #daa520;
+  border-color: #daa520;
+}
+
+.level-text {
+  font-size: 0.7rem;
+  color: #daa520;
+  margin-left: 4px;
+}
+
+/* Production actuelle */
+.building-production {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: rgba(34, 197, 94, 0.05);
+  border-bottom: 1px solid rgba(34, 197, 94, 0.1);
+}
+
+.production-label {
+  font-size: 0.72rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.production-value {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4ade80;
+}
+
+/* Zone upgrade */
+.upgrade-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem 0.9rem;
+}
+
+.upgrade-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.upgrade-label {
+  font-size: 0.78rem;
+  font-weight: 600;
   color: #daa520;
 }
 
-.upgrade-btn {
-  background: rgba(34, 197, 94, 0.2);
-  border: 1px solid #22c55e;
-  color: #22c55e;
-  padding: 0.5rem;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.3s ease;
+.upgrade-gain {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: #94a3b8;
 }
 
-.upgrade-btn:hover:not(:disabled) {
-  background: rgba(34, 197, 94, 0.3);
+.gain-arrow {
+  color: #4ade80;
+  font-weight: bold;
+}
+
+.upgrade-costs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.cost-chip {
+  padding: 0.2rem 0.5rem;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f4e4bc;
+  transition: all 0.2s;
+}
+
+.cost-chip.insufficient {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.upgrade-btn {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 7px;
+  border: 1px solid rgba(218, 165, 32, 0.3);
+  background: rgba(139, 69, 19, 0.2);
+  color: #94a3b8;
+  font-size: 0.8rem;
+  cursor: not-allowed;
+  transition: all 0.25s ease;
+}
+
+.upgrade-btn.upgrade-btn-ready {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #4ade80;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.upgrade-btn.upgrade-btn-ready:hover {
+  background: rgba(34, 197, 94, 0.25);
+  border-color: #4ade80;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
 }
 
 .upgrade-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.upgrade-eta {
+  font-size: 0.73rem;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 5px;
+  padding: 0.3rem 0.5rem;
+  text-align: center;
 }
 
 .existing-units {
