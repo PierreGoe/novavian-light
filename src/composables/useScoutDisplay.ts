@@ -20,18 +20,14 @@ export function useScoutDisplay() {
   const isBeingExplored = (tile: MapTile): boolean => {
     return missionStore.getScoutMissions.value.some(
       (m: ScoutMission) =>
-        m.status === 'pending' &&
-        m.target.x === tile.position.x &&
-        m.target.y === tile.position.y,
+        m.status === 'pending' && m.target.x === tile.position.x && m.target.y === tile.position.y,
     )
   }
 
   const getExploringTimer = (tile: MapTile): string => {
     const mission = missionStore.getScoutMissions.value.find(
       (m: ScoutMission) =>
-        m.status === 'pending' &&
-        m.target.x === tile.position.x &&
-        m.target.y === tile.position.y,
+        m.status === 'pending' && m.target.x === tile.position.x && m.target.y === tile.position.y,
     )
     if (!mission) return ''
     const remaining = Math.max(0, mission.endsAt - currentTime.value)
@@ -44,9 +40,7 @@ export function useScoutDisplay() {
   const getExploringProgress = (tile: MapTile): number => {
     const mission = missionStore.getScoutMissions.value.find(
       (m: ScoutMission) =>
-        m.status === 'pending' &&
-        m.target.x === tile.position.x &&
-        m.target.y === tile.position.y,
+        m.status === 'pending' && m.target.x === tile.position.x && m.target.y === tile.position.y,
     )
     if (!mission) return 0
     const total = mission.endsAt - mission.startedAt

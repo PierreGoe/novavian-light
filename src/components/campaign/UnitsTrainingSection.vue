@@ -64,7 +64,10 @@ const toastStore = useToastStore()
 const town = computed(() => missionStore.town.value)
 
 const trainingQuantity = ref<Record<string, number>>({
-  infantry: 1, archer: 1, cavalry: 1, siege: 1,
+  infantry: 1,
+  archer: 1,
+  cavalry: 1,
+  siege: 1,
 })
 
 const availableUnitTypes: MilitaryUnit['type'][] = ['infantry', 'archer', 'cavalry', 'siege']
@@ -76,8 +79,10 @@ const getUnitIcon = (type: string): string => {
 
 const getUnitName = (type: string): string => {
   const names = {
-    infantry: 'Infanterie', archer: 'Archers',
-    cavalry: 'Cavalerie', siege: 'Machines de Siège',
+    infantry: 'Infanterie',
+    archer: 'Archers',
+    cavalry: 'Cavalerie',
+    siege: 'Machines de Siège',
   }
   return names[type as keyof typeof names] || type
 }
@@ -96,8 +101,10 @@ const canTrainUnit = (unitType: string, quantity: number): boolean => {
   if (!town.value?.resources) return false
   const cost = getUnitCost(unitType)
   const totalCost = {
-    wood: cost.wood * quantity, clay: cost.clay * quantity,
-    iron: cost.iron * quantity, crop: cost.crop * quantity,
+    wood: cost.wood * quantity,
+    clay: cost.clay * quantity,
+    iron: cost.iron * quantity,
+    crop: cost.crop * quantity,
   }
   return (
     town.value.resources.wood >= totalCost.wood &&

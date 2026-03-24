@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="map-layer"
-    :class="{ 'current-layer': layer.row === currentPlayerRow }"
-  >
+  <div class="map-layer" :class="{ 'current-layer': layer.row === currentPlayerRow }">
     <!-- Lignes de connexion -->
     <svg class="connections-svg" v-if="layer.row < totalLayers - 1">
       <g v-for="node in layer.nodes" :key="node.id">
@@ -162,12 +159,27 @@ const getConnectionX = (connectionId: string) => {
   margin-left: -50px;
 }
 
-.node-combat { border-color: #dc143c; }
-.node-elite { border-color: #ffd700; }
-.node-shop { border-color: #32cd32; }
-.node-event { border-color: #9932cc; }
-.node-rest { border-color: #4169e1; }
-.node-boss { border-color: #8b0000; width: 120px; height: 120px; border-width: 4px; }
+.node-combat {
+  border-color: #dc143c;
+}
+.node-elite {
+  border-color: #ffd700;
+}
+.node-shop {
+  border-color: #32cd32;
+}
+.node-event {
+  border-color: #9932cc;
+}
+.node-rest {
+  border-color: #4169e1;
+}
+.node-boss {
+  border-color: #8b0000;
+  width: 120px;
+  height: 120px;
+  border-width: 4px;
+}
 
 .node-accessible {
   cursor: pointer;
@@ -242,7 +254,9 @@ const getConnectionX = (connectionId: string) => {
   opacity: 0.8;
 }
 
-.reward-icon { font-size: 0.8rem; }
+.reward-icon {
+  font-size: 0.8rem;
+}
 
 .node-status {
   position: absolute;
@@ -258,30 +272,65 @@ const getConnectionX = (connectionId: string) => {
   font-weight: bold;
 }
 
-.status-completed { background: #228b22; color: white; }
-.status-accessible { background: #daa520; color: white; }
-.status-locked { background: #666; color: #999; }
+.status-completed {
+  background: #228b22;
+  color: white;
+}
+.status-accessible {
+  background: #daa520;
+  color: white;
+}
+.status-locked {
+  background: #666;
+  color: #999;
+}
 
 @keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(218, 165, 32, 0.7); }
-  70% { box-shadow: 0 0 0 10px rgba(218, 165, 32, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(218, 165, 32, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(218, 165, 32, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(218, 165, 32, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(218, 165, 32, 0);
+  }
 }
 
 @keyframes progressPulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.6); }
-  50% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.9); }
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.9);
+  }
 }
 
 @keyframes selectedPulse {
-  0%, 100% { border-color: inherit; }
-  50% { border-color: #ffd700; }
+  0%,
+  100% {
+    border-color: inherit;
+  }
+  50% {
+    border-color: #ffd700;
+  }
 }
 
 @media (max-width: 768px) {
-  .map-layer { min-width: 400px; }
-  .map-node { width: 80px; height: 80px; }
-  .node-boss { width: 90px; height: 90px; }
-  .node-icon { font-size: 1.5rem; }
+  .map-layer {
+    min-width: 400px;
+  }
+  .map-node {
+    width: 80px;
+    height: 80px;
+  }
+  .node-boss {
+    width: 90px;
+    height: 90px;
+  }
+  .node-icon {
+    font-size: 1.5rem;
+  }
 }
 </style>

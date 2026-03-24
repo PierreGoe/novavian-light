@@ -15,11 +15,7 @@
     <div v-if="activeScoutMissions.length > 0" class="scouts-section">
       <div class="scouts-section-label">En mission</div>
       <div class="scouts-list">
-        <div
-          v-for="mission in activeScoutMissions"
-          :key="mission.id"
-          class="scout-mission active"
-        >
+        <div v-for="mission in activeScoutMissions" :key="mission.id" class="scout-mission active">
           <div class="scout-mission-icon">🔭</div>
           <div class="scout-mission-info">
             <span class="scout-coords">({{ mission.target.x }}, {{ mission.target.y }})</span>

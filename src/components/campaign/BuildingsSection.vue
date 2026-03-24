@@ -48,22 +48,30 @@
           <div class="upgrade-costs">
             <span
               class="cost-chip"
-              :class="{ insufficient: (town?.resources?.wood || 0) < getUpgradeCost(building.level).wood }"
+              :class="{
+                insufficient: (town?.resources?.wood || 0) < getUpgradeCost(building.level).wood,
+              }"
               >🪵 {{ getUpgradeCost(building.level).wood }}</span
             >
             <span
               class="cost-chip"
-              :class="{ insufficient: (town?.resources?.clay || 0) < getUpgradeCost(building.level).clay }"
+              :class="{
+                insufficient: (town?.resources?.clay || 0) < getUpgradeCost(building.level).clay,
+              }"
               >🧱 {{ getUpgradeCost(building.level).clay }}</span
             >
             <span
               class="cost-chip"
-              :class="{ insufficient: (town?.resources?.iron || 0) < getUpgradeCost(building.level).iron }"
+              :class="{
+                insufficient: (town?.resources?.iron || 0) < getUpgradeCost(building.level).iron,
+              }"
               >⚒️ {{ getUpgradeCost(building.level).iron }}</span
             >
             <span
               class="cost-chip"
-              :class="{ insufficient: (town?.resources?.crop || 0) < getUpgradeCost(building.level).crop }"
+              :class="{
+                insufficient: (town?.resources?.crop || 0) < getUpgradeCost(building.level).crop,
+              }"
               >🌾 {{ getUpgradeCost(building.level).crop }}</span
             >
           </div>
@@ -100,22 +108,35 @@ const town = computed(() => missionStore.town.value)
 
 const getBuildingIcon = (type: string): string => {
   const icons = {
-    barracks: '🏛️', stable: '🐎', workshop: '🔨',
-    farm: '🌾', mine: '⛏️', quarry: '🗿', lumbermill: '🪓',
+    barracks: '🏛️',
+    stable: '🐎',
+    workshop: '🔨',
+    farm: '🌾',
+    mine: '⛏️',
+    quarry: '🗿',
+    lumbermill: '🪓',
   }
   return icons[type as keyof typeof icons] || '🏢'
 }
 
 const getBuildingName = (type: string): string => {
   const names = {
-    barracks: 'Casernes', stable: 'Écuries', workshop: 'Atelier',
-    farm: 'Ferme', mine: 'Mine de Fer', quarry: 'Carrière', lumbermill: 'Scierie',
+    barracks: 'Casernes',
+    stable: 'Écuries',
+    workshop: 'Atelier',
+    farm: 'Ferme',
+    mine: 'Mine de Fer',
+    quarry: 'Carrière',
+    lumbermill: 'Scierie',
   }
   return names[type as keyof typeof names] || type
 }
 
 const getUpgradeCost = (level: number) => ({
-  wood: level * 100, clay: level * 80, iron: level * 60, crop: level * 40,
+  wood: level * 100,
+  clay: level * 80,
+  iron: level * 60,
+  crop: level * 40,
 })
 
 const getBuildingProductionGain = (type: string): number | null => {
