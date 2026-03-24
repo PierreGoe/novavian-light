@@ -52,10 +52,7 @@
             <div class="upgrade-header">
               <span class="upgrade-label">⬆️ Niveau {{ building.level + 1 }}</span>
               <!-- Gain si bâtiment de ressources -->
-              <span
-                v-if="getBuildingProductionGain(building.type)"
-                class="upgrade-gain"
-              >
+              <span v-if="getBuildingProductionGain(building.type)" class="upgrade-gain">
                 {{ getBuildingProductionIcon(building.type) }}
                 {{ getBuildingProductionGain(building.type)! * building.level }}
                 <span class="gain-arrow">→</span>
@@ -67,20 +64,32 @@
             <div class="upgrade-costs">
               <span
                 class="cost-chip"
-                :class="{ insufficient: (town?.resources?.wood || 0) < getUpgradeCost(building.level).wood }"
-              >🪵 {{ getUpgradeCost(building.level).wood }}</span>
+                :class="{
+                  insufficient: (town?.resources?.wood || 0) < getUpgradeCost(building.level).wood,
+                }"
+                >🪵 {{ getUpgradeCost(building.level).wood }}</span
+              >
               <span
                 class="cost-chip"
-                :class="{ insufficient: (town?.resources?.clay || 0) < getUpgradeCost(building.level).clay }"
-              >🧱 {{ getUpgradeCost(building.level).clay }}</span>
+                :class="{
+                  insufficient: (town?.resources?.clay || 0) < getUpgradeCost(building.level).clay,
+                }"
+                >🧱 {{ getUpgradeCost(building.level).clay }}</span
+              >
               <span
                 class="cost-chip"
-                :class="{ insufficient: (town?.resources?.iron || 0) < getUpgradeCost(building.level).iron }"
-              >⚒️ {{ getUpgradeCost(building.level).iron }}</span>
+                :class="{
+                  insufficient: (town?.resources?.iron || 0) < getUpgradeCost(building.level).iron,
+                }"
+                >⚒️ {{ getUpgradeCost(building.level).iron }}</span
+              >
               <span
                 class="cost-chip"
-                :class="{ insufficient: (town?.resources?.crop || 0) < getUpgradeCost(building.level).crop }"
-              >🌾 {{ getUpgradeCost(building.level).crop }}</span>
+                :class="{
+                  insufficient: (town?.resources?.crop || 0) < getUpgradeCost(building.level).crop,
+                }"
+                >🌾 {{ getUpgradeCost(building.level).crop }}</span
+              >
             </div>
 
             <!-- ETA si ressources insuffisantes -->
@@ -420,7 +429,9 @@ const trainUnits = (unitType: MilitaryUnit['type'], quantity: number) => {
   border: 1px solid rgba(218, 165, 32, 0.25);
   border-radius: 12px;
   overflow: hidden;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
 .building-card.can-upgrade {

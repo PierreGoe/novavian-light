@@ -76,16 +76,6 @@
       </section>
     </main>
 
-    <!-- Interface de combat si en combat -->
-    <div v-if="isInCombat" class="combat-interface">
-      <div class="combat-info">
-        <h3>Combat contre {{ currentMission?.enemy?.name || 'Ennemi' }}</h3>
-        <div class="combat-actions">
-          <button class="btn-attack" @click="win">⚔️ Gagner</button>
-          <button class="btn-defend" @click="lose">🛡️ Perdre</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -94,8 +84,8 @@ import { computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMissionStore } from '@/stores/missionStore'
 import { useToastStore } from '@/stores/toastStore'
-import TownView from './TownView.vue' // Composants enfants
-import LargeMapExplorationView from '../map/LargeMapExplorationView.vue' // Nouvelle carte
+import TownView from './TownView.vue'
+import LargeMapExplorationView from '../map/LargeMapExplorationView.vue'
 
 const router = useRouter()
 const missionStore = useMissionStore()
@@ -106,38 +96,16 @@ const currentMission = computed(() => missionStore.currentMission.value)
 const town = computed(() => missionStore.town.value)
 const missionName = computed(() => currentMission.value?.name || 'Camp de Base')
 const missionDifficulty = computed(() => currentMission.value?.difficulty)
-const isInCombat = computed(() => currentMission.value?.isActive || false)
 
-// Rerender every seconde for show resources production update
+// Rerender every second for resources production update
 const resourceIntervalId = setInterval(() => {
   missionStore.updateResourceProduction()
 }, 1000)
-
-onUnmounted(() => {
-  clearInterval(resourceIntervalId)
-})
 
 // Actions
 const exitCampaign = () => {
   missionStore.exitMission()
   router.push('/mission-tree')
-}
-
-const win = () => {
-  // fake function for win game
-  toastStore.showSuccess('Attaque réussie !', { duration: 2000 })
-  missionStore.completeMission(true)
-  setTimeout(() => {
-    exitCampaign()
-  }, 1000)
-}
-
-const lose = () => {
-  toastStore.showError('Vous avez perdu le combat...', { duration: 2000 })
-  missionStore.completeMission(false)
-  setTimeout(() => {
-    exitCampaign()
-  }, 1000)
 }
 
 // Lifecycle
@@ -149,6 +117,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  clearInterval(resourceIntervalId)
   // Arrêter les systèmes automatiques
   missionStore.stopAutoSave()
   missionStore.stopResourceProduction()

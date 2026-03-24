@@ -32,13 +32,12 @@
       <div class="scouts-panel-header">
         <h3 class="scouts-title">🔭 Éclaireurs</h3>
         <div class="scouts-available">
-          <span
-            v-for="i in 4"
-            :key="i"
-            class="scout-dot"
-            :class="{ active: i <= scoutsAvailable }"
-          >🧍</span>
-          <span class="scouts-count">{{ scoutsAvailable }} / 4 disponible{{ scoutsAvailable > 1 ? 's' : '' }}</span>
+          <span v-for="i in 4" :key="i" class="scout-dot" :class="{ active: i <= scoutsAvailable }"
+            >🧍</span
+          >
+          <span class="scouts-count"
+            >{{ scoutsAvailable }} / 4 disponible{{ scoutsAvailable > 1 ? 's' : '' }}</span
+          >
         </div>
       </div>
 
@@ -46,7 +45,11 @@
       <div v-if="activeScoutMissions.length > 0" class="scouts-section">
         <div class="scouts-section-label">En mission</div>
         <div class="scouts-list">
-          <div v-for="mission in activeScoutMissions" :key="mission.id" class="scout-mission active">
+          <div
+            v-for="mission in activeScoutMissions"
+            :key="mission.id"
+            class="scout-mission active"
+          >
             <div class="scout-mission-icon">🔭</div>
             <div class="scout-mission-info">
               <span class="scout-coords">({{ mission.target.x }}, {{ mission.target.y }})</span>
@@ -66,7 +69,11 @@
       <div v-if="completedScoutMissions.length > 0" class="scouts-section">
         <div class="scouts-section-label">Terminées</div>
         <div class="scouts-list">
-          <div v-for="mission in completedScoutMissions" :key="mission.id" class="scout-mission completed">
+          <div
+            v-for="mission in completedScoutMissions"
+            :key="mission.id"
+            class="scout-mission completed"
+          >
             <div class="scout-mission-icon">✅</div>
             <div class="scout-mission-info">
               <span class="scout-coords">({{ mission.target.x }}, {{ mission.target.y }})</span>
@@ -77,10 +84,53 @@
       </div>
 
       <!-- Aucune mission -->
-      <div v-if="activeScoutMissions.length === 0 && completedScoutMissions.length === 0" class="scouts-empty">
+      <div
+        v-if="activeScoutMissions.length === 0 && completedScoutMissions.length === 0"
+        class="scouts-empty"
+      >
         Cliquez sur une case inconnue pour envoyer un éclaireur
       </div>
     </section>
+
+    <!-- Rapport de combat -->
+    <Transition name="slide-fade">
+      <section v-if="combatReport" class="combat-report-panel">
+        <div class="report-header" :class="combatReport.attackerVictory ? 'victory' : 'defeat'">
+          <span class="report-icon">{{ combatReport.attackerVictory ? '🏆' : '💔' }}</span>
+          <span class="report-title">{{ combatReport.attackerVictory ? 'Victoire !' : 'Défaite' }}</span>
+        </div>
+
+        <p class="report-summary">{{ combatReport.summary }}</p>
+
+        <div class="report-details">
+          <div class="report-side">
+            <h4>{{ combatReport.attacker.army.label }}</h4>
+            <div class="report-stat">⚔️ Force : {{ combatReport.attacker.totalPowerUsed }}</div>
+            <div v-for="(killed, type) in combatReport.attacker.losses.killed" :key="type" class="report-loss">
+              {{ type }} : -{{ killed }} tué(s)
+            </div>
+            <div v-if="combatReport.attacker.losses.survivors.length > 0" class="report-survivors">
+              Survivants : {{ combatReport.attacker.losses.survivors.map(u => `${u.count} ${u.type}`).join(', ') }}
+            </div>
+          </div>
+
+          <div class="report-divider"></div>
+
+          <div class="report-side">
+            <h4>{{ combatReport.defender.army.label }}</h4>
+            <div class="report-stat">🛡️ Force : {{ combatReport.defender.totalPowerUsed }}</div>
+            <div v-for="(killed, type) in combatReport.defender.losses.killed" :key="type" class="report-loss">
+              {{ type }} : -{{ killed }} tué(s)
+            </div>
+            <div v-if="combatReport.defender.losses.survivors.length > 0" class="report-survivors">
+              Survivants : {{ combatReport.defender.losses.survivors.map(u => `${u.count} ${u.type}`).join(', ') }}
+            </div>
+          </div>
+        </div>
+
+        <button class="report-close-btn" @click="combatReport = null">Fermer</button>
+      </section>
+    </Transition>
 
     <!-- Toast de notification -->
     <Transition name="slide-fade">
@@ -93,8 +143,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useMapStore } from '../../stores/mapStore'
+import { useMapStore, type MapTile } from '../../stores/mapStore'
 import { useMissionStore } from '../../stores/missionStore'
+import { defaultResolver } from '../../combat/combatResolver'
+import type { Army, CombatReport, CombatUnit } from '../../combat/types'
 
 // Composants
 import LargeMapGrid from './LargeMapGrid.vue'
@@ -108,6 +160,7 @@ const missionStore = useMissionStore()
 const selectedTileId = ref<string | null>(null)
 const notification = ref<{ message: string; type: string } | null>(null)
 const currentTime = ref(Date.now())
+const combatReport = ref<CombatReport | null>(null)
 
 // Computed
 const mapTiles = computed(() => mapStore.mapTiles.value)
@@ -179,9 +232,95 @@ const handleTileSelect = (tileId: string) => {
 }
 
 const handleAttackTile = (tileId: string) => {
-  // TODO: Implémenter le système de combat
-  showNotification('Système de combat en développement', 'info')
-  console.log('Attack tile:', tileId)
+  const tile = mapStore.getTileById(tileId)
+  if (!tile) return
+
+  const playerUnits = missionStore.town.value?.units || []
+  if (playerUnits.length === 0 || playerUnits.every((u) => u.count <= 0)) {
+    showNotification('Vous n\'avez aucune unité à envoyer !', 'warning')
+    return
+  }
+
+  // Construire l'armée attaquante depuis les unités du joueur
+  const attackerUnits: CombatUnit[] = playerUnits
+    .filter((u) => u.count > 0)
+    .map((u) => ({
+      type: u.type,
+      count: u.count,
+      attack: u.attack,
+      defense: u.defense,
+      health: u.health,
+    }))
+
+  const attackerArmy: Army = {
+    label: 'Vos troupes',
+    units: attackerUnits,
+    modifiers: [], // ici viendront les bonus de race / artefacts
+  }
+
+  // Générer la garnison ennemie selon le type de case
+  const defenderArmy = generateEnemyGarrison(tile)
+
+  // Résoudre le combat
+  const report = defaultResolver.resolve(attackerArmy, defenderArmy)
+  combatReport.value = report
+
+  // Appliquer les pertes aux unités du joueur
+  applyPlayerLosses(report)
+
+  // Si victoire, convertir la case
+  if (report.attackerVictory) {
+    tile.type = 'ruins' // la case vaincue devient des ruines
+    mapStore.saveMapState()
+    showNotification(report.summary, 'success')
+  } else {
+    showNotification(report.summary, 'error')
+  }
+
+  missionStore.saveMissionState()
+}
+
+/** Génère une garnison ennemie selon le type de case */
+function generateEnemyGarrison(tile: MapTile): Army {
+  const isStronghold = tile.type === 'stronghold'
+  const baseCount = isStronghold ? 8 : 3
+  const variation = Math.floor(Math.random() * 3)
+
+  const units: CombatUnit[] = [
+    { type: 'infantry', count: baseCount + variation, attack: 35, defense: 30, health: 90 },
+  ]
+
+  if (isStronghold) {
+    units.push(
+      { type: 'archer', count: 3 + variation, attack: 20, defense: 10, health: 70 },
+      { type: 'cavalry', count: 2, attack: 80, defense: 40, health: 120 },
+    )
+  } else if (Math.random() > 0.5) {
+    units.push(
+      { type: 'archer', count: 1 + variation, attack: 20, defense: 10, health: 70 },
+    )
+  }
+
+  return {
+    label: isStronghold ? 'Garnison de la Forteresse' : 'Garnison du Village Ennemi',
+    units,
+    modifiers: [], // modifiers terrain etc. viendront ici
+  }
+}
+
+/** Applique les pertes du rapport aux unités du joueur dans le missionStore */
+function applyPlayerLosses(report: CombatReport) {
+  const townUnits = missionStore.missionState.town.units
+
+  for (const [unitType, killedCount] of Object.entries(report.attacker.losses.killed)) {
+    const unit = townUnits.find((u) => u.type === unitType)
+    if (unit) {
+      unit.count = Math.max(0, unit.count - killedCount)
+    }
+  }
+
+  // Retirer les unités à 0
+  missionStore.missionState.town.units = townUnits.filter((u) => u.count > 0)
 }
 
 const handleTradeTile = (tileId: string) => {
@@ -491,6 +630,140 @@ onUnmounted(() => {
   text-align: center;
   padding: 10px 0;
   font-style: italic;
+}
+
+/* Combat Report Panel */
+.combat-report-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(145deg, #1e293b, #0f172a);
+  border: 2px solid #334155;
+  border-radius: 16px;
+  padding: 28px 32px;
+  width: 420px;
+  max-width: 90vw;
+  z-index: 1100;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(59, 130, 246, 0.1);
+  color: #e2e8f0;
+}
+
+.report-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.report-header.victory {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.1));
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.report-header.defeat {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.1));
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.report-icon {
+  font-size: 1.8rem;
+}
+
+.report-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.report-header.victory .report-title {
+  color: #4ade80;
+}
+
+.report-header.defeat .report-title {
+  color: #f87171;
+}
+
+.report-summary {
+  text-align: center;
+  font-size: 0.9rem;
+  color: #94a3b8;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.report-details {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.report-side {
+  flex: 1;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.report-side h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #334155;
+}
+
+.report-stat {
+  font-size: 0.82rem;
+  color: #93c5fd;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.report-loss {
+  font-size: 0.8rem;
+  color: #f87171;
+  margin-bottom: 4px;
+}
+
+.report-survivors {
+  font-size: 0.8rem;
+  color: #4ade80;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed #334155;
+}
+
+.report-divider {
+  width: 2px;
+  background: linear-gradient(to bottom, transparent, #475569, transparent);
+  flex-shrink: 0;
+}
+
+.report-close-btn {
+  display: block;
+  width: 100%;
+  margin-top: 20px;
+  padding: 10px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.report-close-btn:hover {
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .notification {
