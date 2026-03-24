@@ -316,16 +316,13 @@ export const useGameStore = () => {
 
   // Reset complet - le joueur doit resélectionner une race
   const resetGameCompletely = () => {
-    console.debug('Resetting game completely - player will select race again')
     Object.assign(gameState, createInitialState())
     localStorage.removeItem('minitravian-save')
   }
 
   // Reset de la progression - garde la race sélectionnée
   const resetMapOnly = () => {
-    console.debug('Resetting map progress - keeping selected race')
     if (!gameState.race) {
-      console.warn('No race selected, cannot reset map only')
       return
     }
 
@@ -333,8 +330,6 @@ export const useGameStore = () => {
 
     // Sauvegarder la race actuelle
     const raceToKeep = { ...currentRace }
-
-    console.log('Resetting with race:', raceToKeep.name)
 
     // Réinitialiser chaque propriété individuellement pour maintenir la réactivité
     const freshState = createInitialState()
@@ -355,8 +350,6 @@ export const useGameStore = () => {
     gameState.mapState.selectedNodeId = freshState.mapState.selectedNodeId
     gameState.mapState.mapGenerated = freshState.mapState.mapGenerated
 
-    console.log(JSON.stringify(gameState.mapState))
-
     // Remettre les autres propriétés
     gameState.race = raceToKeep
     gameState.currentStatus = 'in-progress'
@@ -367,14 +360,8 @@ export const useGameStore = () => {
     // Redonner les artefacts de démarrage
     giveStartingArtifacts(raceToKeep)
 
-    // Force une mise à jour de l'interface
-    console.log('New gold value:', gameState.inventory.gold)
-    console.log('New leadership value:', gameState.inventory.leadership)
-
     // Sauvegarder immédiatement
     saveGame()
-
-    console.log('Map reset completed, race preserved:', raceToKeep.name)
   }
 
   // Fonctions pour la gestion de la carte
@@ -451,23 +438,14 @@ export const useGameStore = () => {
         if (gameState.inventory.leadership > 200) {
           gameState.inventory.leadership = 200
         }
-        console.log(
-          `Leadership gained: +${change}. Previous: ${previousLeadership}, Current: ${gameState.inventory.leadership}`,
-        )
         break
 
       case 'lose':
         gameState.inventory.leadership -= change
-        console.log(
-          `Leadership lost: -${change}. Previous: ${previousLeadership}, Current: ${gameState.inventory.leadership}`,
-        )
 
         // Vérifier si le leadership tombe à 0 ou moins (Game Over)
         if (gameState.inventory.leadership <= 0) {
           gameState.inventory.leadership = 0
-          console.log('🚨 Leadership reached 0 - triggering Game Over!')
-
-          // Déclencher le Game Over avec une raison détaillée
           triggerGameOver()
         }
         break
@@ -475,12 +453,10 @@ export const useGameStore = () => {
       case 'set':
       default:
         gameState.inventory.leadership = change
-        console.log(`Leadership set to: ${change}. Previous: ${previousLeadership}`)
 
         // Vérifier Game Over même en mode 'set'
         if (gameState.inventory.leadership <= 0) {
           gameState.inventory.leadership = 0
-          console.log('🚨 Leadership set to 0 or below - triggering Game Over!')
           triggerGameOver()
         }
         break
@@ -580,28 +556,18 @@ export const useGameStore = () => {
   // ====== FONCTIONS DE GESTION DE CARTE ======
 
   const initializeMapIfNeeded = () => {
-    console.log('initializeMapIfNeeded called, mapGenerated:', gameState.mapState.mapGenerated)
-
     if (!gameState.mapState.mapGenerated) {
-      console.log('Generating new map...')
       const newMapLayers = generateMap()
 
       // Rendre accessible le node unique de la première ligne
       if (newMapLayers.length > 0 && newMapLayers[0].nodes.length > 0) {
-        const firstLayer = newMapLayers[0]
-        // Il n'y a qu'un seul node dans la première ligne (index 0)
-        firstLayer.nodes[0].accessible = true
-        console.log('First node made accessible')
+        newMapLayers[0].nodes[0].accessible = true
       }
 
       setMapLayers(newMapLayers)
       setCurrentPlayerRow(0)
       gameState.mapState.mapGenerated = true
-
-      console.log('Map initialized with', newMapLayers.length, 'layers')
       saveGame()
-    } else {
-      console.log('Map already generated, skipping initialization')
     }
   }
 

@@ -28,167 +28,13 @@
     />
 
     <!-- Panel éclaireurs -->
-    <section class="scouts-panel">
-      <div class="scouts-panel-header">
-        <h3 class="scouts-title">🔭 Éclaireurs</h3>
-        <div class="scouts-available">
-          <span v-for="i in 4" :key="i" class="scout-dot" :class="{ active: i <= scoutsAvailable }"
-            >🧍</span
-          >
-          <span class="scouts-count"
-            >{{ scoutsAvailable }} / 4 disponible{{ scoutsAvailable > 1 ? 's' : '' }}</span
-          >
-        </div>
-      </div>
+    <ScoutsPanel />
 
-      <!-- Missions en cours -->
-      <div v-if="activeScoutMissions.length > 0" class="scouts-section">
-        <div class="scouts-section-label">En mission</div>
-        <div class="scouts-list">
-          <div
-            v-for="mission in activeScoutMissions"
-            :key="mission.id"
-            class="scout-mission active"
-          >
-            <div class="scout-mission-icon">🔭</div>
-            <div class="scout-mission-info">
-              <span class="scout-coords">({{ mission.target.x }}, {{ mission.target.y }})</span>
-              <div class="scout-progress-bar">
-                <div
-                  class="scout-progress-fill"
-                  :style="{ width: getMissionProgress(mission) + '%' }"
-                ></div>
-              </div>
-            </div>
-            <div class="scout-timer">{{ formatTimeRemaining(mission.endsAt) }}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Missions terminées récemment -->
-      <div v-if="completedScoutMissions.length > 0" class="scouts-section">
-        <div class="scouts-section-label">Terminées</div>
-        <div class="scouts-list">
-          <div
-            v-for="mission in completedScoutMissions"
-            :key="mission.id"
-            class="scout-mission completed"
-          >
-            <div class="scout-mission-icon">✅</div>
-            <div class="scout-mission-info">
-              <span class="scout-coords">({{ mission.target.x }}, {{ mission.target.y }})</span>
-              <span class="scout-done-label">Zone découverte</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Aucune mission -->
-      <div
-        v-if="activeScoutMissions.length === 0 && completedScoutMissions.length === 0"
-        class="scouts-empty"
-      >
-        Cliquez sur une case inconnue pour envoyer un éclaireur
-      </div>
-    </section>
-
-    <!-- Bouton + panneau historique des rapports -->
-    <section class="reports-panel">
-      <button class="reports-toggle" @click="showReportsPanel = !showReportsPanel">
-        📜 Rapports ({{ missionStore.battleReports.value.length }})
-        <span v-if="missionStore.unreadReportsCount.value > 0" class="unread-badge">
-          {{ missionStore.unreadReportsCount.value }}
-        </span>
-      </button>
-
-      <div v-if="showReportsPanel" class="reports-list">
-        <div v-if="missionStore.battleReports.value.length === 0" class="reports-empty">
-          Aucun rapport de bataille
-        </div>
-        <div
-          v-for="report in missionStore.battleReports.value"
-          :key="report.id"
-          class="report-entry"
-          :class="[
-            report.attackerVictory ? 'entry-victory' : 'entry-defeat',
-            { 'entry-unread': !report.read },
-          ]"
-          @click="viewSavedReport(report)"
-        >
-          <span class="report-entry-icon">{{ report.attackerVictory ? '🏆' : '💔' }}</span>
-          <div class="report-entry-info">
-            <span class="report-entry-name">
-              <span v-if="!report.read" class="new-dot"></span>
-              {{ report.tileName }}
-            </span>
-            <span class="report-entry-date">{{ formatReportDate(report.date) }}</span>
-          </div>
-          <button
-            class="report-delete-btn"
-            title="Supprimer"
-            @click.stop="missionStore.deleteBattleReport(report.id)"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-    </section>
+    <!-- Historique des rapports -->
+    <BattleReportsPanel @view-report="openCombatReport" />
 
     <!-- Rapport de combat (overlay) -->
-    <Transition name="slide-fade">
-      <section v-if="combatReport" class="combat-report-panel">
-        <div class="report-header" :class="combatReport.attackerVictory ? 'victory' : 'defeat'">
-          <span class="report-icon">{{ combatReport.attackerVictory ? '🏆' : '💔' }}</span>
-          <span class="report-title">{{
-            combatReport.attackerVictory ? 'Victoire !' : 'Défaite'
-          }}</span>
-        </div>
-
-        <p class="report-summary">{{ combatReport.summary }}</p>
-
-        <div class="report-details">
-          <div class="report-side">
-            <h4>{{ combatReport.attacker.army.label }}</h4>
-            <div class="report-stat">⚔️ Force : {{ combatReport.attacker.totalPowerUsed }}</div>
-            <div
-              v-for="(killed, type) in combatReport.attacker.losses.killed"
-              :key="type"
-              class="report-loss"
-            >
-              {{ type }} : -{{ killed }} tué(s)
-            </div>
-            <div v-if="combatReport.attacker.losses.survivors.length > 0" class="report-survivors">
-              Survivants :
-              {{
-                combatReport.attacker.losses.survivors.map((u) => `${u.count} ${u.type}`).join(', ')
-              }}
-            </div>
-          </div>
-
-          <div class="report-divider"></div>
-
-          <div class="report-side">
-            <h4>{{ combatReport.defender.army.label }}</h4>
-            <div class="report-stat">🛡️ Force : {{ combatReport.defender.totalPowerUsed }}</div>
-            <div
-              v-for="(killed, type) in combatReport.defender.losses.killed"
-              :key="type"
-              class="report-loss"
-            >
-              {{ type }} : -{{ killed }} tué(s)
-            </div>
-            <div v-if="combatReport.defender.losses.survivors.length > 0" class="report-survivors">
-              Survivants :
-              {{
-                combatReport.defender.losses.survivors.map((u) => `${u.count} ${u.type}`).join(', ')
-              }}
-            </div>
-          </div>
-        </div>
-
-        <button class="report-close-btn" @click="combatReport = null">Fermer</button>
-      </section>
-    </Transition>
+    <CombatReportOverlay :report="combatReport" @close="combatReport = null" />
 
     <!-- Toast de notification -->
     <Transition name="slide-fade">
@@ -206,21 +52,23 @@ import { useMissionStore } from '../../stores/missionStore'
 import { defaultResolver } from '../../combat/combatResolver'
 import type { Army, CombatReport, CombatUnit, SavedBattleReport } from '../../combat/types'
 import { ENEMY_BASE_INFANTRY, ENEMY_STRONGHOLD_INFANTRY } from '../../config'
+import { useNotifications } from '../../composables/useNotifications'
 
 // Composants
 import LargeMapGrid from './LargeMapGrid.vue'
 import TileDetails from './TileDetails.vue'
+import ScoutsPanel from './ScoutsPanel.vue'
+import BattleReportsPanel from './BattleReportsPanel.vue'
+import CombatReportOverlay from './CombatReportOverlay.vue'
 
 // Stores
 const mapStore = useMapStore()
 const missionStore = useMissionStore()
+const { notification, showNotification } = useNotifications()
 
 // État local
 const selectedTileId = ref<string | null>(null)
-const notification = ref<{ message: string; type: string } | null>(null)
-const currentTime = ref(Date.now())
 const combatReport = ref<CombatReport | null>(null)
-const showReportsPanel = ref(false)
 
 // Computed
 const mapTiles = computed(() => mapStore.mapTiles.value)
@@ -228,27 +76,12 @@ const selectedTile = computed(() => {
   if (!selectedTileId.value) return null
   return mapStore.getTileById(selectedTileId.value)
 })
-const scoutsAvailable = computed(() => missionStore.scoutsAvailable.value)
-const activeScoutMissions = computed(() =>
-  missionStore.getScoutMissions.value.filter((m) => m.status === 'pending'),
-)
-const completedScoutMissions = computed(() =>
-  missionStore.getScoutMissions.value.filter((m) => m.status === 'completed'),
-)
 
-// Helpers scouts
-const formatTimeRemaining = (endsAt: number): string => {
-  const remaining = Math.max(0, endsAt - currentTime.value)
-  const seconds = Math.ceil(remaining / 1000)
-  if (seconds <= 0) return 'Arrivée...'
-  if (seconds < 60) return `${seconds}s`
-  return `${Math.floor(seconds / 60)}m${seconds % 60}s`
-}
-
-const getMissionProgress = (mission: { startedAt: number; endsAt: number }): number => {
-  const total = mission.endsAt - mission.startedAt
-  const elapsed = currentTime.value - mission.startedAt
-  return Math.min(100, Math.max(0, (elapsed / total) * 100))
+const openCombatReport = (report: SavedBattleReport) => {
+  combatReport.value = null
+  requestAnimationFrame(() => {
+    combatReport.value = report
+  })
 }
 
 // Methods
@@ -416,16 +249,12 @@ function applyPlayerLosses(report: CombatReport) {
   missionStore.missionState.town.units = townUnits.filter((u) => u.count > 0)
 }
 
-const handleTradeTile = (tileId: string) => {
-  // TODO: Implémenter le système de commerce
+const handleTradeTile = (_tileId: string) => {
   showNotification('Système de commerce en développement', 'info')
-  console.log('Trade with tile:', tileId)
 }
 
-const handleExploreTile = (tileId: string) => {
-  // TODO: Implémenter l'exploration des ruines
+const handleExploreTile = (_tileId: string) => {
   showNotification('Exploration des ruines en développement', 'info')
-  console.log('Explore tile:', tileId)
 }
 
 const handleScoutTile = (tileId: string) => {
@@ -435,34 +264,6 @@ const handleScoutTile = (tileId: string) => {
   } else {
     showNotification(result.message, 'error')
   }
-}
-
-const showNotification = (message: string, type: string) => {
-  notification.value = { message, type }
-  setTimeout(() => {
-    notification.value = null
-  }, 3000)
-}
-
-/** Ouvre un rapport sauvegardé dans l'overlay */
-const viewSavedReport = (report: SavedBattleReport) => {
-  missionStore.markReportRead(report.id)
-  showReportsPanel.value = false
-  combatReport.value = null
-  requestAnimationFrame(() => {
-    combatReport.value = report
-  })
-}
-
-/** Formate une date ISO en label court */
-const formatReportDate = (iso: string): string => {
-  const d = new Date(iso)
-  return d.toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 // Timer pour la régénération automatique des points
@@ -503,9 +304,6 @@ onMounted(() => {
   // Timer pour forcer le rafraîchissement de l'affichage des timers
   // Les computed vérifieront automatiquement l'état des missions
   displayRefreshTimer = window.setInterval(() => {
-    // Mettre à jour le temps pour forcer le recalcul des timers
-    currentTime.value = Date.now()
-
     // Synchroniser les cases découvertes avec le mapStore
     const discoveredTiles = missionStore.getDiscoveredTiles.value
     let hasChanges = false
@@ -517,11 +315,10 @@ onMounted(() => {
         hasChanges = true
       }
     })
-    // Ne sauvegarder qu'une seule fois s'il y a eu des changements
     if (hasChanges) {
       mapStore.saveMapState()
     }
-  }, 1000) // Vérifier toutes les secondes pour un affichage fluide
+  }, 1000)
 })
 
 onUnmounted(() => {
@@ -604,431 +401,6 @@ onUnmounted(() => {
 
 .map-section {
   margin: 20px 0;
-}
-
-/* ===== Scout Panel ===== */
-.scouts-panel {
-  background: rgba(15, 25, 50, 0.7);
-  border: 1px solid rgba(100, 149, 237, 0.35);
-  border-radius: 12px;
-  padding: 16px 20px;
-  margin-top: 16px;
-}
-
-.scouts-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.scouts-title {
-  margin: 0;
-  font-size: 1rem;
-  color: #93c5fd;
-  font-weight: 600;
-}
-
-.scouts-available {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.scout-dot {
-  font-size: 1rem;
-  opacity: 0.25;
-  transition: opacity 0.3s ease;
-}
-
-.scout-dot.active {
-  opacity: 1;
-}
-
-.scouts-count {
-  font-size: 0.8rem;
-  color: #93c5fd;
-  margin-left: 4px;
-  white-space: nowrap;
-}
-
-.scouts-section {
-  margin-bottom: 12px;
-}
-
-.scouts-section-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #64748b;
-  margin-bottom: 6px;
-}
-
-.scouts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.scout-mission {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid transparent;
-}
-
-.scout-mission.active {
-  border-color: rgba(100, 149, 237, 0.3);
-}
-
-.scout-mission.completed {
-  border-color: rgba(34, 197, 94, 0.25);
-  background: rgba(34, 197, 94, 0.05);
-}
-
-.scout-mission-icon {
-  font-size: 1.1rem;
-  flex-shrink: 0;
-}
-
-.scout-mission-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.scout-coords {
-  font-size: 0.82rem;
-  color: #cbd5e1;
-  font-weight: 500;
-}
-
-.scout-done-label {
-  font-size: 0.75rem;
-  color: #4ade80;
-}
-
-.scout-progress-bar {
-  height: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.scout-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #3b82f6, #93c5fd);
-  border-radius: 2px;
-  transition: width 0.5s ease;
-}
-
-.scout-timer {
-  font-size: 0.8rem;
-  color: #93c5fd;
-  font-weight: 600;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.scouts-empty {
-  font-size: 0.82rem;
-  color: #475569;
-  text-align: center;
-  padding: 10px 0;
-  font-style: italic;
-}
-
-/* Combat Report Panel */
-.combat-report-panel {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: linear-gradient(145deg, #1e293b, #0f172a);
-  border: 2px solid #334155;
-  border-radius: 16px;
-  padding: 28px 32px;
-  width: 420px;
-  max-width: 90vw;
-  z-index: 1100;
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.7),
-    0 0 40px rgba(59, 130, 246, 0.1);
-  color: #e2e8f0;
-}
-
-.report-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 10px;
-  margin-bottom: 16px;
-}
-
-.report-header.victory {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.1));
-  border: 1px solid rgba(34, 197, 94, 0.4);
-}
-
-.report-header.defeat {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.1));
-  border: 1px solid rgba(239, 68, 68, 0.4);
-}
-
-.report-icon {
-  font-size: 1.8rem;
-}
-
-.report-title {
-  font-size: 1.4rem;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-
-.report-header.victory .report-title {
-  color: #4ade80;
-}
-
-.report-header.defeat .report-title {
-  color: #f87171;
-}
-
-.report-summary {
-  text-align: center;
-  font-size: 0.9rem;
-  color: #94a3b8;
-  margin-bottom: 20px;
-  line-height: 1.5;
-}
-
-.report-details {
-  display: flex;
-  gap: 16px;
-  align-items: stretch;
-}
-
-.report-side {
-  flex: 1;
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid #334155;
-  border-radius: 10px;
-  padding: 14px;
-}
-
-.report-side h4 {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #cbd5e1;
-  margin-bottom: 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #334155;
-}
-
-.report-stat {
-  font-size: 0.82rem;
-  color: #93c5fd;
-  margin-bottom: 8px;
-  font-weight: 500;
-}
-
-.report-loss {
-  font-size: 0.8rem;
-  color: #f87171;
-  margin-bottom: 4px;
-}
-
-.report-survivors {
-  font-size: 0.8rem;
-  color: #4ade80;
-  margin-top: 8px;
-  padding-top: 6px;
-  border-top: 1px dashed #334155;
-}
-
-.report-divider {
-  width: 2px;
-  background: linear-gradient(to bottom, transparent, #475569, transparent);
-  flex-shrink: 0;
-}
-
-.report-close-btn {
-  display: block;
-  width: 100%;
-  margin-top: 20px;
-  padding: 10px;
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.report-close-btn:hover {
-  background: linear-gradient(135deg, #60a5fa, #3b82f6);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-}
-
-/* Reports History Panel */
-.reports-panel {
-  margin-top: 12px;
-  background: linear-gradient(145deg, #1e293b, #0f172a);
-  border: 1px solid #334155;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.reports-toggle {
-  width: 100%;
-  padding: 10px 16px;
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.2s;
-}
-
-.reports-toggle:hover {
-  color: #e2e8f0;
-  background: rgba(51, 65, 85, 0.4);
-}
-
-.reports-list {
-  max-height: 260px;
-  overflow-y: auto;
-  border-top: 1px solid #334155;
-}
-
-.reports-empty {
-  font-size: 0.82rem;
-  color: #475569;
-  text-align: center;
-  padding: 14px;
-  font-style: italic;
-}
-
-.report-entry {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  cursor: pointer;
-  transition: background 0.15s;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.4);
-}
-
-.report-entry:last-child {
-  border-bottom: none;
-}
-
-.report-entry:hover {
-  background: rgba(51, 65, 85, 0.5);
-}
-
-.report-entry-icon {
-  font-size: 1.1rem;
-  flex-shrink: 0;
-}
-
-.report-entry-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.report-entry-name {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #cbd5e1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.entry-victory .report-entry-name {
-  color: #4ade80;
-}
-
-.entry-defeat .report-entry-name {
-  color: #f87171;
-}
-
-.report-entry-date {
-  font-size: 0.72rem;
-  color: #64748b;
-}
-
-.report-entry-arrow {
-  color: #475569;
-  font-size: 1.2rem;
-  flex-shrink: 0;
-}
-
-.entry-unread {
-  background: rgba(59, 130, 246, 0.08);
-}
-
-.new-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #3b82f6;
-  margin-right: 5px;
-  vertical-align: middle;
-}
-
-.unread-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: #ef4444;
-  color: white;
-  font-size: 0.7rem;
-  font-weight: 700;
-  margin-left: 8px;
-}
-
-.report-delete-btn {
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #64748b;
-  font-size: 0.85rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
-}
-
-.report-delete-btn:hover {
-  background: rgba(239, 68, 68, 0.2);
-  color: #f87171;
 }
 
 .notification {

@@ -15,7 +15,6 @@
 
     <!-- Viewport principal avec défilement -->
     <div
-      ref="mapViewport"
       class="map-viewport"
       @mousedown="startPan"
       @mousemove="handlePan"
@@ -75,26 +74,10 @@
 </template>
 
 <script setup lang="ts">
-const zoomSteps = [5, 7, 9, 11]
-function zoomIn() {
-  const current = viewportSize.value
-  const idx = zoomSteps.indexOf(current)
-  if (idx < zoomSteps.length - 1) {
-    mapStore.setZoomLevel(zoomSteps[idx + 1])
-    viewportOffset.value = { ...mapStore.mapState.viewportOffset }
-  }
-}
-function zoomOut() {
-  const current = viewportSize.value
-  const idx = zoomSteps.indexOf(current)
-  if (idx > 0) {
-    mapStore.setZoomLevel(zoomSteps[idx - 1])
-    viewportOffset.value = { ...mapStore.mapState.viewportOffset }
-  }
-}
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useMapStore, type MapTile, MAP_CONFIG } from '../../stores/mapStore'
-import { useMissionStore, type ScoutMission } from '../../stores/missionStore'
+import { useMapViewport } from '../../composables/useMapViewport'
+import { useScoutDisplay } from '../../composables/useScoutDisplay'
 
 // Props
 interface Props {
@@ -111,21 +94,25 @@ const emit = defineEmits<{
 
 // Store
 const mapStore = useMapStore()
-const missionStore = useMissionStore()
 
-// Refs
-const mapViewport = ref<HTMLElement | null>(null)
+// Composables
+const {
+  viewportOffset,
+  viewportSize,
+  viewportCenter,
+  isPanning,
+  zoomIn,
+  zoomOut,
+  centerOnPlayer,
+  startPan,
+  handlePan,
+  endPan,
+} = useMapViewport()
+
+const { isBeingExplored, getExploringTimer, getExploringProgress, getTileExploringOpacity } =
+  useScoutDisplay()
+
 const isLoading = ref(false)
-const currentTime = ref(Date.now())
-
-// État du viewport
-const viewportOffset = ref({ ...mapStore.mapState.viewportOffset })
-const viewportSize = computed(() => mapStore.mapState.zoomLevel)
-
-// État du panning (déplacement à la souris)
-const isPanning = ref(false)
-const panStart = ref({ x: 0, y: 0 })
-const panOffset = ref({ x: 0, y: 0 })
 
 // Computed - Tuiles visibles dans le viewport
 const visibleTiles = computed(() => {
@@ -144,21 +131,10 @@ const visibleTiles = computed(() => {
   })
 })
 
-// Computed - Centre du viewport
-const viewportCenter = computed(() => {
-  const halfView = Math.floor(viewportSize.value / 2)
-  return {
-    x: viewportOffset.value.x + halfView,
-    y: viewportOffset.value.y + halfView,
-  }
-})
-
 // Styles
 const getGridStyle = () => {
-  // Adapter la taille des tuiles en fonction du zoom pour maximiser la visibilité
-  const containerSize = 600 - 40 // height - padding
+  const containerSize = 600 - 40
   const tileSizeAdaptive = Math.floor((containerSize - viewportSize.value * 2) / viewportSize.value)
-
   return {
     display: 'grid',
     gridTemplateColumns: `repeat(${viewportSize.value}, ${tileSizeAdaptive}px)`,
@@ -167,227 +143,24 @@ const getGridStyle = () => {
   }
 }
 
-const getTileStyle = (tile: MapTile) => {
-  const relativeX = tile.position.x - viewportOffset.value.x
-  const relativeY = tile.position.y - viewportOffset.value.y
-
-  return {
-    gridColumn: relativeX + 1,
-    gridRow: relativeY + 1,
-  }
-}
-
-const getTileClasses = (tile: MapTile) => {
-  return [
-    `terrain-${tile.type}`,
-    {
-      'tile-explored': tile.explored,
-      'tile-current': tile.current,
-      'tile-selected': props.selectedTileId === tile.id,
-      'tile-unexplored': !tile.explored,
-      'tile-being-explored': isBeingExplored(tile),
-    },
-  ]
-}
-
-const getTileExploringOpacity = (tile: MapTile): string => {
-  const progress = getExploringProgress(tile)
-  // Opacité diminue de 1 (100%) à 0.3 (30%) au fur et à mesure de la progression
-  const opacity = 1 - (progress / 100) * 0.7
-  return opacity.toFixed(2)
-}
-
-// Methods
-const selectTile = (tileId: string) => {
-  emit('selectTile', tileId)
-}
-
-const getTileIcon = (type: MapTile['type']) => {
-  return mapStore.getTileIcon(type)
-}
-
-// Fonctions pour la gestion des éclaireurs
-const isBeingExplored = (tile: MapTile): boolean => {
-  const missions = missionStore.getScoutMissions.value
-  return missions.some(
-    (mission: ScoutMission) =>
-      mission.status === 'pending' &&
-      mission.target.x === tile.position.x &&
-      mission.target.y === tile.position.y,
-  )
-}
-
-const getExploringTimer = (tile: MapTile): string => {
-  const missions = missionStore.getScoutMissions.value
-  const mission = missions.find(
-    (m: ScoutMission) =>
-      m.status === 'pending' && m.target.x === tile.position.x && m.target.y === tile.position.y,
-  )
-
-  if (!mission) return ''
-
-  // Utiliser currentTime pour forcer la réactivité
-  const now = currentTime.value
-  const remaining = Math.max(0, mission.endsAt - now)
-  const seconds = Math.floor(remaining / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `${minutes}:${secs.toString().padStart(2, '0')}`
-}
-
-const getExploringProgress = (tile: MapTile): number => {
-  const missions = missionStore.getScoutMissions.value
-  const mission = missions.find(
-    (m: ScoutMission) =>
-      m.status === 'pending' && m.target.x === tile.position.x && m.target.y === tile.position.y,
-  )
-
-  if (!mission) return 0
-
-  const now = currentTime.value
-  const total = mission.endsAt - mission.startedAt
-  const elapsed = now - mission.startedAt
-  return Math.min(100, Math.max(0, (elapsed / total) * 100))
-}
-
-// Timer pour rafraîchir l'affichage
-let displayTimer: number | null = null
-
-// Zoom
-onMounted(() => {
-  mapStore.setZoomLevel(11)
-  viewportOffset.value = { ...mapStore.mapState.viewportOffset }
-  window.addEventListener('keydown', handleKeyboard)
-  centerOnPlayer()
-
-  // Timer pour mettre à jour l'affichage des timers
-  displayTimer = window.setInterval(() => {
-    currentTime.value = Date.now()
-  }, 1000)
+const getTileStyle = (tile: MapTile) => ({
+  gridColumn: tile.position.x - viewportOffset.value.x + 1,
+  gridRow: tile.position.y - viewportOffset.value.y + 1,
 })
 
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyboard)
-  if (displayTimer !== null) {
-    clearInterval(displayTimer)
-  }
-})
-
-// Panning (déplacement à la souris)
-const startPan = (event: MouseEvent) => {
-  isPanning.value = true
-  panStart.value = { x: event.clientX, y: event.clientY }
-  panOffset.value = { x: 0, y: 0 }
-}
-
-const handlePan = (event: MouseEvent) => {
-  if (!isPanning.value) return
-
-  const deltaX = event.clientX - panStart.value.x
-  const deltaY = event.clientY - panStart.value.y
-
-  // Convertir les pixels en tuiles
-  const tileSize = MAP_CONFIG.tileSize
-  const tileDeltaX = -Math.floor(deltaX / tileSize)
-  const tileDeltaY = -Math.floor(deltaY / tileSize)
-
-  if (tileDeltaX !== panOffset.value.x || tileDeltaY !== panOffset.value.y) {
-    const dx = tileDeltaX - panOffset.value.x
-    const dy = tileDeltaY - panOffset.value.y
-    moveViewport(dx, dy)
-    panOffset.value = { x: tileDeltaX, y: tileDeltaY }
-  }
-}
-
-const endPan = () => {
-  isPanning.value = false
-}
-
-// Déplacement du viewport
-const moveViewport = (deltaX: number, deltaY: number) => {
-  const newX = Math.max(
-    0,
-    Math.min(MAP_CONFIG.size - viewportSize.value, viewportOffset.value.x + deltaX),
-  )
-  const newY = Math.max(
-    0,
-    Math.min(MAP_CONFIG.size - viewportSize.value, viewportOffset.value.y + deltaY),
-  )
-
-  viewportOffset.value = { x: newX, y: newY }
-  mapStore.mapState.viewportOffset = viewportOffset.value
-  mapStore.saveMapState()
-}
-
-// Centrer sur le joueur
-const centerOnPlayer = () => {
-  const halfView = Math.floor(viewportSize.value / 2)
-  viewportOffset.value = {
-    x: Math.max(
-      0,
-      Math.min(MAP_CONFIG.size - viewportSize.value, mapStore.currentPosition.value.x - halfView),
-    ),
-    y: Math.max(
-      0,
-      Math.min(MAP_CONFIG.size - viewportSize.value, mapStore.currentPosition.value.y - halfView),
-    ),
-  }
-  mapStore.mapState.viewportOffset = viewportOffset.value
-  mapStore.saveMapState()
-}
-
-// Minimap supprimée
-
-// Déplacement au clavier
-const handleKeyboard = (event: KeyboardEvent) => {
-  const speed = event.shiftKey ? 5 : 1
-
-  switch (event.key) {
-    case 'ArrowUp':
-    case 'w':
-      event.preventDefault()
-      moveViewport(0, -speed)
-      break
-    case 'ArrowDown':
-    case 's':
-      event.preventDefault()
-      moveViewport(0, speed)
-      break
-    case 'ArrowLeft':
-    case 'a':
-      event.preventDefault()
-      moveViewport(-speed, 0)
-      break
-    case 'ArrowRight':
-    case 'd':
-      event.preventDefault()
-      moveViewport(speed, 0)
-      break
-    case ' ':
-      event.preventDefault()
-      centerOnPlayer()
-      break
-  }
-}
-
-// Lifecycle
-onMounted(() => {
-  window.addEventListener('keydown', handleKeyboard)
-  centerOnPlayer()
-})
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyboard)
-})
-
-// Watch pour synchroniser avec le store
-watch(
-  () => mapStore.currentPosition.value,
-  () => {
-    // Optionnel: centrer automatiquement quand le joueur se déplace
-    // centerOnPlayer()
+const getTileClasses = (tile: MapTile) => [
+  `terrain-${tile.type}`,
+  {
+    'tile-explored': tile.explored,
+    'tile-current': tile.current,
+    'tile-selected': props.selectedTileId === tile.id,
+    'tile-unexplored': !tile.explored,
+    'tile-being-explored': isBeingExplored(tile),
   },
-)
+]
+
+const selectTile = (tileId: string) => emit('selectTile', tileId)
+const getTileIcon = (type: MapTile['type']) => mapStore.getTileIcon(type)
 </script>
 
 <style scoped>
