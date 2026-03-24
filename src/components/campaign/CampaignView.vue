@@ -79,7 +79,7 @@
     <!-- Interface de combat si en combat -->
     <div v-if="isInCombat" class="combat-interface">
       <div class="combat-info">
-        <h3>{DEBUG}Combat contre {{ currentMission?.enemy?.name || 'Ennemi' }}</h3>
+        <h3>Combat contre {{ currentMission?.enemy?.name || 'Ennemi' }}</h3>
         <div class="combat-actions">
           <button class="btn-attack" @click="win">⚔️ Gagner</button>
           <button class="btn-defend" @click="lose">🛡️ Perdre</button>

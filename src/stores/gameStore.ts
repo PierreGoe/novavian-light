@@ -105,11 +105,13 @@ export interface GameState {
   currentGameSection?: string
   isMissionStarted: boolean
   mapState: MapState
+  gameOverReason?: string
 }
 
 const createInitialState = (): GameState => ({
   currentStatus: 'not-started',
   race: null,
+  gameOverReason: undefined,
   inventory: {
     gold: 50,
     leadership: 100,

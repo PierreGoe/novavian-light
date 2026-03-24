@@ -66,12 +66,8 @@ const loadGame = () => {
   if (success) {
     console.log('Partie chargée avec succès')
 
-    // Naviguer vers la bonne route selon l'état du jeu
-    if (gameStore.gameState.currentGameSection) {
-      router.push(`/game/${gameStore.gameState.currentGameSection}`)
-    } else {
-      router.push('/mission-tree')
-    }
+    // Naviguer vers la carte des missions
+    router.push('/mission-tree')
   } else {
     console.error('Erreur lors du chargement de la partie')
   }

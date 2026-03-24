@@ -104,7 +104,7 @@ const gameStore = useGameStore()
 const toastStore = useToastStore()
 
 const gameState = computed(() => gameStore.gameState)
-const gameOverReason = computed(() => 'gameStore.gameState.gameOverReason')
+const gameOverReason = computed(() => gameStore.gameState.gameOverReason)
 
 const formatPlayTime = () => {
   if (!gameState.value.createdAt) return 'Inconnu'
