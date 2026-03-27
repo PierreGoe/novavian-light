@@ -8,6 +8,9 @@ interface ImportMetaEnv {
   readonly VITE_SCOUT_MISSION_DURATION_MS: string
   readonly VITE_AUTOSAVE_INTERVAL_MS: string
   readonly VITE_PRODUCTION_INTERVAL_MS: string
+  readonly VITE_DISABLE_FOG_OF_WAR: string
+  readonly VITE_CHEAT_RESOURCES: string
+  readonly VITE_CHEAT_VICTORY_POINTS: string
 }
 
 interface ImportMeta {

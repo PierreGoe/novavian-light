@@ -60,6 +60,19 @@ export const PRODUCTION_INTERVAL_MS = parseNumber(
 )
 
 // ------------------------------------
+// Débogage / outils de développement
+// ------------------------------------
+
+/** Désactive le brouillard de guerre — toutes les tuiles apparaissent comme explorées */
+export const DISABLE_FOG_OF_WAR = import.meta.env.VITE_DISABLE_FOG_OF_WAR === 'true'
+
+/** Donne 10 000 de chaque ressource au démarrage d’une mission (debug uniquement) */
+export const CHEAT_RESOURCES = import.meta.env.VITE_CHEAT_RESOURCES === 'true'
+
+/** Donne 1 000 points de victoire au démarrage d’une mission (debug uniquement) */
+export const CHEAT_VICTORY_POINTS = import.meta.env.VITE_CHEAT_VICTORY_POINTS === 'true'
+
+// ------------------------------------
 // Meta
 // ------------------------------------
 

@@ -715,6 +715,10 @@ export const useGameStore = () => {
       showSuccess: (msg: string, opts?: any) => void
     },
   ) => {
+    // Protection serveur : ignorer tout node déjà complété ou non accessible
+    // Cette vérification est côté logique et ne peut pas être contournée par modification CSS
+    if (node.completed || (!node.accessible && !node.inProgress)) return
+
     switch (node.type) {
       case 'combat':
       case 'elite':

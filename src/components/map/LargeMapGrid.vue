@@ -36,10 +36,10 @@
           @click="selectTile(tile.id)"
         >
           <!-- Icône du terrain visible uniquement si exploré -->
-          <div class="tile-icon" v-if="tile.explored">{{ getTileIcon(tile.type) }}</div>
+          <div class="tile-icon" v-if="DISABLE_FOG_OF_WAR || tile.explored">{{ getTileIcon(tile.type) }}</div>
 
           <!-- Case inconnue (pas explorée, pas en cours d'exploration) -->
-          <div class="tile-overlay" v-if="!tile.explored && !isBeingExplored(tile)">?</div>
+          <div class="tile-overlay" v-if="!DISABLE_FOG_OF_WAR && !tile.explored && !isBeingExplored(tile)">?</div>
 
           <!-- Case en cours d'exploration -->
           <div class="tile-exploring" v-if="isBeingExplored(tile)">
@@ -78,6 +78,7 @@ import { ref, computed } from 'vue'
 import { useMapStore, type MapTile, MAP_CONFIG } from '../../stores/mapStore'
 import { useMapViewport } from '../../composables/useMapViewport'
 import { useScoutDisplay } from '../../composables/useScoutDisplay'
+import { DISABLE_FOG_OF_WAR } from '../../config'
 
 // Props
 interface Props {
@@ -148,16 +149,19 @@ const getTileStyle = (tile: MapTile) => ({
   gridRow: tile.position.y - viewportOffset.value.y + 1,
 })
 
-const getTileClasses = (tile: MapTile) => [
-  `terrain-${tile.type}`,
-  {
-    'tile-explored': tile.explored,
-    'tile-current': tile.current,
-    'tile-selected': props.selectedTileId === tile.id,
-    'tile-unexplored': !tile.explored,
-    'tile-being-explored': isBeingExplored(tile),
-  },
-]
+const getTileClasses = (tile: MapTile) => {
+  const explored = DISABLE_FOG_OF_WAR || tile.explored
+  return [
+    `terrain-${tile.type}`,
+    {
+      'tile-explored': explored,
+      'tile-current': tile.current,
+      'tile-selected': props.selectedTileId === tile.id,
+      'tile-unexplored': !explored,
+      'tile-being-explored': isBeingExplored(tile),
+    },
+  ]
+}
 
 const selectTile = (tileId: string) => emit('selectTile', tileId)
 const getTileIcon = (type: MapTile['type']) => mapStore.getTileIcon(type)

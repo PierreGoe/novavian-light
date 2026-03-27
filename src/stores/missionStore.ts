@@ -7,6 +7,8 @@ import {
   AUTOSAVE_INTERVAL_MS,
   PRODUCTION_INTERVAL_MS,
   SCOUT_MISSION_DURATION_MS,
+  CHEAT_RESOURCES,
+  CHEAT_VICTORY_POINTS,
 } from '../config'
 
 // Ré-export pour compatibilité avec les imports existants
@@ -320,6 +322,19 @@ export const useMissionStore = () => {
     missionState.currentMission = mission
     missionState.isInMission = true
     mission.isActive = true
+
+    // Triche debug : ressources et points de victoire offerts au démarrage
+    if (CHEAT_RESOURCES) {
+      missionState.town.resources.wood = 10_000
+      missionState.town.resources.clay = 10_000
+      missionState.town.resources.iron = 10_000
+      missionState.town.resources.crop = 10_000
+    }
+    if (CHEAT_VICTORY_POINTS) {
+      const gameStore = useGameStore()
+      gameStore.addVictoryPoints('combat', 1_000, '[CHEAT] Points de victoire de débogage')
+    }
+
     saveMissionState()
   }
 
