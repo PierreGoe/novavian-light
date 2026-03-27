@@ -146,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore, type Artifact } from '@/stores/gameStore'
 import {
@@ -163,13 +163,27 @@ const toastStore = useToastStore()
 
 // ===== Navigation =====
 // Quitter définitivement le Bazar — complète le node shop et retourne au mission-tree
-const exitBazar = () => {
+const completeShopNode = () => {
   const nodeId = gameStore.gameState.mapState.selectedNodeId
   if (nodeId) {
-    gameStore.completeMapNode(nodeId)
+    // S'assure que le node est bien complété même si on quitte sans cliquer sur le bouton
+    const allNodes = gameStore.gameState.mapState.layers.flatMap((l) => l.nodes)
+    const node = allNodes.find((n) => n.id === nodeId)
+    if (node && node.type === 'shop' && !node.completed) {
+      gameStore.completeMapNode(nodeId)
+    }
   }
+}
+
+const exitBazar = () => {
+  completeShopNode()
   router.push('/mission-tree')
 }
+
+// Filet de sécurité : compléter le node si on quitte le Bazar autrement (navigation arrière, etc.)
+onBeforeUnmount(() => {
+  completeShopNode()
+})
 
 // ===== Or courant =====
 const currentGold = computed(() => gameStore.gameState.inventory.gold)

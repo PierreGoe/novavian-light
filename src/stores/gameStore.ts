@@ -482,6 +482,31 @@ export const useGameStore = () => {
       }
     }
 
+    // Distribuer la récompense spécifique au node (or pour combat, relique pour élite)
+    let nodeRewardArtifact: Artifact | null = null
+    let nodeRewardGold = 0
+    if (gameState.mapState.selectedNodeId) {
+      const allNodes: MapNode[] = []
+      gameState.mapState.layers.forEach((layer) => allNodes.push(...layer.nodes))
+      const currentNode = allNodes.find((n) => n.id === gameState.mapState.selectedNodeId)
+
+      if (currentNode?.reward) {
+        if (currentNode.reward.type === 'gold' && currentNode.reward.amount) {
+          nodeRewardGold = currentNode.reward.amount
+          addGold(nodeRewardGold)
+        } else if (currentNode.reward.type === 'relic') {
+          const rarity = currentNode.type === 'elite' ? 'rare' : 'common'
+          const artifact = giveRandomArtifactOfRarity(rarity)
+          artifact.obtainedFrom =
+            currentNode.type === 'elite'
+              ? 'Victoire contre un champion élite'
+              : 'Victoire au combat'
+          nodeRewardArtifact = artifact
+          saveGame()
+        }
+      }
+    }
+
     // Marquer le node courant comme complété (si en mission)
     if (gameState.mapState.selectedNodeId) {
       completeMapNode(gameState.mapState.selectedNodeId)
@@ -501,6 +526,7 @@ export const useGameStore = () => {
 
     saveGame()
     // La navigation vers '/mission-tree' est gérée par le composant appelant
+    return { nodeRewardArtifact, nodeRewardGold }
   }
 
   /** Vrai si l'objectif de PV combat de la campagne est atteint */

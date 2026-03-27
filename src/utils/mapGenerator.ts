@@ -55,7 +55,7 @@ const nodeTypeConfig = {
     icon: '🏪',
     color: '#32cd32',
     probability: 0.15,
-    titles: ['Marchand itinérant', 'Forgeron local', 'Caravane commerciale', 'Bazar mystique'],
+    titles: ['Marchand'],
     descriptions: [
       'Un commerçant propose ses services',
       'Un artisan offre ses créations',

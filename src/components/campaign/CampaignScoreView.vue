@@ -18,7 +18,12 @@
             missions, ou continue à jouer librement.
           </p>
           <div class="victory-rewards">
-            <div class="reward-chip">💰 +{{ CAMPAIGN_BONUS_GOLD }} or</div>
+            <div v-if="currentNodeReward?.reward?.type === 'relic'" class="reward-chip reward-chip--relic">
+              💎 Relique {{ currentNodeReward.type === 'elite' ? 'rare' : 'commune' }} garantie
+            </div>
+            <div v-else-if="currentNodeReward?.reward?.type === 'gold'" class="reward-chip">
+              💰 +{{ currentNodeReward.reward.amount }} or (récompense du node)
+            </div>
             <div class="reward-chip">🏆 Node de mission validé</div>
             <div class="reward-chip">📜 Accès à la prochaine mission</div>
           </div>
@@ -175,11 +180,13 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore, COMBAT_VP_GOAL } from '@/stores/gameStore'
 import type { VictoryPointType } from '@/stores/gameStore'
+import { useToastStore } from '@/stores/toastStore'
 
 const CAMPAIGN_BONUS_GOLD = 100
 
 const router = useRouter()
 const gameStore = useGameStore()
+const toastStore = useToastStore()
 
 const continuing = ref(false)
 
@@ -188,12 +195,31 @@ const objectiveReached = computed(() => gameStore.campaignObjectiveReached.value
 const combatDone = computed(() => totalCombatVP.value >= COMBAT_VP_GOAL)
 const history = computed(() => gameStore.victoryHistory.value)
 
+// Récompense promise par le node actuel
+const currentNodeReward = computed(() => {
+  const nodeId = gameStore.gameState.mapState.selectedNodeId
+  if (!nodeId) return null
+  for (const layer of gameStore.gameState.mapState.layers) {
+    const node = layer.nodes.find((n) => n.id === nodeId)
+    if (node) return { type: node.type, reward: node.reward }
+  }
+  return null
+})
+
 function goBack() {
   router.push('/campaign')
 }
 
 function handleComplete() {
-  gameStore.completeCampaign(CAMPAIGN_BONUS_GOLD)
+  const { nodeRewardArtifact, nodeRewardGold } = gameStore.completeCampaign(CAMPAIGN_BONUS_GOLD)
+  if (nodeRewardArtifact) {
+    toastStore.showSuccess(
+      `🏆 Récompense : ${nodeRewardArtifact.name} (relique ${nodeRewardArtifact.rarity}) ajoutée à votre inventaire !`,
+      { duration: 7000 },
+    )
+  } else if (nodeRewardGold > 0) {
+    toastStore.showSuccess(`💰 Récompense : +${nodeRewardGold} or !`, { duration: 4000 })
+  }
   router.push('/mission-tree')
 }
 
@@ -298,6 +324,13 @@ function formatDate(iso: string): string {
   border: 1px solid rgba(218, 165, 32, 0.35);
   border-radius: 20px;
   color: #daa520;
+}
+
+.reward-chip--relic {
+  border-color: rgba(139, 92, 246, 0.5);
+  background: rgba(139, 92, 246, 0.15);
+  color: #c4b5fd;
+  font-weight: 600;
 }
 
 .victory-actions {
