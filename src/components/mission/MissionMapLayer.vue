@@ -41,7 +41,7 @@
           borderColor: nodeTypeConfig[node.type].color,
         }"
         @click="
-          node.accessible && !node.completed && !node.inProgress
+          node.inProgress || (node.accessible && !node.completed)
             ? emit('selectNode', node)
             : undefined
         "

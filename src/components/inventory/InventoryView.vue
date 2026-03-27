@@ -347,10 +347,7 @@
             <button
               v-if="isActive(selectedArtifact.id)"
               class="action-btn deactivate large"
-              @click="
-                deactivate(selectedArtifact.id);
-                closeDetail()
-              "
+              @click="deactivateAndClose(selectedArtifact.id)"
             >
               Retirer du slot actif
             </button>
@@ -359,10 +356,7 @@
               class="action-btn activate large"
               :disabled="isSlotsMaxed"
               :title="isSlotsMaxed ? `Tous les ${MAX_ACTIVE_ARTIFACTS} slots sont occupés` : ''"
-              @click="
-                activate(selectedArtifact.id);
-                closeDetail()
-              "
+              @click="activateAndClose(selectedArtifact.id)"
             >
               Activer (slot {{ activeArtifacts.length + 1 }}/{{ MAX_ACTIVE_ARTIFACTS }})
             </button>
@@ -473,6 +467,11 @@ const activate = (id: string) => {
   gameStore.activateArtifact(id)
   const artifact = allArtifacts.value.find((a) => a.id === id)
   if (artifact) toastStore.showSuccess(`${artifact.name} activée !`, { duration: 2000 })
+}
+
+const activateAndClose = (id: string) => {
+  activate(id)
+  closeDetail()
 }
 
 const deactivate = (id: string) => {
