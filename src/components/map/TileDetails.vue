@@ -15,7 +15,9 @@
       <h4>📦 Ressources disponibles :</h4>
       <div class="resource-list">
         <div v-for="(amount, resource) in tile.resources" :key="resource" class="resource-item">
-          <span class="resource-name">{{ getResourceIcon(resource as string) }} {{ resource }}:</span>
+          <span class="resource-name"
+            >{{ getResourceIcon(resource as string) }} {{ resource }}:</span
+          >
           <span class="resource-amount">{{ amount }}</span>
           <span
             v-if="resourceBonusPct(resource as string) > 0"
@@ -91,12 +93,18 @@ const gameStore = useGameStore()
 const resourceBonusPct = (resource: string): number => {
   const effects = gameStore.getTotalArtifactEffects.value
   switch (resource) {
-    case 'wood':  return (effects.resourceBonus.wood ?? 0)
-    case 'iron':  return (effects.resourceBonus.iron ?? 0)
-    case 'crop':  return (effects.resourceBonus.food ?? 0)
-    case 'stone': return (effects.resourceBonus.stone ?? 0)
-    case 'gold':  return effects.economy ?? 0
-    default:      return 0
+    case 'wood':
+      return effects.resourceBonus.wood ?? 0
+    case 'iron':
+      return effects.resourceBonus.iron ?? 0
+    case 'crop':
+      return effects.resourceBonus.food ?? 0
+    case 'stone':
+      return effects.resourceBonus.stone ?? 0
+    case 'gold':
+      return effects.economy ?? 0
+    default:
+      return 0
   }
 }
 

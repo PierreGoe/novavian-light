@@ -52,7 +52,11 @@ import { useMissionStore } from '../../stores/missionStore'
 import { useGameStore } from '../../stores/gameStore'
 import { defaultResolver } from '../../combat/combatResolver'
 import type { Army, CombatReport, CombatUnit, SavedBattleReport } from '../../combat/types'
-import { ENEMY_BASE_INFANTRY, ENEMY_STRONGHOLD_INFANTRY, SCOUT_MISSION_DURATION_MS } from '../../config'
+import {
+  ENEMY_BASE_INFANTRY,
+  ENEMY_STRONGHOLD_INFANTRY,
+  SCOUT_MISSION_DURATION_MS,
+} from '../../config'
 import { useNotifications } from '../../composables/useNotifications'
 
 // Composants
@@ -299,10 +303,7 @@ import type { Artifact } from '../../stores/gameStore'
  * Applique les effets spéciaux déclenchés au moment de la victoire
  * (gold_on_victory, leadership_on_victory, fog_reveal_on_victory, healing_after_combat)
  */
-function applyPostVictorySpecialPowers(
-  artifacts: Artifact[],
-  position: { x: number; y: number },
-) {
+function applyPostVictorySpecialPowers(artifacts: Artifact[], position: { x: number; y: number }) {
   let goldGained = 0
   let leadershipGained = 0
 

@@ -67,19 +67,13 @@ describe('ARTIFACT_POOL — intégrité du catalogue', () => {
 
   it('chaque artefact doit avoir une rareté valide', () => {
     ARTIFACT_POOL.forEach((a) => {
-      expect(
-        VALID_RARITIES,
-        `Rareté invalide "${a.rarity}" pour "${a.name}"`,
-      ).toContain(a.rarity)
+      expect(VALID_RARITIES, `Rareté invalide "${a.rarity}" pour "${a.name}"`).toContain(a.rarity)
     })
   })
 
   it('chaque artefact doit avoir un type valide', () => {
     ARTIFACT_POOL.forEach((a) => {
-      expect(
-        VALID_TYPES,
-        `Type invalide "${a.type}" pour "${a.name}"`,
-      ).toContain(a.type)
+      expect(VALID_TYPES, `Type invalide "${a.type}" pour "${a.name}"`).toContain(a.type)
     })
   })
 
@@ -115,10 +109,7 @@ describe('ARTIFACT_POOL — intégrité du catalogue', () => {
   it('les artefacts non "uses-limited" ne devraient pas définir maxUses', () => {
     const notLimited = ARTIFACT_POOL.filter((a) => a.durability !== 'uses-limited')
     notLimited.forEach((a) => {
-      expect(
-        a.maxUses,
-        `"${a.name}" n'est pas uses-limited mais définit maxUses`,
-      ).toBeUndefined()
+      expect(a.maxUses, `"${a.name}" n'est pas uses-limited mais définit maxUses`).toBeUndefined()
     })
   })
 

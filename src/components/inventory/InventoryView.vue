@@ -348,7 +348,7 @@
               v-if="isActive(selectedArtifact.id)"
               class="action-btn deactivate large"
               @click="
-                deactivate(selectedArtifact.id)
+                deactivate(selectedArtifact.id);
                 closeDetail()
               "
             >
@@ -360,7 +360,7 @@
               :disabled="isSlotsMaxed"
               :title="isSlotsMaxed ? `Tous les ${MAX_ACTIVE_ARTIFACTS} slots sont occupés` : ''"
               @click="
-                activate(selectedArtifact.id)
+                activate(selectedArtifact.id);
                 closeDetail()
               "
             >
