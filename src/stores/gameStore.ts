@@ -95,6 +95,24 @@ export interface MapState {
   mapGenerated: boolean
 }
 
+export type VictoryPointType = 'combat'
+
+/** Objectif de PV combat pour valider une campagne */
+export const COMBAT_VP_GOAL = 5
+
+export interface VictoryPoints {
+  combat: number
+}
+
+/** Un événement qui a rapporté des PV (pour l'historique) */
+export interface VictoryEvent {
+  id: string
+  type: VictoryPointType
+  amount: number
+  reason: string
+  date: string
+}
+
 export interface GameState {
   currentStatus: 'not-started' | 'in-progress' | 'game-over' | 'completed'
   race: Race | null
@@ -106,6 +124,8 @@ export interface GameState {
   isMissionStarted: boolean
   mapState: MapState
   gameOverReason?: string
+  victoryPoints: VictoryPoints
+  victoryHistory: VictoryEvent[]
 }
 
 const createInitialState = (): GameState => ({
@@ -127,6 +147,10 @@ const createInitialState = (): GameState => ({
     selectedNodeId: '',
     mapGenerated: false,
   },
+  victoryPoints: {
+    combat: 0,
+  },
+  victoryHistory: [],
 })
 
 // Store réactif avec clone profond
@@ -275,6 +299,14 @@ export const useGameStore = () => {
         gameState.createdAt = gameData.createdAt || null
         gameState.currentGameSection = gameData.currentGameSection
 
+        // Points de victoire
+        if (gameData.victoryPoints) {
+          gameState.victoryPoints.combat = gameData.victoryPoints.combat ?? 0
+        }
+        if (gameData.victoryHistory) {
+          gameState.victoryHistory = gameData.victoryHistory
+        }
+
         return true
       } catch (error) {
         console.error('Error loading game:', error)
@@ -306,6 +338,8 @@ export const useGameStore = () => {
         },
         createdAt: gameState.createdAt,
         currentGameSection: gameState.currentGameSection,
+        victoryPoints: { ...gameState.victoryPoints },
+        victoryHistory: [...gameState.victoryHistory],
       }
 
       localStorage.setItem('minitravian-save', JSON.stringify(gameData))
@@ -419,6 +453,46 @@ export const useGameStore = () => {
     gameState.inventory.gold += amount
     saveGame()
   }
+
+  // ====== POINTS DE VICTOIRE ======
+
+  const addVictoryPoints = (type: VictoryPointType, amount: number, reason: string) => {
+    gameState.victoryPoints[type] += amount
+    gameState.victoryHistory.unshift({
+      id: `vp-${Date.now()}`,
+      type,
+      amount,
+      reason,
+      date: new Date().toISOString(),
+    })
+    // Garder seulement les 100 derniers événements
+    if (gameState.victoryHistory.length > 100) {
+      gameState.victoryHistory.length = 100
+    }
+    saveGame()
+  }
+
+  const victoryPoints = computed(() => gameState.victoryPoints)
+  const victoryHistory = computed(() => gameState.victoryHistory)
+
+  /** Récompense de fin de campagne et retour au mission-tree */
+  const completeCampaign = (bonusGold = 100) => {
+    // Récompense en or
+    gameState.inventory.gold += bonusGold
+
+    // Marquer le node courant comme complété (si en mission)
+    if (gameState.mapState.selectedNodeId) {
+      completeMapNode(gameState.mapState.selectedNodeId)
+    }
+
+    saveGame()
+
+    // Retour à la carte de missions
+    router.push('/mission-tree')
+  }
+
+  /** Vrai si l'objectif de PV combat de la campagne est atteint */
+  const campaignObjectiveReached = computed(() => gameState.victoryPoints.combat >= COMBAT_VP_GOAL)
 
   const spendGold = (amount: number): boolean => {
     if (gameState.inventory.gold < amount) return false
@@ -841,6 +915,13 @@ export const useGameStore = () => {
     addArtifact,
     equipArtifact,
     unequipArtifact,
+
+    // Points de victoire
+    addVictoryPoints,
+    victoryPoints,
+    victoryHistory,
+    completeCampaign,
+    campaignObjectiveReached,
   }
 }
 

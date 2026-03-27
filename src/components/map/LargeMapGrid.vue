@@ -351,7 +351,7 @@ const getTileIcon = (type: MapTile['type']) => mapStore.getTileIcon(type)
   background: rgba(0, 0, 0, 0.8);
   padding: 8px 12px;
   border-radius: 8px;
-  z-index: 100;
+  z-index: 4;
 }
 
 .control-btn {

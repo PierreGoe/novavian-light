@@ -3,6 +3,7 @@ import HomeScreen from '@/components/home/HomeScreen.vue'
 import RaceSelector from '@/components/home/RaceSelector.vue'
 import MissionTree from '@/components/mission/MissionTree.vue'
 import CampaignView from '@/components/campaign/CampaignView.vue'
+import CampaignScoreView from '@/components/campaign/CampaignScoreView.vue'
 import GameOverScreen from '@/components/home/GameOverScreen.vue'
 import { MapExplorationView, LargeMapExplorationView } from '@/components/map'
 
@@ -28,6 +29,11 @@ const router = createRouter({
       path: '/campaign',
       name: 'campaign',
       component: CampaignView,
+    },
+    {
+      path: '/campaign-score',
+      name: 'campaign-score',
+      component: CampaignScoreView,
     },
     {
       path: '/map',

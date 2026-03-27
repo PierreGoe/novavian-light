@@ -342,6 +342,20 @@ export const useMissionStore = () => {
       const leadershipReward = getLeadershipReward(missionState.currentMission.difficulty)
       gameStore.updateLeadership(leadershipReward, 'add')
 
+      // Points de victoire au combat pour la complétion de mission
+      const vpByDifficulty: Record<string, number> = {
+        easy: 2,
+        medium: 4,
+        hard: 7,
+        elite: 12,
+      }
+      const vpAmount = vpByDifficulty[missionState.currentMission.difficulty] ?? 2
+      gameStore.addVictoryPoints(
+        'combat',
+        vpAmount,
+        `Mission complétée : ${missionState.currentMission.name}`,
+      )
+
       // IMPORTANT: Marquer le node de carte comme complété
       if (gameStore.gameState.mapState.selectedNodeId) {
         gameStore.completeMapNode(gameStore.gameState.mapState.selectedNodeId)

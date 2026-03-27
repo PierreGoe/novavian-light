@@ -59,6 +59,7 @@
       </div>
 
       <div class="header-actions">
+        <VictoryPointsDisplay />
         <div class="time-display">
           <span class="time-item" title="Temps de mission (plafonne à 2h en offline)">
             ⏱️ {{ formattedGameTime }}
@@ -91,6 +92,7 @@ import { useRouter } from 'vue-router'
 import { useMissionStore } from '@/stores/missionStore'
 import { useToastStore } from '@/stores/toastStore'
 import TownView from './TownView.vue'
+import VictoryPointsDisplay from './VictoryPointsDisplay.vue'
 import LargeMapExplorationView from '../map/LargeMapExplorationView.vue'
 
 const router = useRouter()

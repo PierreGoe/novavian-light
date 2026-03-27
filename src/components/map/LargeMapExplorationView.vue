@@ -49,6 +49,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMapStore, type MapTile } from '../../stores/mapStore'
 import { useMissionStore } from '../../stores/missionStore'
+import { useGameStore } from '../../stores/gameStore'
 import { defaultResolver } from '../../combat/combatResolver'
 import type { Army, CombatReport, CombatUnit, SavedBattleReport } from '../../combat/types'
 import { ENEMY_BASE_INFANTRY, ENEMY_STRONGHOLD_INFANTRY } from '../../config'
@@ -64,6 +65,7 @@ import CombatReportOverlay from './CombatReportOverlay.vue'
 // Stores
 const mapStore = useMapStore()
 const missionStore = useMissionStore()
+const gameStore = useGameStore()
 const { notification, showNotification } = useNotifications()
 
 // État local
@@ -189,6 +191,16 @@ const handleAttackTile = (tileId: string) => {
     tile.type = 'ruins'
     tile.garrison = undefined
     showNotification(report.summary, 'success')
+
+    // Points de victoire au combat
+    // +1 PV pour chaque victoire en combat
+    gameStore.addVictoryPoints('combat', 1, `Victoire en combat contre ${defenderArmy.label}`)
+    // +2 PV supplémentaires pour destruction d'un village ou forteresse
+    if (isStronghold) {
+      gameStore.addVictoryPoints('combat', 4, 'Forteresse ennemie détruite')
+    } else {
+      gameStore.addVictoryPoints('combat', 2, 'Village ennemi détruit')
+    }
   } else {
     showNotification(report.summary, 'error')
   }
