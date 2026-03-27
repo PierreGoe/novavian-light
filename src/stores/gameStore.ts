@@ -4,6 +4,12 @@ import { generateMap } from '@/utils'
 import router from '@/router'
 import { useMissionStore } from '@/stores/missionStore'
 import { useMapStore } from '@/stores/mapStore'
+import {
+  STARTING_ARTIFACTS,
+  SELL_PRICES,
+  instantiateArtifact,
+  getPoolByRarity,
+} from '@/data/artifacts'
 
 export interface Race {
   id: string
@@ -191,60 +197,15 @@ export const useGameStore = () => {
 
   // Fonctions utilitaires
   const giveStartingArtifacts = (selectedRace: Race) => {
-    // Artefacts de démarrage selon la race
-    const startingArtifacts: { [key: string]: Artifact[] } = {
-      romans: [
-        {
-          id: 'roman-gladius',
-          name: 'Glaive Romain',
-          type: 'weapon',
-          icon: '⚔️',
-          description: 'Une épée courte efficace, symbole de la discipline romaine.',
-          effects: { military: 5, economy: 2 },
-          rarity: 'common',
-          durability: 'permanent',
-          destructible: false,
-          obtainedFrom: 'Équipement de démarrage Romain',
-        },
-      ],
-      gauls: [
-        {
-          id: 'gallic-shield',
-          name: 'Bouclier Gaulois',
-          type: 'armor',
-          icon: '🛡️',
-          description: 'Un bouclier robuste, parfait pour la défense du territoire.',
-          effects: { defense: 8, resourceBonus: { stone: 5 } },
-          rarity: 'common',
-          durability: 'permanent',
-          destructible: false,
-          obtainedFrom: 'Équipement de démarrage Gaulois',
-        },
-      ],
-      germans: [
-        {
-          id: 'german-axe',
-          name: 'Hache Germaine',
-          type: 'weapon',
-          icon: '🪓',
-          description: 'Une hache de guerre redoutable pour les raids rapides.',
-          effects: { military: 7, resourceBonus: { wood: 3 } },
-          rarity: 'common',
-          durability: 'permanent',
-          destructible: false,
-          obtainedFrom: 'Équipement de démarrage Germain',
-        },
-      ],
-    }
-
-    const artifacts = startingArtifacts[selectedRace.id] || []
-    artifacts.forEach((artifact) => {
-      gameState.inventory.artifacts.push(artifact)
+    // Artefact de démarrage depuis le catalogue centralisé (src/data/artifacts.ts)
+    const startingArtifact = STARTING_ARTIFACTS[selectedRace.id]
+    if (startingArtifact) {
+      gameState.inventory.artifacts.push(startingArtifact)
       // Activer automatiquement l'artefact de démarrage
       if (gameState.inventory.activeArtifacts.length < MAX_ACTIVE_ARTIFACTS) {
-        gameState.inventory.activeArtifacts.push(artifact.id)
+        gameState.inventory.activeArtifacts.push(startingArtifact.id)
       }
-    })
+    }
 
     // Partir des valeurs initiales à chaque fois
     const initial = createInitialState()
@@ -504,8 +465,22 @@ export const useGameStore = () => {
 
   /** Récompense de fin de campagne et retour au mission-tree */
   const completeCampaign = (bonusGold = 100) => {
-    // Récompense en or
+    // Récompense en or de base
     gameState.inventory.gold += bonusGold
+
+    // Pouvoirs spéciaux déclenchés à chaque fin de campagne
+    const equippedArtifacts = gameState.inventory.artifacts.filter((a) =>
+      gameState.inventory.activeArtifacts.includes(a.id),
+    )
+    for (const artifact of equippedArtifacts) {
+      const sp = artifact.specialPower
+      if (!sp) continue
+      if (sp.type === 'gold_on_victory') {
+        gameState.inventory.gold += sp.value
+      } else if (sp.type === 'leadership_on_victory') {
+        gameState.inventory.leadership = Math.min(200, gameState.inventory.leadership + sp.value)
+      }
+    }
 
     // Marquer le node courant comme complété (si en mission)
     if (gameState.mapState.selectedNodeId) {
@@ -540,8 +515,6 @@ export const useGameStore = () => {
 
   // Fonction de leadership unifiée
   const updateLeadership = (change: number, mode: 'add' | 'lose' | 'set' = 'set') => {
-    const previousLeadership = gameState.inventory.leadership
-
     switch (mode) {
       case 'add':
         gameState.inventory.leadership += change
@@ -577,9 +550,8 @@ export const useGameStore = () => {
   }
 
   const triggerGameOver = () => {
-    // Réinitialiser le jeu ou naviguer vers un écran de Game Over
-    // Pour l'instant, on va juste réinitialiser complètement
-    //resetGameCompletely()
+    // Détruire les reliques fragiles actives avant de déclencher le game over
+    destroyDestructiblesOnCampaignLoss()
 
     gameState.currentStatus = 'game-over'
     router.push('/game-over')
@@ -748,6 +720,12 @@ export const useGameStore = () => {
 
     // Déclencher l'action du node (démarrer la mission)
     handleMapNodeAction(node)
+
+    // Pour le Bazar, naviguer directement — la complétion se fait au départ du Bazar
+    if (node.type === 'shop') {
+      router.push('/bazar')
+    }
+
     saveGame()
   }
 
@@ -831,14 +809,8 @@ export const useGameStore = () => {
         break
 
       case 'shop':
-        if (toastStore) {
-          toastStore.showInfo(
-            `${node.title} - Magasin ouvert! Vous pouvez acheter des améliorations.`,
-            { duration: 4000 },
-          )
-        }
-        // Compléter immédiatement le node (pas de mission)
-        completeMapNode(node.id)
+        // Navigation vers le Bazar gérée par selectMapNode
+        // La complétion du node se fait au départ du Bazar (BazarMystiqueView)
         break
 
       case 'event':
@@ -900,83 +872,78 @@ export const useGameStore = () => {
   }
 
   const giveRandomArtifact = (): Artifact => {
-    const ts = Date.now()
-    const randomArtifacts: Artifact[] = [
-      {
-        id: `artifact-${ts}-1`,
-        name: 'Amulette de Fortune',
-        type: 'accessory',
-        icon: '🧿',
-        description: 'Une amulette qui améliore les gains économiques.',
-        effects: { economy: 5 },
-        rarity: 'rare',
-        durability: 'permanent',
-        destructible: false,
-        obtainedFrom: 'Victoire contre un champion élite',
-      },
-      {
-        id: `artifact-${ts}-2`,
-        name: 'Anneau de Commandement',
-        type: 'accessory',
-        icon: '💍',
-        description: 'Un anneau qui renforce le leadership militaire.',
-        effects: { military: 4, defense: 2 },
-        rarity: 'rare',
-        durability: 'permanent',
-        destructible: false,
-        obtainedFrom: 'Victoire contre un champion élite',
-      },
-      {
-        id: `artifact-${ts}-3`,
-        name: 'Relique Ancienne',
-        type: 'relic',
-        icon: '🏺',
-        description: 'Un artefact mystérieux aux pouvoirs inconnus.',
-        effects: { economy: 2, military: 2, defense: 2 },
-        rarity: 'epic',
-        durability: 'permanent',
-        destructible: false,
-        obtainedFrom: 'Victoire contre un champion élite',
-      },
-      {
-        id: `artifact-${ts}-4`,
-        name: 'Œil de Faucon',
-        type: 'relic',
-        icon: '🦅',
-        description:
-          "Cette relique mystique aiguise la vision des éclaireurs, leur permettant de percevoir une case supplémentaire autour d'eux.",
-        effects: {},
-        specialPower: {
-          type: 'scout_range_bonus',
-          value: 1,
-          description: "Les éclaireurs révèlent 1 case supplémentaire autour d'eux",
-        },
-        rarity: 'rare',
-        durability: 'permanent',
-        destructible: true,
-        obtainedFrom: 'Victoire contre un champion élite',
-      },
-      {
-        id: `artifact-${ts}-5`,
-        name: 'Pierre de Sang',
-        type: 'relic',
-        icon: '💎',
-        description:
-          'Une pierre imbibée de magie de guerre. Active pour 3 combats seulement, mais ses effets sont puissants.',
-        effects: { military: 10 },
-        rarity: 'epic',
-        durability: 'uses-limited',
-        maxUses: 3,
-        usesRemaining: 3,
-        destructible: true,
-        obtainedFrom: 'Victoire contre un champion élite',
-      },
-    ]
+    // Mélange pondéré depuis le catalogue : common 40%, rare 40%, epic 20%
+    const rand = Math.random()
+    const rarity: 'common' | 'rare' | 'epic' = rand < 0.4 ? 'common' : rand < 0.8 ? 'rare' : 'epic'
+    const candidates = getPoolByRarity(rarity)
+    const template = candidates[Math.floor(Math.random() * candidates.length)]
+    const artifact = instantiateArtifact(template, 'Victoire contre un champion élite')
 
-    const randomArtifact = randomArtifacts[Math.floor(Math.random() * randomArtifacts.length)]
-    addArtifact(randomArtifact)
+    addArtifact(artifact)
 
-    return randomArtifact
+    // Auto-activer dans le premier slot libre disponible
+    if (gameState.inventory.activeArtifacts.length < MAX_ACTIVE_ARTIFACTS) {
+      gameState.inventory.activeArtifacts.push(artifact.id)
+      saveGame()
+    }
+
+    return artifact
+  }
+
+  /** Vend un artefact et retourne l'or gagné (0 si introuvable) */
+  const sellArtifact = (artifactId: string): number => {
+    const artifact = gameState.inventory.artifacts.find((a) => a.id === artifactId)
+    if (!artifact) return 0
+
+    const goldGained = SELL_PRICES[artifact.rarity]
+
+    // Désactiver si actif avant de retirer
+    deactivateArtifact(artifactId)
+
+    gameState.inventory.artifacts = gameState.inventory.artifacts.filter((a) => a.id !== artifactId)
+    gameState.inventory.gold += goldGained
+
+    saveGame()
+    return goldGained
+  }
+
+  /**
+   * Génère 6 artefacts aléatoires pour le Bazar depuis le catalogue centralisé.
+   * Distribution : 2 communs, 2 rares, 2 épiques.
+   * Ces artefacts NE SONT PAS ajoutés à l'inventaire du joueur.
+   */
+  const generateBazarOffer = (): Artifact[] => {
+    const pick = (rarity: 'common' | 'rare' | 'epic', n: number): Artifact[] => {
+      const candidates = [...getPoolByRarity(rarity)].sort(() => Math.random() - 0.5)
+      const result: Artifact[] = []
+      const seenNames = new Set<string>()
+      for (const t of candidates) {
+        if (!seenNames.has(t.name) && result.length < n) {
+          seenNames.add(t.name)
+          result.push(instantiateArtifact(t, 'Bazar Mystique'))
+        }
+      }
+      return result
+    }
+
+    return [...pick('common', 2), ...pick('rare', 2), ...pick('epic', 2)]
+  }
+
+  /** Forge un artefact d'une rareté précise (coût en or géré par l'appelant) */
+  const giveRandomArtifactOfRarity = (rarity: 'common' | 'rare' | 'epic'): Artifact => {
+    const candidates = getPoolByRarity(rarity)
+    const template = candidates[Math.floor(Math.random() * candidates.length)]
+    const artifact = instantiateArtifact(template, 'Forgé à la forge')
+
+    addArtifact(artifact)
+
+    // Auto-activer dans le premier slot libre disponible
+    if (gameState.inventory.activeArtifacts.length < MAX_ACTIVE_ARTIFACTS) {
+      gameState.inventory.activeArtifacts.push(artifact.id)
+      saveGame()
+    }
+
+    return artifact
   }
 
   function randomLeadershipLoss(type: string) {
@@ -1020,6 +987,7 @@ export const useGameStore = () => {
     completeMapNode,
     handleMapNodeAction,
     giveRandomArtifact,
+    giveRandomArtifactOfRarity,
 
     // Actions d'inventaire
     addGold,
@@ -1031,6 +999,8 @@ export const useGameStore = () => {
     deactivateArtifact,
     consumeArtifactUse,
     destroyDestructiblesOnCampaignLoss,
+    sellArtifact,
+    generateBazarOffer,
 
     // Points de victoire
     addVictoryPoints,

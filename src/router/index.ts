@@ -6,6 +6,7 @@ import CampaignView from '@/components/campaign/CampaignView.vue'
 import CampaignScoreView from '@/components/campaign/CampaignScoreView.vue'
 import GameOverScreen from '@/components/home/GameOverScreen.vue'
 import InventoryView from '@/components/inventory/InventoryView.vue'
+import BazarMystiqueView from '@/components/inventory/BazarMystiqueView.vue'
 import { MapExplorationView, LargeMapExplorationView } from '@/components/map'
 
 const router = createRouter({
@@ -55,6 +56,11 @@ const router = createRouter({
       path: '/inventory',
       name: 'inventory',
       component: InventoryView,
+    },
+    {
+      path: '/bazar',
+      name: 'bazar',
+      component: BazarMystiqueView,
     },
   ],
 })

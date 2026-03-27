@@ -11,7 +11,10 @@
       <div class="report-details">
         <div class="report-side">
           <h4>{{ report.attacker.army.label }}</h4>
-          <div class="report-stat">⚔️ Force : {{ report.attacker.totalPowerUsed }}</div>
+          <div class="report-stat">
+            ⚔️ Force : {{ report.attacker.totalPowerUsed }}
+            <span v-if="attackerBonusPct > 0" class="bonus-badge">+{{ attackerBonusPct }}%</span>
+          </div>
           <div
             v-for="(killed, type) in report.attacker.losses.killed"
             :key="type"
@@ -50,10 +53,21 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { CombatReport } from '../../combat/types'
 
-defineProps<{ report: CombatReport | null }>()
+const props = defineProps<{ report: CombatReport | null }>()
 const emit = defineEmits<{ close: [] }>()
+
+/** % de bonus d'attaque apporté par les modificateurs artefacts */
+const attackerBonusPct = computed(() => {
+  if (!props.report) return 0
+  const army = props.report.attacker.army
+  const rawPower = army.units.reduce((s, u) => s + u.attack * u.count, 0)
+  if (rawPower === 0) return 0
+  const bonus = props.report.attacker.totalPowerUsed - rawPower
+  return bonus > 0 ? Math.round((bonus / rawPower) * 100) : 0
+})
 </script>
 
 <style scoped>
@@ -149,6 +163,20 @@ const emit = defineEmits<{ close: [] }>()
   color: #93c5fd;
   margin-bottom: 8px;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bonus-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.15);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 1.6;
 }
 
 .report-loss {

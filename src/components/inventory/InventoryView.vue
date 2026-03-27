@@ -133,6 +133,42 @@
         </button>
       </div>
 
+      <!-- ===== Forge d'artefacts ===== -->
+      <section class="forge-section">
+        <div class="section-title">
+          <h2>🔨 Forge</h2>
+          <span class="gold-display">💰 {{ currentGold }} or disponible</span>
+        </div>
+        <p class="forge-subtitle">Forger une relique détruit définitivement l'or dépensé.</p>
+
+        <div class="forge-options">
+          <div
+            v-for="tier in forgeTiers"
+            :key="tier.rarity"
+            class="forge-card"
+            :class="`rarity-${tier.rarity}`"
+          >
+            <div class="forge-icon">{{ tier.icon }}</div>
+            <div class="forge-info">
+              <span class="forge-rarity">Relique {{ tier.label }}</span>
+              <span class="forge-cost">{{ tier.cost }} or</span>
+            </div>
+            <button
+              class="forge-btn"
+              :disabled="currentGold < tier.cost"
+              :title="
+                currentGold < tier.cost
+                  ? `Il vous manque ${tier.cost - currentGold} or`
+                  : `Forger une relique ${tier.label}`
+              "
+              @click="forgeArtifact(tier)"
+            >
+              Forger
+            </button>
+          </div>
+        </div>
+      </section>
+
       <!-- ===== Inventaire complet ===== -->
       <section class="inventory-section">
         <h2>Toutes mes reliques</h2>
@@ -348,7 +384,7 @@ const gameStore = useGameStore()
 const toastStore = useToastStore()
 
 // ===== Navigation =====
-const goBack = () => router.back()
+const goBack = () => router.push('/mission-tree')
 
 // ===== Données de l'inventaire =====
 const allArtifacts = computed(() => gameStore.gameState.inventory.artifacts)
@@ -396,12 +432,23 @@ const rarityFilters: { label: string; value: RarityFilter }[] = [
   { label: 'Légendaire', value: 'legendary' },
 ]
 
+const RARITY_ORDER: Record<string, number> = { legendary: 4, epic: 3, rare: 2, common: 1 }
+
 const filteredArtifacts = computed(() => {
-  return allArtifacts.value.filter((a) => {
-    const typeOk = activeTypeFilter.value === 'all' || a.type === activeTypeFilter.value
-    const rarityOk = activeRarityFilter.value === 'all' || a.rarity === activeRarityFilter.value
-    return typeOk && rarityOk
-  })
+  return allArtifacts.value
+    .filter((a) => {
+      const typeOk = activeTypeFilter.value === 'all' || a.type === activeTypeFilter.value
+      const rarityOk = activeRarityFilter.value === 'all' || a.rarity === activeRarityFilter.value
+      return typeOk && rarityOk
+    })
+    .sort((a, b) => {
+      // Actifs en premier
+      const aActive = isActive(a.id) ? 1 : 0
+      const bActive = isActive(b.id) ? 1 : 0
+      if (bActive !== aActive) return bActive - aActive
+      // Puis par rareté décroissante
+      return (RARITY_ORDER[b.rarity] ?? 0) - (RARITY_ORDER[a.rarity] ?? 0)
+    })
 })
 
 // ===== Modale de détail =====
@@ -432,6 +479,35 @@ const deactivate = (id: string) => {
   gameStore.deactivateArtifact(id)
   const artifact = allArtifacts.value.find((a) => a.id === id)
   if (artifact) toastStore.showInfo(`${artifact.name} retirée du slot.`, { duration: 2000 })
+}
+
+// ===== Forge =====
+interface ForgeTier {
+  rarity: 'common' | 'rare' | 'epic'
+  label: string
+  icon: string
+  cost: number
+}
+
+const forgeTiers: ForgeTier[] = [
+  { rarity: 'common', label: 'Commune', icon: '⚒️', cost: 150 },
+  { rarity: 'rare', label: 'Rare', icon: '🔥', cost: 400 },
+  { rarity: 'epic', label: 'Épique', icon: '✨', cost: 900 },
+]
+
+const currentGold = computed(() => gameStore.gameState.inventory.gold)
+
+const forgeArtifact = (tier: ForgeTier) => {
+  if (!gameStore.spendGold(tier.cost)) {
+    toastStore.showInfo(`Pas assez d'or pour forger une relique ${tier.label}.`, { duration: 3000 })
+    return
+  }
+
+  // Forger un artefact dont la rareté correspond au palier
+  const artifact = gameStore.giveRandomArtifactOfRarity(tier.rarity)
+  toastStore.showSuccess(`🔨 Forge réussie ! Vous avez obtenu : ${artifact.name} (${tier.label})`, {
+    duration: 5000,
+  })
 }
 
 // ===== Helpers d'affichage =====
@@ -745,6 +821,87 @@ $rarity-legendary: #f59e0b;
   gap: 0.5rem;
   margin-bottom: 1.5rem;
   align-items: center;
+}
+
+// ===== Forge =====
+.forge-section {
+  margin-bottom: 2rem;
+  padding: 1.25rem 1.5rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  border: 1px solid rgba(180, 130, 50, 0.3);
+}
+
+.forge-subtitle {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  margin: 0.25rem 0 1rem;
+}
+
+.gold-display {
+  font-size: 0.9rem;
+  color: #fcd34d;
+  font-weight: 600;
+}
+
+.forge-options {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.forge-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  border: 1px solid var(--rarity-color, #9ca3af);
+  flex: 1;
+  min-width: 170px;
+
+  .forge-icon {
+    font-size: 1.6rem;
+  }
+
+  .forge-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    flex: 1;
+  }
+
+  .forge-rarity {
+    font-size: 0.85rem;
+    color: var(--rarity-color, #9ca3af);
+    font-weight: 600;
+  }
+
+  .forge-cost {
+    font-size: 0.8rem;
+    color: #fcd34d;
+  }
+
+  .forge-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e2e8f0;
+    padding: 0.4rem 0.9rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    transition: background 0.2s;
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
 }
 
 .filter-separator {

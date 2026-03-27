@@ -15,8 +15,15 @@
       <h4>📦 Ressources disponibles :</h4>
       <div class="resource-list">
         <div v-for="(amount, resource) in tile.resources" :key="resource" class="resource-item">
-          <span class="resource-name">{{ getResourceIcon(resource) }} {{ resource }}:</span>
+          <span class="resource-name">{{ getResourceIcon(resource as string) }} {{ resource }}:</span>
           <span class="resource-amount">{{ amount }}</span>
+          <span
+            v-if="resourceBonusPct(resource as string) > 0"
+            class="resource-bonus"
+            :title="`Bonus reliques actives : +${resourceBonusPct(resource as string)}%`"
+          >
+            (+{{ resourceBonusPct(resource as string) }}%)
+          </span>
         </div>
       </div>
     </div>
@@ -55,6 +62,7 @@
 
 <script setup lang="ts">
 import { useMapStore, type MapTile } from '../../stores/mapStore'
+import { useGameStore } from '../../stores/gameStore'
 
 // Props
 interface Props {
@@ -71,8 +79,26 @@ defineEmits<{
   scoutTile: [tileId: string]
 }>()
 
-// Store
+// Stores
 const mapStore = useMapStore()
+const gameStore = useGameStore()
+
+/**
+ * Retourne le % de bonus artefact applicable à une ressource donnée.
+ * wood → resourceBonus.wood, clay → rien, iron → resourceBonus.iron,
+ * crop → resourceBonus.food, gold → economy
+ */
+const resourceBonusPct = (resource: string): number => {
+  const effects = gameStore.getTotalArtifactEffects.value
+  switch (resource) {
+    case 'wood':  return (effects.resourceBonus.wood ?? 0)
+    case 'iron':  return (effects.resourceBonus.iron ?? 0)
+    case 'crop':  return (effects.resourceBonus.food ?? 0)
+    case 'stone': return (effects.resourceBonus.stone ?? 0)
+    case 'gold':  return effects.economy ?? 0
+    default:      return 0
+  }
+}
 
 // Computed
 const canAttackTile = (tile: MapTile) => {
@@ -199,6 +225,18 @@ const getResourceIcon = (resource: string) => {
 .resource-amount {
   color: #81c784;
   font-weight: 600;
+}
+
+.resource-bonus {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 999px;
+  padding: 0 6px;
+  margin-left: 4px;
+  cursor: default;
 }
 
 .tile-actions {

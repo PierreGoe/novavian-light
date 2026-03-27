@@ -59,6 +59,8 @@ export interface ScoutMission {
   startedAt: number
   endsAt: number
   status: 'pending' | 'completed'
+  /** Rayon de tuiles supplémentaires révélées à la fin (scout_range_bonus) */
+  extraRevealRadius?: number
 }
 
 // État d'un combat/mission
@@ -680,7 +682,10 @@ export const useMissionStore = () => {
 
   // ===== Gestion des éclaireurs =====
 
-  const startScoutMission = (target: { x: number; y: number }): boolean => {
+  const startScoutMission = (
+    target: { x: number; y: number },
+    options?: { durationOverride?: number; extraRevealRadius?: number },
+  ): boolean => {
     // Vérifier qu'un éclaireur est disponible
     if (missionState.scoutsAvailable <= 0) {
       return false
@@ -705,12 +710,14 @@ export const useMissionStore = () => {
 
     // Créer la mission d'éclaireur
     const now = Date.now()
+    const duration = options?.durationOverride ?? SCOUT_MISSION_DURATION_MS
     const mission: ScoutMission = {
       id: `scout-${now}-${target.x}-${target.y}`,
       target,
       startedAt: now,
-      endsAt: now + SCOUT_MISSION_DURATION_MS,
+      endsAt: now + duration,
       status: 'pending',
+      extraRevealRadius: options?.extraRevealRadius,
     }
 
     missionState.scoutMissions.push(mission)
@@ -729,6 +736,19 @@ export const useMissionStore = () => {
         mission.status = 'completed'
         const tileKey = `${mission.target.x},${mission.target.y}`
         missionState.discoveredTiles.add(tileKey)
+
+        // Révéler les cases supplémentaires autour de la cible (scout_range_bonus)
+        if (mission.extraRevealRadius && mission.extraRevealRadius > 0) {
+          const r = mission.extraRevealRadius
+          for (let dx = -r; dx <= r; dx++) {
+            for (let dy = -r; dy <= r; dy++) {
+              if (dx === 0 && dy === 0) continue
+              const adjKey = `${mission.target.x + dx},${mission.target.y + dy}`
+              missionState.discoveredTiles.add(adjKey)
+            }
+          }
+        }
+
         missionState.scoutsAvailable++
         hasChanges = true
       }

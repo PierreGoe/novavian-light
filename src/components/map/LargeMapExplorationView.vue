@@ -52,7 +52,7 @@ import { useMissionStore } from '../../stores/missionStore'
 import { useGameStore } from '../../stores/gameStore'
 import { defaultResolver } from '../../combat/combatResolver'
 import type { Army, CombatReport, CombatUnit, SavedBattleReport } from '../../combat/types'
-import { ENEMY_BASE_INFANTRY, ENEMY_STRONGHOLD_INFANTRY } from '../../config'
+import { ENEMY_BASE_INFANTRY, ENEMY_STRONGHOLD_INFANTRY, SCOUT_MISSION_DURATION_MS } from '../../config'
 import { useNotifications } from '../../composables/useNotifications'
 
 // Composants
@@ -109,8 +109,18 @@ const handleTileSelect = (tileId: string) => {
       return
     }
 
+    // Calculer les bonus d'éclaireur issus des artefacts actifs
+    const scouts = gameStore.getEquippedArtifacts.value
+    const scoutRangeBonus = scouts
+      .filter((a) => a.specialPower?.type === 'scout_range_bonus')
+      .reduce((sum, a) => sum + (a.specialPower?.value ?? 0), 0)
+    const hasDoubleSpeed = scouts.some((a) => a.specialPower?.type === 'double_scout_speed')
+
     // Lancer la mission d'éclaireur
-    const success = missionStore.startScoutMission(target)
+    const success = missionStore.startScoutMission(target, {
+      extraRevealRadius: scoutRangeBonus > 0 ? scoutRangeBonus : undefined,
+      durationOverride: hasDoubleSpeed ? Math.floor(SCOUT_MISSION_DURATION_MS / 2) : undefined,
+    })
     if (success) {
       showNotification(`🔭 Éclaireur envoyé vers (${target.x}, ${target.y})`, 'success')
     } else {
@@ -147,10 +157,62 @@ const handleAttackTile = (tileId: string) => {
       health: u.health,
     }))
 
+  const isStronghold = tile.type === 'stronghold'
+
+  // Construire les modificateurs issus des artefacts actifs
+  const equippedArtifacts = gameStore.getEquippedArtifacts.value
+  const artifactModifiers: CombatModifier[] = []
+
+  // Agrégation des bonus militaire/défense des artefacts (% → multiplicateur)
+  const totalMilitary = equippedArtifacts.reduce((sum, a) => sum + (a.effects.military ?? 0), 0)
+  const totalDefense = equippedArtifacts.reduce((sum, a) => sum + (a.effects.defense ?? 0), 0)
+  if (totalMilitary > 0) {
+    artifactModifiers.push({
+      id: 'artifact-military',
+      name: 'Bonus militaire des reliques',
+      source: 'artifact',
+      attackMultiplier: 1 + totalMilitary / 100,
+    })
+  }
+  if (totalDefense > 0) {
+    artifactModifiers.push({
+      id: 'artifact-defense',
+      name: 'Bonus défense des reliques',
+      source: 'artifact',
+      defenseMultiplier: 1 + totalDefense / 100,
+    })
+  }
+
+  // Pouvoir spécial : first_strike → meilleure résistance aux dégâts reçus
+  const hasFirstStrike = equippedArtifacts.some((a) => a.specialPower?.type === 'first_strike')
+  if (hasFirstStrike) {
+    artifactModifiers.push({
+      id: 'artifact-first-strike',
+      name: 'Frappe en premier',
+      source: 'artifact',
+      defenseMultiplier: 1.5,
+    })
+  }
+
+  // Pouvoir spécial : siege_bonus → bonus offensif pour les forteresses
+  if (isStronghold) {
+    const siegeBonus = equippedArtifacts
+      .filter((a) => a.specialPower?.type === 'siege_bonus')
+      .reduce((sum, a) => sum + (a.specialPower?.value ?? 0), 0)
+    if (siegeBonus > 0) {
+      artifactModifiers.push({
+        id: 'artifact-siege',
+        name: 'Bonus de siège',
+        source: 'artifact',
+        attackMultiplier: 1 + siegeBonus / 100,
+      })
+    }
+  }
+
   const attackerArmy: Army = {
     label: 'Vos troupes',
     units: attackerUnits,
-    modifiers: [],
+    modifiers: artifactModifiers,
   }
 
   // Utiliser la garnison mémorisée ou en générer une nouvelle (snapshot)
@@ -168,7 +230,6 @@ const handleAttackTile = (tileId: string) => {
     return
   }
 
-  const isStronghold = tile.type === 'stronghold'
   const defenderArmy: Army = {
     label: isStronghold ? 'Garnison de la Forteresse' : 'Garnison du Village Ennemi',
     units: tile.garrison.units.filter((u) => u.count > 0),
@@ -178,6 +239,11 @@ const handleAttackTile = (tileId: string) => {
   // Résoudre
   const report = defaultResolver.resolve(attackerArmy, defenderArmy)
   combatReport.value = report
+
+  // Consommer une utilisation des artefacts à durée limitée actifs
+  equippedArtifacts
+    .filter((a) => a.durability !== 'permanent')
+    .forEach((a) => gameStore.consumeArtifactUse(a.id))
 
   // Appliquer les pertes joueur
   applyPlayerLosses(report)
@@ -201,6 +267,9 @@ const handleAttackTile = (tileId: string) => {
     } else {
       gameStore.addVictoryPoints('combat', 2, 'Village ennemi détruit')
     }
+
+    // Pouvoirs spéciaux : effets post-victoire
+    applyPostVictorySpecialPowers(equippedArtifacts, tile.position)
   } else {
     showNotification(report.summary, 'error')
   }
@@ -222,6 +291,76 @@ const handleAttackTile = (tileId: string) => {
 
   mapStore.saveMapState()
   missionStore.saveMissionState()
+}
+
+import type { Artifact } from '../../stores/gameStore'
+
+/**
+ * Applique les effets spéciaux déclenchés au moment de la victoire
+ * (gold_on_victory, leadership_on_victory, fog_reveal_on_victory, healing_after_combat)
+ */
+function applyPostVictorySpecialPowers(
+  artifacts: Artifact[],
+  position: { x: number; y: number },
+) {
+  let goldGained = 0
+  let leadershipGained = 0
+
+  for (const artifact of artifacts) {
+    const sp = artifact.specialPower
+    if (!sp) continue
+
+    switch (sp.type) {
+      case 'gold_on_victory':
+        goldGained += sp.value
+        break
+
+      case 'leadership_on_victory':
+        leadershipGained += sp.value
+        break
+
+      case 'fog_reveal_on_victory': {
+        // Révéler les cases dans un rayon autour de la position actuelle
+        const radius = sp.value
+        for (let dx = -radius; dx <= radius; dx++) {
+          for (let dy = -radius; dy <= radius; dy++) {
+            const tile = mapStore.getTileAt(position.x + dx, position.y + dy)
+            if (tile && !tile.explored) {
+              tile.explored = true
+            }
+          }
+        }
+        showNotification(`✨ ${artifact.name} révèle les environs !`, 'success')
+        break
+      }
+
+      case 'healing_after_combat': {
+        // Restaurer sp.value% des unités tuées au combat
+        const townUnits = missionStore.missionState.town.units
+        let totalRestored = 0
+        for (const unit of townUnits) {
+          const restored = Math.floor(unit.count * (sp.value / 100))
+          if (restored > 0) {
+            unit.count += restored
+            totalRestored += restored
+          }
+        }
+        if (totalRestored > 0) {
+          showNotification(`💚 ${artifact.name} restaure ${totalRestored} unité(s) !`, 'success')
+        }
+        break
+      }
+    }
+  }
+
+  if (goldGained > 0) {
+    gameStore.addGold(goldGained)
+    showNotification(`💰 +${goldGained} or (reliques actives)`, 'success')
+  }
+  if (leadershipGained > 0) {
+    gameStore.updateLeadership(leadershipGained, 'add')
+    showNotification(`👑 +${leadershipGained} leadership (reliques actives)`, 'success')
+  }
 }
 
 /** Génère une garnison ennemie selon le type de case (appelé une seule fois au 1er combat) */
