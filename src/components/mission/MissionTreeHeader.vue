@@ -126,11 +126,9 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue'
 import { useGameStore, type Artifact } from '@/stores/gameStore'
-import { useToastStore } from '@/stores/toastStore'
 import router from '@/router'
 
 const gameStore = useGameStore()
-const toastStore = useToastStore()
 
 const returnToMainMenu = () => {
   router.push('/')
@@ -300,8 +298,7 @@ watch(
 )
 
 const openInventoryModal = () => {
-  // TODO: Implémenter la modal d'inventaire complète
-  toastStore.showInfo('Inventaire complet - À implémenter prochainement!', { duration: 3000 })
+  router.push('/inventory')
 }
 
 // Affiche ou non le chiffre flottant selon la logique métier

@@ -40,7 +40,11 @@
           backgroundColor: nodeTypeConfig[node.type].color + '40',
           borderColor: nodeTypeConfig[node.type].color,
         }"
-        @click="node.accessible && !node.completed && !node.inProgress ? emit('selectNode', node) : undefined"
+        @click="
+          node.accessible && !node.completed && !node.inProgress
+            ? emit('selectNode', node)
+            : undefined
+        "
         :title="`${node.title}\n${node.description}`"
       >
         <div class="node-icon">{{ node.icon }}</div>

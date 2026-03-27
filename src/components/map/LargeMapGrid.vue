@@ -36,10 +36,17 @@
           @click="selectTile(tile.id)"
         >
           <!-- Icône du terrain visible uniquement si exploré -->
-          <div class="tile-icon" v-if="DISABLE_FOG_OF_WAR || tile.explored">{{ getTileIcon(tile.type) }}</div>
+          <div class="tile-icon" v-if="DISABLE_FOG_OF_WAR || tile.explored">
+            {{ getTileIcon(tile.type) }}
+          </div>
 
           <!-- Case inconnue (pas explorée, pas en cours d'exploration) -->
-          <div class="tile-overlay" v-if="!DISABLE_FOG_OF_WAR && !tile.explored && !isBeingExplored(tile)">?</div>
+          <div
+            class="tile-overlay"
+            v-if="!DISABLE_FOG_OF_WAR && !tile.explored && !isBeingExplored(tile)"
+          >
+            ?
+          </div>
 
           <!-- Case en cours d'exploration -->
           <div class="tile-exploring" v-if="isBeingExplored(tile)">

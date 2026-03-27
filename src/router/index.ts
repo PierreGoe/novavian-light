@@ -5,6 +5,7 @@ import MissionTree from '@/components/mission/MissionTree.vue'
 import CampaignView from '@/components/campaign/CampaignView.vue'
 import CampaignScoreView from '@/components/campaign/CampaignScoreView.vue'
 import GameOverScreen from '@/components/home/GameOverScreen.vue'
+import InventoryView from '@/components/inventory/InventoryView.vue'
 import { MapExplorationView, LargeMapExplorationView } from '@/components/map'
 
 const router = createRouter({
@@ -49,6 +50,11 @@ const router = createRouter({
       path: '/game-over',
       name: 'game-over',
       component: GameOverScreen,
+    },
+    {
+      path: '/inventory',
+      name: 'inventory',
+      component: InventoryView,
     },
   ],
 })

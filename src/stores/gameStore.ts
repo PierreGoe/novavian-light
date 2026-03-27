@@ -25,6 +25,26 @@ export interface Resources {
   food: number
 }
 
+/** Type de durabilité d'un artefact */
+export type ArtifactDurability = 'single-use' | 'uses-limited' | 'permanent'
+
+/** Types de pouvoirs spéciaux uniques */
+export type SpecialPowerType =
+  | 'scout_range_bonus' // les éclaireurs voient X cases de plus
+  | 'fog_reveal_on_victory' // révèle des cases autour après victoire
+  | 'gold_on_victory' // bonus d'or par victoire de combat
+  | 'leadership_on_victory' // bonus de leadership par victoire
+  | 'first_strike' // attaque en premier au combat
+  | 'siege_bonus' // bonus aux sièges de villes
+  | 'healing_after_combat' // soins partiels après chaque combat
+  | 'double_scout_speed' // les éclaireurs explorent 2x plus vite
+
+export interface SpecialPower {
+  type: SpecialPowerType
+  value: number // ampleur du bonus (ex: 1 pour +1 case de vision)
+  description: string // texte lisible affiché dans l'UI
+}
+
 export interface Artifact {
   id: string
   name: string
@@ -42,20 +62,23 @@ export interface Artifact {
       food?: number
     }
   }
+  specialPower?: SpecialPower // pouvoir unique non-statistique
   rarity: 'common' | 'rare' | 'epic' | 'legendary'
+  durability: ArtifactDurability // durée de vie de l'artefact
+  maxUses?: number // nombre de combats max (si uses-limited)
+  usesRemaining?: number // combats restants
+  destructible: boolean // détruit en cas de défaite de campagne
   obtainedFrom?: string
 }
+
+/** Nombre maximum de reliques actives simultanément */
+export const MAX_ACTIVE_ARTIFACTS = 4
 
 export interface PlayerInventory {
   gold: number
   leadership: number
-  artifacts: Artifact[]
-  equippedArtifacts: {
-    weapon?: Artifact
-    armor?: Artifact
-    accessory?: Artifact
-    relic?: Artifact
-  }
+  artifacts: Artifact[] // tous les artefacts possédés
+  activeArtifacts: string[] // IDs des artefacts actifs (max MAX_ACTIVE_ARTIFACTS)
 }
 
 export interface Building {
@@ -137,7 +160,7 @@ const createInitialState = (): GameState => ({
     gold: 50,
     leadership: 100,
     artifacts: [], // ← Nouveau tableau à chaque appel
-    equippedArtifacts: {}, // ← Nouvel objet à chaque appel
+    activeArtifacts: [], // ← IDs des artefacts actifs
   },
   createdAt: null,
   currentGameSection: undefined,
@@ -177,11 +200,10 @@ export const useGameStore = () => {
           type: 'weapon',
           icon: '⚔️',
           description: 'Une épée courte efficace, symbole de la discipline romaine.',
-          effects: {
-            military: 5,
-            economy: 2,
-          },
+          effects: { military: 5, economy: 2 },
           rarity: 'common',
+          durability: 'permanent',
+          destructible: false,
           obtainedFrom: 'Équipement de démarrage Romain',
         },
       ],
@@ -192,13 +214,10 @@ export const useGameStore = () => {
           type: 'armor',
           icon: '🛡️',
           description: 'Un bouclier robuste, parfait pour la défense du territoire.',
-          effects: {
-            defense: 8,
-            resourceBonus: {
-              stone: 5,
-            },
-          },
+          effects: { defense: 8, resourceBonus: { stone: 5 } },
           rarity: 'common',
+          durability: 'permanent',
+          destructible: false,
           obtainedFrom: 'Équipement de démarrage Gaulois',
         },
       ],
@@ -209,13 +228,10 @@ export const useGameStore = () => {
           type: 'weapon',
           icon: '🪓',
           description: 'Une hache de guerre redoutable pour les raids rapides.',
-          effects: {
-            military: 7,
-            resourceBonus: {
-              wood: 3,
-            },
-          },
+          effects: { military: 7, resourceBonus: { wood: 3 } },
           rarity: 'common',
+          durability: 'permanent',
+          destructible: false,
           obtainedFrom: 'Équipement de démarrage Germain',
         },
       ],
@@ -224,8 +240,10 @@ export const useGameStore = () => {
     const artifacts = startingArtifacts[selectedRace.id] || []
     artifacts.forEach((artifact) => {
       gameState.inventory.artifacts.push(artifact)
-      // Équiper automatiquement l'artefact de démarrage
-      gameState.inventory.equippedArtifacts[artifact.type] = artifact
+      // Activer automatiquement l'artefact de démarrage
+      if (gameState.inventory.activeArtifacts.length < MAX_ACTIVE_ARTIFACTS) {
+        gameState.inventory.activeArtifacts.push(artifact.id)
+      }
     })
 
     // Partir des valeurs initiales à chaque fois
@@ -283,7 +301,19 @@ export const useGameStore = () => {
           gameState.inventory.gold = gameData.inventory.gold || 0
           gameState.inventory.leadership = gameData.inventory.leadership ?? 100
           gameState.inventory.artifacts = gameData.inventory.artifacts || []
-          gameState.inventory.equippedArtifacts = gameData.inventory.equippedArtifacts || {}
+          // Migration : si l'ancien save utilisait equippedArtifacts, on convertit
+          if (gameData.inventory.activeArtifacts) {
+            gameState.inventory.activeArtifacts = gameData.inventory.activeArtifacts
+          } else if (gameData.inventory.equippedArtifacts) {
+            gameState.inventory.activeArtifacts = Object.values(
+              gameData.inventory.equippedArtifacts as Record<string, Artifact>,
+            )
+              .filter(Boolean)
+              .map((a) => (a as Artifact).id)
+              .slice(0, MAX_ACTIVE_ARTIFACTS)
+          } else {
+            gameState.inventory.activeArtifacts = []
+          }
         }
 
         // État de la carte
@@ -326,7 +356,7 @@ export const useGameStore = () => {
           gold: gameState.inventory.gold,
           leadership: gameState.inventory.leadership,
           artifacts: [...gameState.inventory.artifacts],
-          equippedArtifacts: { ...gameState.inventory.equippedArtifacts },
+          activeArtifacts: [...gameState.inventory.activeArtifacts],
         },
         mapState: {
           layers: gameState.mapState.layers.map((layer) => ({
@@ -373,11 +403,7 @@ export const useGameStore = () => {
     gameState.inventory.gold = freshState.inventory.gold
     gameState.inventory.leadership = freshState.inventory.leadership
     gameState.inventory.artifacts.length = 0 // Vider le tableau existant
-    Object.keys(gameState.inventory.equippedArtifacts).forEach((key) => {
-      delete gameState.inventory.equippedArtifacts[
-        key as keyof typeof gameState.inventory.equippedArtifacts
-      ]
-    })
+    gameState.inventory.activeArtifacts.length = 0 // Vider les slots actifs
 
     // Réinitialiser l'état de la carte
     gameState.mapState.layers.length = 0 // Vider le tableau existant
@@ -582,29 +608,73 @@ export const useGameStore = () => {
     saveGame()
   }
 
-  const equipArtifact = (artifact: Artifact): boolean => {
-    // Vérifier si l'artefact est dans l'inventaire
-    if (!gameState.inventory.artifacts.find((a) => a.id === artifact.id)) return false
+  /** Active un artefact dans un slot (max MAX_ACTIVE_ARTIFACTS) */
+  const activateArtifact = (artifactId: string): boolean => {
+    if (!gameState.inventory.artifacts.find((a) => a.id === artifactId)) return false
+    if (gameState.inventory.activeArtifacts.includes(artifactId)) return false
+    if (gameState.inventory.activeArtifacts.length >= MAX_ACTIVE_ARTIFACTS) return false
 
-    // Déséquiper l'artefact actuel du même type s'il existe
-    const currentEquipped = gameState.inventory.equippedArtifacts[artifact.type]
-    if (currentEquipped) {
-      unequipArtifact(currentEquipped.type)
-    }
-
-    // Équiper le nouvel artefact
-    gameState.inventory.equippedArtifacts[artifact.type] = artifact
+    gameState.inventory.activeArtifacts.push(artifactId)
     saveGame()
     return true
   }
 
-  const unequipArtifact = (type: Artifact['type']) => {
-    delete gameState.inventory.equippedArtifacts[type]
+  /** Désactive un artefact d'un slot */
+  const deactivateArtifact = (artifactId: string): void => {
+    const index = gameState.inventory.activeArtifacts.indexOf(artifactId)
+    if (index !== -1) {
+      gameState.inventory.activeArtifacts.splice(index, 1)
+      saveGame()
+    }
+  }
+
+  /** Consomme une utilisation d'un artefact à durée limitée et le retire si épuisé */
+  const consumeArtifactUse = (artifactId: string): void => {
+    const artifact = gameState.inventory.artifacts.find((a) => a.id === artifactId)
+    if (!artifact || artifact.durability === 'permanent') return
+
+    if (artifact.durability === 'single-use') {
+      // Retirer de l'inventaire immédiatement
+      deactivateArtifact(artifactId)
+      gameState.inventory.artifacts = gameState.inventory.artifacts.filter(
+        (a) => a.id !== artifactId,
+      )
+    } else if (artifact.durability === 'uses-limited' && artifact.usesRemaining !== undefined) {
+      artifact.usesRemaining -= 1
+      if (artifact.usesRemaining <= 0) {
+        deactivateArtifact(artifactId)
+        gameState.inventory.artifacts = gameState.inventory.artifacts.filter(
+          (a) => a.id !== artifactId,
+        )
+      }
+    }
     saveGame()
   }
 
+  /** Détruit les artefacts destructibles après une défaite de campagne */
+  const destroyDestructiblesOnCampaignLoss = (): Artifact[] => {
+    const destroyed: Artifact[] = []
+    const toDestroy = gameState.inventory.artifacts.filter(
+      (a) => a.destructible && gameState.inventory.activeArtifacts.includes(a.id),
+    )
+
+    toDestroy.forEach((artifact) => {
+      destroyed.push(artifact)
+      deactivateArtifact(artifact.id)
+      gameState.inventory.artifacts = gameState.inventory.artifacts.filter(
+        (a) => a.id !== artifact.id,
+      )
+    })
+
+    if (destroyed.length > 0) saveGame()
+    return destroyed
+  }
+
+  /** Alias pour la compatibilité des templates existants */
   const getEquippedArtifacts = computed(() => {
-    return Object.values(gameState.inventory.equippedArtifacts).filter(Boolean)
+    return gameState.inventory.artifacts.filter((a) =>
+      gameState.inventory.activeArtifacts.includes(a.id),
+    ) as Artifact[]
   })
 
   const getTotalArtifactEffects = computed(() => {
@@ -620,18 +690,16 @@ export const useGameStore = () => {
       },
     }
 
-    Object.values(gameState.inventory.equippedArtifacts).forEach((artifact) => {
-      if (artifact) {
-        effects.economy += artifact.effects.economy || 0
-        effects.military += artifact.effects.military || 0
-        effects.defense += artifact.effects.defense || 0
+    getEquippedArtifacts.value.forEach((artifact) => {
+      effects.economy += artifact.effects.economy || 0
+      effects.military += artifact.effects.military || 0
+      effects.defense += artifact.effects.defense || 0
 
-        if (artifact.effects.resourceBonus) {
-          effects.resourceBonus.wood += artifact.effects.resourceBonus.wood || 0
-          effects.resourceBonus.stone += artifact.effects.resourceBonus.stone || 0
-          effects.resourceBonus.iron += artifact.effects.resourceBonus.iron || 0
-          effects.resourceBonus.food += artifact.effects.resourceBonus.food || 0
-        }
+      if (artifact.effects.resourceBonus) {
+        effects.resourceBonus.wood += artifact.effects.resourceBonus.wood || 0
+        effects.resourceBonus.stone += artifact.effects.resourceBonus.stone || 0
+        effects.resourceBonus.iron += artifact.effects.resourceBonus.iron || 0
+        effects.resourceBonus.food += artifact.effects.resourceBonus.food || 0
       }
     })
 
@@ -831,45 +899,76 @@ export const useGameStore = () => {
     }
   }
 
-  const giveRandomArtifact = () => {
-    const randomArtifacts = [
+  const giveRandomArtifact = (): Artifact => {
+    const ts = Date.now()
+    const randomArtifacts: Artifact[] = [
       {
-        id: `artifact-${Date.now()}`,
+        id: `artifact-${ts}-1`,
         name: 'Amulette de Fortune',
-        type: 'accessory' as const,
+        type: 'accessory',
         icon: '🧿',
         description: 'Une amulette qui améliore les gains économiques.',
-        effects: {
-          economy: 5,
-        },
-        rarity: 'rare' as const,
+        effects: { economy: 5 },
+        rarity: 'rare',
+        durability: 'permanent',
+        destructible: false,
         obtainedFrom: 'Victoire contre un champion élite',
       },
       {
-        id: `artifact-${Date.now()}-2`,
+        id: `artifact-${ts}-2`,
         name: 'Anneau de Commandement',
-        type: 'accessory' as const,
+        type: 'accessory',
         icon: '💍',
         description: 'Un anneau qui renforce le leadership militaire.',
-        effects: {
-          military: 4,
-          defense: 2,
-        },
-        rarity: 'rare' as const,
+        effects: { military: 4, defense: 2 },
+        rarity: 'rare',
+        durability: 'permanent',
+        destructible: false,
         obtainedFrom: 'Victoire contre un champion élite',
       },
       {
-        id: `artifact-${Date.now()}-3`,
+        id: `artifact-${ts}-3`,
         name: 'Relique Ancienne',
-        type: 'relic' as const,
+        type: 'relic',
         icon: '🏺',
         description: 'Un artefact mystérieux aux pouvoirs inconnus.',
-        effects: {
-          economy: 2,
-          military: 2,
-          defense: 2,
+        effects: { economy: 2, military: 2, defense: 2 },
+        rarity: 'epic',
+        durability: 'permanent',
+        destructible: false,
+        obtainedFrom: 'Victoire contre un champion élite',
+      },
+      {
+        id: `artifact-${ts}-4`,
+        name: 'Œil de Faucon',
+        type: 'relic',
+        icon: '🦅',
+        description:
+          "Cette relique mystique aiguise la vision des éclaireurs, leur permettant de percevoir une case supplémentaire autour d'eux.",
+        effects: {},
+        specialPower: {
+          type: 'scout_range_bonus',
+          value: 1,
+          description: "Les éclaireurs révèlent 1 case supplémentaire autour d'eux",
         },
-        rarity: 'epic' as const,
+        rarity: 'rare',
+        durability: 'permanent',
+        destructible: true,
+        obtainedFrom: 'Victoire contre un champion élite',
+      },
+      {
+        id: `artifact-${ts}-5`,
+        name: 'Pierre de Sang',
+        type: 'relic',
+        icon: '💎',
+        description:
+          'Une pierre imbibée de magie de guerre. Active pour 3 combats seulement, mais ses effets sont puissants.',
+        effects: { military: 10 },
+        rarity: 'epic',
+        durability: 'uses-limited',
+        maxUses: 3,
+        usesRemaining: 3,
+        destructible: true,
         obtainedFrom: 'Victoire contre un champion élite',
       },
     ]
@@ -928,8 +1027,10 @@ export const useGameStore = () => {
     updateLeadership,
     leadershipStatus,
     addArtifact,
-    equipArtifact,
-    unequipArtifact,
+    activateArtifact,
+    deactivateArtifact,
+    consumeArtifactUse,
+    destroyDestructiblesOnCampaignLoss,
 
     // Points de victoire
     addVictoryPoints,
