@@ -3,6 +3,7 @@ import { reactive, computed } from 'vue'
 import { generateMap } from '@/utils'
 import router from '@/router'
 import { useMissionStore } from '@/stores/missionStore'
+import { useMapStore } from '@/stores/mapStore'
 
 export interface Race {
   id: string
@@ -485,10 +486,20 @@ export const useGameStore = () => {
       completeMapNode(gameState.mapState.selectedNodeId)
     }
 
-    saveGame()
+    // Réinitialiser l'état de mission (ressources, ville, unités, scouts)
+    const missionStore = useMissionStore()
+    missionStore.resetMissionState()
 
-    // Retour à la carte de missions
-    router.push('/mission-tree')
+    // Réinitialiser la carte d'exploration
+    const mapStore = useMapStore()
+    mapStore.resetMapState()
+
+    // Réinitialiser les points de victoire pour la prochaine campagne
+    gameState.victoryPoints.combat = 0
+    gameState.victoryHistory.length = 0
+
+    saveGame()
+    // La navigation vers '/mission-tree' est gérée par le composant appelant
   }
 
   /** Vrai si l'objectif de PV combat de la campagne est atteint */

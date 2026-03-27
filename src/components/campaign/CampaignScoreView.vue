@@ -194,6 +194,7 @@ function goBack() {
 
 function handleComplete() {
   gameStore.completeCampaign(CAMPAIGN_BONUS_GOLD)
+  router.push('/mission-tree')
 }
 
 function getTypeIcon(type: VictoryPointType): string {
