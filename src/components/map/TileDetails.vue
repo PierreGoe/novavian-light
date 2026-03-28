@@ -61,7 +61,10 @@
     </div>
 
     <!-- Stock pillable (Phase 2) -->
-    <div v-if="tile.lootStock && (tile.type === 'village_enemy' || tile.type === 'stronghold')" class="tile-loot-stock">
+    <div
+      v-if="tile.lootStock && (tile.type === 'village_enemy' || tile.type === 'stronghold')"
+      class="tile-loot-stock"
+    >
       <div class="section-label">💰 Butin estimé avec votre armée actuelle</div>
       <div class="resource-grid">
         <div class="resource-card" v-if="estimatedLoot.gold > 0">
@@ -88,7 +91,9 @@
 
       <!-- Capacité de transport par type d'unité -->
       <div class="carry-capacity-info">
-        <span class="carry-label">🎒 Capacité de transport : <strong>{{ playerCarryCapacity }}</strong></span>
+        <span class="carry-label"
+          >🎒 Capacité de transport : <strong>{{ playerCarryCapacity }}</strong></span
+        >
         <div class="carry-breakdown" v-if="capacityBreakdown.length > 0">
           <span
             v-for="u in capacityBreakdown"
@@ -119,7 +124,10 @@
     </div>
 
     <!-- Avertissement siège requis -->
-    <div v-if="(tile.type === 'village_enemy' || tile.type === 'stronghold') && !hasSiegeUnits" class="siege-warning">
+    <div
+      v-if="(tile.type === 'village_enemy' || tile.type === 'stronghold') && !hasSiegeUnits"
+      class="siege-warning"
+    >
       ⚠️ Sans <strong>armes de siège</strong>, le village ne sera pas détruit après la victoire
     </div>
 
@@ -179,11 +187,7 @@ import { useMissionStore } from '../../stores/missionStore'
 import AttackPanel from './AttackPanel.vue'
 import type { AvailableUnit } from '../../combat/attackPlanner'
 import { GARRISON_REGEN_DURATION_MS } from '../../config'
-import {
-  computeLootCapacity,
-  computePillage,
-  UNIT_CARRY_CAPACITY,
-} from '../../combat/loot'
+import { computeLootCapacity, computePillage, UNIT_CARRY_CAPACITY } from '../../combat/loot'
 
 // Props
 interface Props {

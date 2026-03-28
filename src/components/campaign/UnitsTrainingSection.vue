@@ -47,7 +47,9 @@
               <span>⚒️ {{ def.cost.iron }}</span>
               <span>🌾 {{ def.cost.crop }}</span>
             </div>
-            <div class="rc-time">⏱ {{ formatDuration(getTrainingTime(def.type, barrackLevel)) }}</div>
+            <div class="rc-time">
+              ⏱ {{ formatDuration(getTrainingTime(def.type, barrackLevel)) }}
+            </div>
           </template>
         </button>
       </div>
@@ -64,7 +66,10 @@
           <span class="qe-name">{{ UNIT_DEFINITIONS[trainingQueue[0].type].name }}</span>
           <div class="qe-timer">
             <div class="qe-progress-bar">
-              <div class="qe-progress-fill" :style="{ width: getEntryProgress(trainingQueue[0]) + '%' }"></div>
+              <div
+                class="qe-progress-fill"
+                :style="{ width: getEntryProgress(trainingQueue[0]) + '%' }"
+              ></div>
             </div>
             <span class="qe-remaining">{{ getRemainingTime(trainingQueue[0]) }}</span>
           </div>
@@ -81,7 +86,13 @@
           <span class="qe-name">{{ UNIT_DEFINITIONS[group.type].name }}</span>
           <span v-if="group.count > 1" class="qe-count">×{{ group.count }}</span>
           <span class="qe-wait">{{ getRemainingTime(group.lastEntry) }}</span>
-          <button class="qe-cancel" @click="handleCancel(group.lastEntry)" title="Annuler 1 unité et récupérer les ressources">✕</button>
+          <button
+            class="qe-cancel"
+            @click="handleCancel(group.lastEntry)"
+            title="Annuler 1 unité et récupérer les ressources"
+          >
+            ✕
+          </button>
         </div>
       </div>
     </div>
@@ -137,10 +148,7 @@ const canAfford = (type: MilitaryUnit['type']): boolean => {
   const res = missionStore.displayResources.value
   const cost = UNIT_DEFINITIONS[type].cost
   return (
-    res.wood >= cost.wood &&
-    res.clay >= cost.clay &&
-    res.iron >= cost.iron &&
-    res.crop >= cost.crop
+    res.wood >= cost.wood && res.clay >= cost.clay && res.iron >= cost.iron && res.crop >= cost.crop
   )
 }
 
@@ -156,10 +164,7 @@ const handleRecruit = (type: MilitaryUnit['type']) => {
 const handleCancel = (entry: TrainingQueueEntry) => {
   const def = UNIT_DEFINITIONS[entry.type]
   if (missionStore.cancelQueueEntry(entry.id)) {
-    toastStore.showSuccess(
-      `${def.name} annulé(e) — ressources remboursées`,
-      { duration: 2000 },
-    )
+    toastStore.showSuccess(`${def.name} annulé(e) — ressources remboursées`, { duration: 2000 })
   }
 }
 
@@ -281,7 +286,10 @@ const getEntryProgress = (entry: TrainingQueueEntry): number => {
   border: 1px solid rgba(218, 165, 32, 0.35);
   border-radius: 10px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    transform 0.1s;
   text-align: center;
   color: #f4e4bc;
 }
@@ -428,7 +436,9 @@ const getEntryProgress = (entry: TrainingQueueEntry): number => {
   padding: 0.15rem 0.35rem;
   border-radius: 4px;
   line-height: 1;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
 .qe-cancel:hover {

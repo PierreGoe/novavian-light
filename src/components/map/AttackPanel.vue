@@ -71,7 +71,13 @@
           <span class="unit-icon">{{ unitIcon(unit.type) }}</span>
           <span class="unit-type-label">{{ unitLabel(unit.type) }}</span>
           <div class="unit-controls">
-            <button class="qty-btn" @click="decrement(unit.type)" :disabled="(composition[unit.type] ?? 0) <= 0">−</button>
+            <button
+              class="qty-btn"
+              @click="decrement(unit.type)"
+              :disabled="(composition[unit.type] ?? 0) <= 0"
+            >
+              −
+            </button>
             <input
               class="qty-input"
               type="number"
@@ -80,11 +86,26 @@
               :value="composition[unit.type] ?? 0"
               @change="setCount(unit.type, +($event.target as HTMLInputElement).value)"
             />
-            <button class="qty-btn" @click="increment(unit.type)" :disabled="(composition[unit.type] ?? 0) >= unit.count">+</button>
-            <button class="qty-all-btn" @click="setCount(unit.type, unit.count)" title="Tout envoyer">max</button>
+            <button
+              class="qty-btn"
+              @click="increment(unit.type)"
+              :disabled="(composition[unit.type] ?? 0) >= unit.count"
+            >
+              +
+            </button>
+            <button
+              class="qty-all-btn"
+              @click="setCount(unit.type, unit.count)"
+              title="Tout envoyer"
+            >
+              max
+            </button>
           </div>
           <span class="unit-max">/ {{ unit.count }}</span>
-          <span class="unit-carry" :title="`${UNIT_CARRY_CAPACITY[unit.type] ?? 10} ressources par unité`">
+          <span
+            class="unit-carry"
+            :title="`${UNIT_CARRY_CAPACITY[unit.type] ?? 10} ressources par unité`"
+          >
             🎒×{{ UNIT_CARRY_CAPACITY[unit.type] ?? 10 }}
           </span>
         </div>
@@ -114,9 +135,7 @@
         </div>
 
         <!-- Bouton confirm uniquement en mode custom -->
-        <button class="confirm-btn" @click="confirm">
-          ⚔️ Envoyer ces troupes
-        </button>
+        <button class="confirm-btn" @click="confirm">⚔️ Envoyer ces troupes</button>
       </div>
     </div>
   </div>
@@ -195,25 +214,39 @@ const customPlan = computed<AttackPlan | null>(() => {
 // Guards des modes rapides
 // ------------------------------------
 
-const hasSiegeUnits = computed(() => props.availableUnits.some((u) => u.type === 'siege' && u.count > 0))
-const hasNonSiegeUnits = computed(() => props.availableUnits.some((u) => u.type !== 'siege' && u.count > 0))
-const hasCavalry = computed(() => props.availableUnits.some((u) => u.type === 'cavalry' && u.count > 0))
+const hasSiegeUnits = computed(() =>
+  props.availableUnits.some((u) => u.type === 'siege' && u.count > 0),
+)
+const hasNonSiegeUnits = computed(() =>
+  props.availableUnits.some((u) => u.type !== 'siege' && u.count > 0),
+)
+const hasCavalry = computed(() =>
+  props.availableUnits.some((u) => u.type === 'cavalry' && u.count > 0),
+)
 
 const canUseMode = (mode: QuickAttackMode): boolean => {
   switch (mode) {
-    case 'siege': return hasSiegeUnits.value
-    case 'raid': return hasCavalry.value || hasNonSiegeUnits.value
-    case 'balanced': return hasNonSiegeUnits.value
-    default: return props.availableUnits.some((u) => u.count > 0)
+    case 'siege':
+      return hasSiegeUnits.value
+    case 'raid':
+      return hasCavalry.value || hasNonSiegeUnits.value
+    case 'balanced':
+      return hasNonSiegeUnits.value
+    default:
+      return props.availableUnits.some((u) => u.count > 0)
   }
 }
 
 const disabledReason = (mode: QuickAttackMode): string => {
   switch (mode) {
-    case 'siege': return 'Aucune arme de siège'
-    case 'raid': return 'Aucune unité mobile'
-    case 'balanced': return 'Aucune unité disponible'
-    default: return ''
+    case 'siege':
+      return 'Aucune arme de siège'
+    case 'raid':
+      return 'Aucune unité mobile'
+    case 'balanced':
+      return 'Aucune unité disponible'
+    default:
+      return ''
   }
 }
 
@@ -306,7 +339,9 @@ const confirm = () => {
   font-size: 0.88em;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .tab-btn.active {
@@ -338,7 +373,10 @@ const confirm = () => {
   background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    transform 0.1s;
 }
 
 .strategy-card:hover:not(.disabled) {
@@ -565,7 +603,9 @@ const confirm = () => {
   font-size: 0.9em;
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
+  transition:
+    opacity 0.15s,
+    transform 0.1s;
 }
 
 .confirm-btn:hover {

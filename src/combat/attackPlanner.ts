@@ -21,7 +21,7 @@ import type { MovementUnit } from '@/stores/mapStore'
 /** Une unité disponible dans la garnison du joueur */
 export interface AvailableUnit {
   type: string
-  count: number    // Nombre total disponible
+  count: number // Nombre total disponible
   attack: number
   defense: number
   health: number
@@ -53,10 +53,10 @@ export interface AttackValidationError {
 
 /** Stratégies d'attaque rapide prédéfinies */
 export type QuickAttackMode =
-  | 'all'       // Toute l'armée
-  | 'balanced'  // Équilibre attaque/défense/rapidité, sans siège
-  | 'raid'      // Unités rapides uniquement (cavalerie > archers > infanterie), sans siège
-  | 'siege'     // Optimisé destruction de village (inclut les armes de siège)
+  | 'all' // Toute l'armée
+  | 'balanced' // Équilibre attaque/défense/rapidité, sans siège
+  | 'raid' // Unités rapides uniquement (cavalerie > archers > infanterie), sans siège
+  | 'siege' // Optimisé destruction de village (inclut les armes de siège)
 
 export interface QuickAttackStrategy {
   label: string
@@ -66,7 +66,7 @@ export interface QuickAttackStrategy {
 
 export const QUICK_ATTACK_STRATEGIES: Record<QuickAttackMode, QuickAttackStrategy> = {
   all: {
-    label: 'Toute l\'armée',
+    label: "Toute l'armée",
     description: 'Envoie toutes vos unités disponibles',
     icon: '⚔️',
   },
@@ -82,7 +82,7 @@ export const QUICK_ATTACK_STRATEGIES: Record<QuickAttackMode, QuickAttackStrateg
   },
   siege: {
     label: 'Siège',
-    description: 'Toute l\'armée avec les armes de siège pour détruire le village',
+    description: "Toute l'armée avec les armes de siège pour détruire le village",
     icon: '🏰',
   },
 }

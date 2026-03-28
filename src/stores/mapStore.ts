@@ -594,10 +594,7 @@ export const useMapStore = () => {
    * @param tileId    Identifiant de la tuile ennemie
    * @param survivors Unités survivantes de l'attaquant (snapshot post-combat)
    */
-  const pillageVillage = (
-    tileId: string,
-    survivors: Array<{ type: string; count: number }>,
-  ) => {
+  const pillageVillage = (tileId: string, survivors: Array<{ type: string; count: number }>) => {
     const tile = getTileById(tileId)
     const empty = { gold: 0, wood: 0, iron: 0, crop: 0 }
     if (!tile?.lootStock) {
@@ -637,7 +634,10 @@ export const useMapStore = () => {
       let tileChanged = false
       for (const key of ['gold', 'wood', 'iron', 'crop'] as const) {
         if (tile.lootStock[key] < max[key]) {
-          tile.lootStock[key] = Math.min(max[key], Math.floor(tile.lootStock[key] + max[key] * rate))
+          tile.lootStock[key] = Math.min(
+            max[key],
+            Math.floor(tile.lootStock[key] + max[key] * rate),
+          )
           tileChanged = true
         }
       }
@@ -665,15 +665,16 @@ export const useMapStore = () => {
 
       // Réduire la garnison max à 50% si pillé récemment
       const wasRecentlyPillaged =
-        tile.lastPillagedAt !== undefined &&
-        now - tile.lastPillagedAt < RECENT_PILLAGE_THRESHOLD_MS
+        tile.lastPillagedAt !== undefined && now - tile.lastPillagedAt < RECENT_PILLAGE_THRESHOLD_MS
       const maxFactor = wasRecentlyPillaged ? 0.5 : 1.0
 
       // Reconstituer les unités proportionnellement à la progression
-      tile.garrison.units = tile.garrison.maxUnits.map((u) => ({
-        ...u,
-        count: Math.floor(u.count * progress * maxFactor),
-      })).filter((u) => u.count > 0)
+      tile.garrison.units = tile.garrison.maxUnits
+        .map((u) => ({
+          ...u,
+          count: Math.floor(u.count * progress * maxFactor),
+        }))
+        .filter((u) => u.count > 0)
 
       if (progress >= 1) {
         // Régénération terminée

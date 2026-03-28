@@ -64,7 +64,11 @@ import { useMissionStore } from '../../stores/missionStore'
 import { useGameStore } from '../../stores/gameStore'
 import { defaultResolver } from '../../combat/combatResolver'
 import type { Army, CombatReport, CombatUnit, SavedBattleReport } from '../../combat/types'
-import { ENEMY_BASE_INFANTRY, ENEMY_STRONGHOLD_INFANTRY, ENEMY_REGEN_INTERVAL_MS } from '../../config'
+import {
+  ENEMY_BASE_INFANTRY,
+  ENEMY_STRONGHOLD_INFANTRY,
+  ENEMY_REGEN_INTERVAL_MS,
+} from '../../config'
 import { useNotifications } from '../../composables/useNotifications'
 
 // Composants
@@ -316,7 +320,10 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
       const lootMsg = `💰 Butin : ${loot.gold}or ${loot.wood}🪵 ${loot.iron}⚙️ ${loot.crop}🌾`
       showNotification(lootMsg, 'success')
       if (wasCapacityLimited) {
-        showNotification(`🎒 Capacité de transport atteinte (${carryCapacity} ressources max avec vos survivants)`, 'info')
+        showNotification(
+          `🎒 Capacité de transport atteinte (${carryCapacity} ressources max avec vos survivants)`,
+          'info',
+        )
       }
       if (wasRecentlyPillaged) {
         showNotification('⚠️ Village récemment pillé — butin réduit de 50%', 'info')

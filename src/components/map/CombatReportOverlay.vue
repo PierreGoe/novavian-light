@@ -66,11 +66,18 @@
         </div>
         <div class="loot-meta">
           <span class="loot-capacity">🎒 Capacité : {{ report.pillage.carryCapacity }}</span>
-          <span v-if="report.pillage.wasCapacityLimited" class="loot-warning">⚠️ Limité par la capacité</span>
-          <span v-if="report.pillage.wasRecentlyPillaged" class="loot-warning">⚠️ Pillé récemment (−50%)</span>
+          <span v-if="report.pillage.wasCapacityLimited" class="loot-warning"
+            >⚠️ Limité par la capacité</span
+          >
+          <span v-if="report.pillage.wasRecentlyPillaged" class="loot-warning"
+            >⚠️ Pillé récemment (−50%)</span
+          >
         </div>
       </div>
-      <div v-else-if="report.attackerVictory && report.pillage" class="report-loot report-loot--empty">
+      <div
+        v-else-if="report.attackerVictory && report.pillage"
+        class="report-loot report-loot--empty"
+      >
         <span>🏜️ Village vide — aucune ressource à piller</span>
       </div>
 
