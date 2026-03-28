@@ -35,8 +35,8 @@
           }"
           @click="selectTile(tile.id)"
         >
-          <!-- Icône du terrain visible uniquement si exploré -->
-          <div class="tile-icon" v-if="DISABLE_FOG_OF_WAR || tile.explored">
+          <!-- Icône du terrain visible uniquement si exploré (pas affiché pour les plaines) -->
+          <div class="tile-icon" v-if="(DISABLE_FOG_OF_WAR || tile.explored) && tile.type !== 'plains'">
             {{ getTileIcon(tile.type) }}
           </div>
 

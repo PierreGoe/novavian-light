@@ -18,7 +18,10 @@
             missions, ou continue à jouer librement.
           </p>
           <div class="victory-rewards">
-            <div v-if="currentNodeReward?.reward?.type === 'relic'" class="reward-chip reward-chip--relic">
+            <div
+              v-if="currentNodeReward?.reward?.type === 'relic'"
+              class="reward-chip reward-chip--relic"
+            >
               💎 Relique {{ currentNodeReward.type === 'elite' ? 'rare' : 'commune' }} garantie
             </div>
             <div v-else-if="currentNodeReward?.reward?.type === 'gold'" class="reward-chip">

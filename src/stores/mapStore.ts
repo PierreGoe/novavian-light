@@ -1,4 +1,8 @@
 import { reactive, computed } from 'vue'
+import { createRawGrid } from '@/utils/map/TerrainGrid'
+import { smoothTerrain } from '@/utils/map/CellularAutomata'
+import type { TerrainType as CATerrainType } from '@/utils/map/TerrainTypes'
+import { TERRAIN_CONFIG } from '@/utils/map/TerrainTypes'
 
 // Types pour la carte et l'exploration
 export type TerrainType =
@@ -98,42 +102,48 @@ const initialMapState: ExplorationState = {
   zoomLevel: MAP_CONFIG.defaultViewportSize, // Le zoom est maintenant le nombre de tuiles visibles
 }
 
-// Générer la carte initiale (lazy loading - génère seulement ce qui est nécessaire)
+// Correspondance biome CA → terrain mapStore
+const CA_TO_MAP_TERRAIN: Record<CATerrainType, TerrainType> = {
+  plain: 'plains',
+  forest: 'forest',
+  mountain: 'mountain',
+  water: 'water',
+}
+
+// Générer la carte initiale via automate cellulaire (clusters naturels)
 const generateInitialMap = (): MapTile[] => {
-  console.log('🗺️ generateInitialMap() called - Generating new random map')
-  const tiles: MapTile[] = []
   const mapSize = MAP_CONFIG.size
+  const CENTER = Math.floor(mapSize / 2)
+
+  // Pipeline CA — grille brute puis lissage en 5 itérations
+  const rawGrid = createRawGrid(mapSize, mapSize)
+  const smoothGrid = smoothTerrain(rawGrid, 5)
+
+  const tiles: MapTile[] = []
 
   for (let x = 0; x < mapSize; x++) {
     for (let y = 0; y < mapSize; y++) {
       const id = `${x}-${y}`
-      const isCenter = x === 50 && y === 50
+      const isCenter = x === CENTER && y === CENTER
+      const caTerrain = smoothGrid[y][x].terrain // [row=y][col=x]
+      const passable = TERRAIN_CONFIG[caTerrain].passable
 
-      let type: TerrainType = 'plains'
+      let type: TerrainType = CA_TO_MAP_TERRAIN[caTerrain]
 
       if (isCenter) {
         type = 'village_player'
-      } else {
-        // Logique simple de génération de terrain
+      } else if (passable && type === 'plains') {
         const rand = Math.random()
-        if (rand < 0.3) type = 'forest'
-        else if (rand < 0.5) type = 'mountain'
-        else if (rand < 0.6) type = 'water'
-        else if (rand < 0.7) type = 'ruins'
-        else if (rand < 0.8) type = 'village_enemy'
-        else if (rand < 0.85) type = 'stronghold'
-        else type = 'plains'
-      }
-
-      // Log des premières tuiles pour debug
-      if (x <= 2 && y <= 2) {
-        console.log(`  Tile ${id}: type=${type}`)
+        if (rand < 0.05) type = 'village_enemy'
+        else if (rand < 0.07) type = 'stronghold'
+        else if (rand < 0.09) type = 'ruins'
+        // ~91% reste 'plains'
       }
 
       tiles.push({
         id,
         type,
-        explored: isCenter, // Seule la position de départ est explorée
+        explored: isCenter,
         current: isCenter,
         position: { x, y },
         bonus:
@@ -148,7 +158,6 @@ const generateInitialMap = (): MapTile[] => {
     }
   }
 
-  console.log(`🗺️ Generated ${tiles.length} tiles`)
   return tiles
 }
 

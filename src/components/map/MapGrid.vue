@@ -8,8 +8,8 @@
       @click="selectTile(tile.id)"
     >
       <div class="tile-icon">{{ getTileIcon(tile.type) }}</div>
-      <div class="tile-overlay" v-if="!tile.explored">?</div>
-      <div class="tile-info" v-if="tile.explored && tile.bonus">
+      <div class="tile-overlay" v-if="!DISABLE_FOG_OF_WAR && !tile.explored">?</div>
+      <div class="tile-info" v-if="(DISABLE_FOG_OF_WAR || tile.explored) && tile.bonus">
         <span class="tile-bonus">{{ tile.bonus }}</span>
       </div>
       <div class="current-marker" v-if="tile.current">📍</div>
@@ -19,6 +19,7 @@
 
 <script setup lang="ts">
 import { useMapStore, type MapTile } from '../../stores/mapStore'
+import { DISABLE_FOG_OF_WAR } from '../../config'
 
 // Props
 interface Props {
@@ -38,13 +39,14 @@ const mapStore = useMapStore()
 
 // Computed
 const getTileClasses = (tile: MapTile) => {
+  const revealed = DISABLE_FOG_OF_WAR || tile.explored
   return [
     `terrain-${tile.type}`,
     {
-      'tile-explored': tile.explored,
+      'tile-explored': revealed,
       'tile-current': tile.current,
       'tile-selected': props.selectedTileId === tile.id,
-      'tile-unexplored': !tile.explored,
+      'tile-unexplored': !revealed,
     },
   ]
 }

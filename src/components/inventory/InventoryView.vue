@@ -474,6 +474,11 @@ const activateAndClose = (id: string) => {
   closeDetail()
 }
 
+const deactivateAndClose = (id: string) => {
+  deactivate(id)
+  closeDetail()
+}
+
 const deactivate = (id: string) => {
   gameStore.deactivateArtifact(id)
   const artifact = allArtifacts.value.find((a) => a.id === id)
