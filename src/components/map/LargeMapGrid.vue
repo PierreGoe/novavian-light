@@ -179,8 +179,7 @@ const selectTile = (tileId: string) => emit('selectTile', tileId)
 const getTileIcon = (type: MapTile['type']) => mapStore.getTileIcon(type)
 
 /** Retourne true si des troupes du joueur sont en route vers cette tuile */
-const hasTroopsEnRoute = (tileId: string): boolean =>
-  mapStore.getMovementsToTile(tileId).length > 0
+const hasTroopsEnRoute = (tileId: string): boolean => mapStore.getMovementsToTile(tileId).length > 0
 </script>
 
 <style scoped>
@@ -368,8 +367,13 @@ const hasTroopsEnRoute = (tileId: string): boolean =>
 }
 
 @keyframes pulse-troop {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 /* Minimap supprimée */

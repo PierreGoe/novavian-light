@@ -1,6 +1,5 @@
 <template>
   <section class="movements-panel">
-
     <!-- En-tête compact -->
     <div class="panel-header">
       <span class="header-label">Mouvements</span>
@@ -12,12 +11,7 @@
 
     <!-- Liste unifiée (éclaireurs + troupes mélangés) -->
     <div v-if="allItems.length > 0" class="movements-list">
-      <div
-        v-for="item in allItems"
-        :key="item.id"
-        class="movement-row"
-        :class="item.kind"
-      >
+      <div v-for="item in allItems" :key="item.id" class="movement-row" :class="item.kind">
         <span class="row-icon">{{ item.icon }}</span>
         <div class="row-body">
           <div class="row-top">
@@ -40,10 +34,7 @@
       </div>
     </div>
 
-    <div v-else class="empty-hint">
-      Aucun mouvement en cours
-    </div>
-
+    <div v-else class="empty-hint">Aucun mouvement en cours</div>
   </section>
 </template>
 
@@ -58,8 +49,14 @@ const mapStore = useMapStore()
 // Horloge commune
 const now = ref(Date.now())
 let timer: number | null = null
-onMounted(() => { timer = window.setInterval(() => { now.value = Date.now() }, 1000) })
-onUnmounted(() => { if (timer !== null) clearInterval(timer) })
+onMounted(() => {
+  timer = window.setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
+})
+onUnmounted(() => {
+  if (timer !== null) clearInterval(timer)
+})
 
 // Scouts disponibles
 const scoutsAvailable = computed(() => missionStore.scoutsAvailable.value)
@@ -81,9 +78,9 @@ const formatEta = (endsAt: number): string => {
 
 const UNIT_ICONS: Record<string, string> = {
   infantry: '⚔️',
-  archer:   '🏹',
-  cavalry:  '🐴',
-  siege:    '⚙️',
+  archer: '🏹',
+  cavalry: '🐴',
+  siege: '⚙️',
 }
 
 // Type d'un item unifié dans la liste
@@ -213,9 +210,18 @@ const allItems = computed((): MovementItem[] => {
   background: rgba(255, 255, 255, 0.02);
 }
 
-.scout { border-color: rgba(100, 149, 237, 0.25); }
-.troop { border-color: rgba(239, 68, 68, 0.25); background: rgba(239, 68, 68, 0.03); }
-.done  { border-color: rgba(34, 197, 94, 0.2); background: rgba(34, 197, 94, 0.03); opacity: 0.7; }
+.scout {
+  border-color: rgba(100, 149, 237, 0.25);
+}
+.troop {
+  border-color: rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.03);
+}
+.done {
+  border-color: rgba(34, 197, 94, 0.2);
+  background: rgba(34, 197, 94, 0.03);
+  opacity: 0.7;
+}
 
 .row-icon {
   font-size: 0.85rem;
@@ -253,8 +259,12 @@ const allItems = computed((): MovementItem[] => {
   flex-shrink: 0;
 }
 
-.scout .row-eta { color: #93c5fd; }
-.troop .row-eta { color: #fca5a5; }
+.scout .row-eta {
+  color: #93c5fd;
+}
+.troop .row-eta {
+  color: #fca5a5;
+}
 
 /* Barre de progression */
 .progress-bar {
@@ -270,8 +280,12 @@ const allItems = computed((): MovementItem[] => {
   transition: width 0.9s linear;
 }
 
-.scout-fill { background: linear-gradient(90deg, #3b82f6, #93c5fd); }
-.troop-fill { background: linear-gradient(90deg, #ef4444, #f97316); }
+.scout-fill {
+  background: linear-gradient(90deg, #3b82f6, #93c5fd);
+}
+.troop-fill {
+  background: linear-gradient(90deg, #ef4444, #f97316);
+}
 
 /* Badges d'unités */
 .unit-row {

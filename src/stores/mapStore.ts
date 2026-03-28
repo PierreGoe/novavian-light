@@ -54,10 +54,10 @@ export const TERRAIN_MOVE_COST: Record<TerrainType, number> = {
  * L'armée se déplace à la vitesse de l'unité la plus lente.
  */
 export const UNIT_MOVE_SPEED: Record<string, number> = {
-  infantry: 1.0,   // 1 case/sec — référence
-  archer:   0.8,   // Moins mobile (équipement + carquois)
-  cavalry:  2.5,   // Très rapide
-  siege:    0.3,   // Engins de siège — extrêmement lent
+  infantry: 1.0, // 1 case/sec — référence
+  archer: 0.8, // Moins mobile (équipement + carquois)
+  cavalry: 2.5, // Très rapide
+  siege: 0.3, // Engins de siège — extrêmement lent
 }
 
 export interface ScoutInfo {
@@ -499,19 +499,17 @@ export const useMapStore = () => {
     const dest = getTileById(targetTileId)
     if (!dest) return 0
     const { x: sx, y: sy } = mapState.currentPosition
-    const distance = Math.max(
-      Math.abs(dest.position.x - sx),
-      Math.abs(dest.position.y - sy),
-    )
+    const distance = Math.max(Math.abs(dest.position.x - sx), Math.abs(dest.position.y - sy))
     if (distance === 0) return 0
     const terrainCost = TERRAIN_MOVE_COST[dest.type] ?? 1
     // Vitesse en tiles/sec de l'unité la plus lente (ou 1.0 par défaut)
-    const slowestTps = units && units.length > 0
-      ? Math.min(...units.map((u) => UNIT_MOVE_SPEED[u.type] ?? 1.0))
-      : 1.0
+    const slowestTps =
+      units && units.length > 0
+        ? Math.min(...units.map((u) => UNIT_MOVE_SPEED[u.type] ?? 1.0))
+        : 1.0
     // Vitesse effective : terrain dur étend le trajet
     const effectiveSpeed = slowestTps / terrainCost
-    return Math.round((distance / effectiveSpeed) * 1000 / GAME_SPEED_MULTIPLIER)
+    return Math.round(((distance / effectiveSpeed) * 1000) / GAME_SPEED_MULTIPLIER)
   }
 
   /** Envoie un snapshot de troupes vers une tuile cible. Retourne le mouvement créé. */

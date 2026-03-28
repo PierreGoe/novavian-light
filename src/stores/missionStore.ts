@@ -717,18 +717,16 @@ export const useMissionStore = () => {
     // speedMultiplier permet de doubler la vitesse (artefact double_scout_speed)
     const mapStore = useMapStore()
     const currentPos = mapStore.currentPosition.value
-    const distance = Math.max(
-      Math.abs(target.x - currentPos.x),
-      Math.abs(target.y - currentPos.y),
-    )
+    const distance = Math.max(Math.abs(target.x - currentPos.x), Math.abs(target.y - currentPos.y))
     const destTile = mapStore.getTileAt(target.x, target.y)
     const terrainCost = destTile ? (TERRAIN_MOVE_COST[destTile.type] ?? 1.0) : 1.0
     const scoutTps = SCOUT_MOVE_SPEED_TPS * (options?.speedMultiplier ?? 1)
     const effectiveSpeed = scoutTps / terrainCost
     // Au minimum 500ms (case adjacente ou même case)
-    const duration = distance === 0
-      ? 500
-      : Math.max(500, Math.round((distance / effectiveSpeed) * 1000 / GAME_SPEED_MULTIPLIER))
+    const duration =
+      distance === 0
+        ? 500
+        : Math.max(500, Math.round(((distance / effectiveSpeed) * 1000) / GAME_SPEED_MULTIPLIER))
 
     const mission: ScoutMission = {
       id: `scout-${now}-${target.x}-${target.y}`,

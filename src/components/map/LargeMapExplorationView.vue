@@ -1,6 +1,5 @@
 <template>
   <div class="large-map-exploration-view">
-
     <!-- VUE CARTE -->
     <template v-if="!selectedTile">
       <!-- Instructions -->
@@ -55,15 +54,17 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useMapStore, type MapTile, type MovementUnit, type TroopMovement } from '../../stores/mapStore'
+import {
+  useMapStore,
+  type MapTile,
+  type MovementUnit,
+  type TroopMovement,
+} from '../../stores/mapStore'
 import { useMissionStore } from '../../stores/missionStore'
 import { useGameStore } from '../../stores/gameStore'
 import { defaultResolver } from '../../combat/combatResolver'
 import type { Army, CombatReport, CombatUnit, SavedBattleReport } from '../../combat/types'
-import {
-  ENEMY_BASE_INFANTRY,
-  ENEMY_STRONGHOLD_INFANTRY,
-} from '../../config'
+import { ENEMY_BASE_INFANTRY, ENEMY_STRONGHOLD_INFANTRY } from '../../config'
 import { useNotifications } from '../../composables/useNotifications'
 
 // Composants
@@ -203,7 +204,7 @@ const handleAttackTile = (tileId: string) => {
 const executeCombat = (movement: TroopMovement, tile: MapTile) => {
   // Vérifier que la tuile est toujours hostile (peut avoir changé pendant le trajet)
   if (!['village_enemy', 'stronghold'].includes(tile.type)) {
-    showNotification('La cible n\'est plus hostile, troupes revenues.', 'info')
+    showNotification("La cible n'est plus hostile, troupes revenues.", 'info')
     return
   }
 
@@ -634,7 +635,9 @@ onUnmounted(() => {
   margin-bottom: 16px;
   cursor: pointer;
   font-size: 0.95em;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .back-btn:hover {

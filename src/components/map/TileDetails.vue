@@ -1,6 +1,5 @@
 <template>
   <div class="tile-details" v-if="tile">
-
     <!-- Bannière hero -->
     <div class="tile-hero" :style="heroStyle(tile.type)">
       <div class="hero-icon">{{ getTileIcon(tile.type) }}</div>
@@ -8,7 +7,9 @@
         <h2 class="hero-title">{{ getTileName(tile.type) }}</h2>
         <div class="hero-badges">
           <span class="badge badge-coords">📍 {{ tile.position.x }}, {{ tile.position.y }}</span>
-          <span class="badge" :class="statusBadgeClass(tile.type)">{{ statusLabel(tile.type) }}</span>
+          <span class="badge" :class="statusBadgeClass(tile.type)">{{
+            statusLabel(tile.type)
+          }}</span>
         </div>
       </div>
     </div>
@@ -30,10 +31,7 @@
         <span class="transit-eta" v-else>imminente...</span>
       </div>
       <div class="transit-bar-track">
-        <div
-          class="transit-bar-fill"
-          :style="{ width: transitProgress(movement) + '%' }"
-        ></div>
+        <div class="transit-bar-fill" :style="{ width: transitProgress(movement) + '%' }"></div>
       </div>
     </div>
 
@@ -55,7 +53,9 @@
             v-if="resourceBonusPct(resource as string) > 0"
             class="resource-bonus"
             :title="`Bonus reliques : +${resourceBonusPct(resource as string)}%`"
-          >+{{ resourceBonusPct(resource as string) }}%</div>
+          >
+            +{{ resourceBonusPct(resource as string) }}%
+          </div>
         </div>
       </div>
     </div>
@@ -91,9 +91,7 @@
         <span class="action-label">Explorer</span>
         <span class="action-sub">Fouiller les ruines</span>
       </button>
-
     </div>
-
   </div>
 </template>
 
@@ -124,8 +122,14 @@ const gameStore = useGameStore()
 // Horloge réactive pour mettre à jour les timers affichés chaque seconde
 const now = ref(Date.now())
 let clockTimer: number | null = null
-onMounted(() => { clockTimer = window.setInterval(() => { now.value = Date.now() }, 1000) })
-onUnmounted(() => { if (clockTimer) clearInterval(clockTimer) })
+onMounted(() => {
+  clockTimer = window.setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
+})
+onUnmounted(() => {
+  if (clockTimer) clearInterval(clockTimer)
+})
 
 /** Formatte un temps restant en ms en "1m 30s" ou "45s" */
 const formatRemaining = (ms: number): string => {
@@ -142,41 +146,43 @@ const transitProgress = (movement: { departureTime: number; arrivalTime: number 
 
 /** Gradient de la bannière selon le type de terrain */
 const HERO_GRADIENTS: Record<string, string> = {
-  plains:        'linear-gradient(135deg, #3a5c20, #4a7c3f)',
-  forest:        'linear-gradient(135deg, #1b3a10, #2e7d32)',
-  mountain:      'linear-gradient(135deg, #37474f, #546e7a)',
-  water:         'linear-gradient(135deg, #0d3c5e, #1565c0)',
-  village_player:'linear-gradient(135deg, #7c4e00, #ef8c00)',
+  plains: 'linear-gradient(135deg, #3a5c20, #4a7c3f)',
+  forest: 'linear-gradient(135deg, #1b3a10, #2e7d32)',
+  mountain: 'linear-gradient(135deg, #37474f, #546e7a)',
+  water: 'linear-gradient(135deg, #0d3c5e, #1565c0)',
+  village_player: 'linear-gradient(135deg, #7c4e00, #ef8c00)',
   village_enemy: 'linear-gradient(135deg, #7b1515, #c62828)',
-  ruins:         'linear-gradient(135deg, #2c2c2c, #555)',
-  stronghold:    'linear-gradient(135deg, #311b6b, #6a1b9a)',
+  ruins: 'linear-gradient(135deg, #2c2c2c, #555)',
+  stronghold: 'linear-gradient(135deg, #311b6b, #6a1b9a)',
 }
 
 const heroStyle = (type: MapTile['type']) => ({
   background: HERO_GRADIENTS[type] ?? HERO_GRADIENTS.plains,
 })
 
-const statusLabel = (type: MapTile['type']): string => ({
-  plains:         'Terrain neutre',
-  forest:         'Terrain neutre',
-  mountain:       'Infranchissable',
-  water:          'Infranchissable',
-  village_player: 'Votre territoire',
-  village_enemy:  'Territoire ennemi',
-  ruins:          'Zone abandonnée',
-  stronghold:     'Forteresse ennemie',
-}[type] ?? 'Inconnu')
+const statusLabel = (type: MapTile['type']): string =>
+  ({
+    plains: 'Terrain neutre',
+    forest: 'Terrain neutre',
+    mountain: 'Infranchissable',
+    water: 'Infranchissable',
+    village_player: 'Votre territoire',
+    village_enemy: 'Territoire ennemi',
+    ruins: 'Zone abandonnée',
+    stronghold: 'Forteresse ennemie',
+  })[type] ?? 'Inconnu'
 
-const statusBadgeClass = (type: MapTile['type']): string => ({
-  plains:         'badge-neutral',
-  forest:         'badge-neutral',
-  mountain:       'badge-blocked',
-  water:          'badge-blocked',
-  village_player: 'badge-friendly',
-  village_enemy:  'badge-hostile',
-  ruins:          'badge-neutral',
-  stronghold:     'badge-hostile',
-}[type] ?? 'badge-neutral')
+const statusBadgeClass = (type: MapTile['type']): string =>
+  ({
+    plains: 'badge-neutral',
+    forest: 'badge-neutral',
+    mountain: 'badge-blocked',
+    water: 'badge-blocked',
+    village_player: 'badge-friendly',
+    village_enemy: 'badge-hostile',
+    ruins: 'badge-neutral',
+    stronghold: 'badge-hostile',
+  })[type] ?? 'badge-neutral'
 
 /**
  * Retourne le % de bonus artefact applicable à une ressource donnée.
@@ -262,7 +268,7 @@ const getResourceIcon = (resource: string) => {
   font-size: 52px;
   line-height: 1;
   flex-shrink: 0;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
 }
 
 .hero-info {
@@ -276,7 +282,7 @@ const getResourceIcon = (resource: string) => {
   font-size: 1.6em;
   font-weight: 700;
   color: #fff;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   line-height: 1.1;
 }
 
@@ -291,8 +297,8 @@ const getResourceIcon = (resource: string) => {
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.2);
-  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.35);
   color: #eee;
   letter-spacing: 0.02em;
 }
@@ -363,7 +369,7 @@ const getResourceIcon = (resource: string) => {
 
 .transit-bar-track {
   height: 5px;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -410,8 +416,8 @@ const getResourceIcon = (resource: string) => {
 }
 
 .resource-card {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   padding: 14px 10px;
   display: flex;
@@ -466,7 +472,9 @@ const getResourceIcon = (resource: string) => {
   border: none;
   border-radius: 10px;
   cursor: pointer;
-  transition: transform 0.15s, filter 0.15s;
+  transition:
+    transform 0.15s,
+    filter 0.15s;
 }
 
 .action-btn:hover {
@@ -492,14 +500,22 @@ const getResourceIcon = (resource: string) => {
 
 .action-sub {
   font-size: 0.72em;
-  color: rgba(255,255,255,0.6);
+  color: rgba(255, 255, 255, 0.6);
   text-align: center;
 }
 
-.attack-btn  { background: linear-gradient(135deg, #c62828, #b71c1c); }
-.trade-btn   { background: linear-gradient(135deg, #e65100, #ef6c00); }
-.explore-btn { background: linear-gradient(135deg, #6a1b9a, #7b1fa2); }
-.scout-btn   { background: linear-gradient(135deg, #1565c0, #1976d2); }
+.attack-btn {
+  background: linear-gradient(135deg, #c62828, #b71c1c);
+}
+.trade-btn {
+  background: linear-gradient(135deg, #e65100, #ef6c00);
+}
+.explore-btn {
+  background: linear-gradient(135deg, #6a1b9a, #7b1fa2);
+}
+.scout-btn {
+  background: linear-gradient(135deg, #1565c0, #1976d2);
+}
 
 @media (max-width: 600px) {
   .tile-hero {
