@@ -53,6 +53,75 @@ export interface MilitaryUnit {
   trainingTime: number // secondes
 }
 
+// Définition statique d'une unité (source unique de vérité)
+export interface UnitDefinition {
+  type: MilitaryUnit['type']
+  name: string
+  icon: string
+  cost: TravianResources
+  stats: { attack: number; defense: number; health: number }
+  baseTrainingTime: number // secondes pour 1 unité, caserne niveau 1
+  barrackLevelRequired: number
+}
+
+// Source unique de vérité — toute la config des unités est ici
+export const UNIT_DEFINITIONS: Record<MilitaryUnit['type'], UnitDefinition> = {
+  infantry: {
+    type: 'infantry',
+    name: 'Infanterie',
+    icon: '🛡️',
+    cost: { wood: 20, clay: 10, iron: 30, crop: 15 },
+    stats: { attack: 40, defense: 35, health: 100 },
+    baseTrainingTime: 60, // secondes
+    barrackLevelRequired: 1,
+  },
+  archer: {
+    type: 'archer',
+    name: 'Archers',
+    icon: '🏹',
+    cost: { wood: 30, clay: 15, iron: 25, crop: 20 },
+    stats: { attack: 25, defense: 15, health: 80 },
+    baseTrainingTime: 90,
+    barrackLevelRequired: 2,
+  },
+  cavalry: {
+    type: 'cavalry',
+    name: 'Cavalerie',
+    icon: '🐎',
+    cost: { wood: 50, clay: 30, iron: 60, crop: 40 },
+    stats: { attack: 100, defense: 50, health: 150 },
+    baseTrainingTime: 180,
+    barrackLevelRequired: 3,
+  },
+  siege: {
+    type: 'siege',
+    name: 'Machines de Siège',
+    icon: '🏰',
+    cost: { wood: 100, clay: 80, iron: 120, crop: 60 },
+    stats: { attack: 200, defense: 20, health: 300 },
+    baseTrainingTime: 600,
+    barrackLevelRequired: 5,
+  },
+}
+
+/**
+ * Calcule le temps de construction d'une unité selon le niveau de la caserne.
+ * Chaque niveau de caserne réduit le temps de 8% (min 10 secondes).
+ */
+export const getTrainingTime = (unitType: MilitaryUnit['type'], barrackLevel: number): number => {
+  const base = UNIT_DEFINITIONS[unitType].baseTrainingTime
+  const reduction = 1 - Math.min(0.8, (barrackLevel - 1) * 0.08)
+  return Math.max(10, Math.round(base * reduction))
+}
+
+// Entrée dans la file de construction
+export interface TrainingQueueEntry {
+  id: string
+  type: MilitaryUnit['type']
+  startedAt: number
+  endsAt: number
+}
+
 // Mission d'éclaireur
 export interface ScoutMission {
   id: string
@@ -95,6 +164,7 @@ export interface MissionTown {
   production: ResourceProduction
   buildings: MissionBuilding[]
   units: MilitaryUnit[]
+  trainingQueue: TrainingQueueEntry[]
   population: number
 }
 
@@ -153,6 +223,7 @@ const initialState: MissionState = {
       },
     ],
     units: [],
+    trainingQueue: [],
     population: 10,
   },
   lastUpdateTime: Date.now(),
@@ -460,52 +531,122 @@ export const useMissionStore = () => {
   }
 
   // Actions pour les unités
-  const trainUnit = (unitType: MilitaryUnit['type'], quantity: number): boolean => {
-    // Coûts de base pour l'entraînement
-    const unitCosts = {
-      infantry: { wood: 20, clay: 10, iron: 30, crop: 15 },
-      archer: { wood: 30, clay: 15, iron: 25, crop: 20 },
-      cavalry: { wood: 50, clay: 30, iron: 60, crop: 40 },
-      siege: { wood: 100, clay: 80, iron: 120, crop: 60 },
+  const barrackLevel = computed((): number => {
+    const barracks = missionState.town.buildings.find((b) => b.type === 'barracks')
+    return barracks?.level ?? 0
+  })
+
+  const trainingQueue = computed(() => missionState.town.trainingQueue)
+
+  /**
+   * Ajoute une unité en file de construction.
+   * Les ressources sont déduites immédiatement.
+   * Retourne false si caserne trop basse ou ressources insuffisantes.
+   */
+  const enqueueUnit = (unitType: MilitaryUnit['type']): boolean => {
+    const def = UNIT_DEFINITIONS[unitType]
+
+    // Vérification niveau caserne
+    if (barrackLevel.value < def.barrackLevelRequired) return false
+
+    // Vérification ressources
+    if (!spendResources(def.cost)) return false
+
+    const now = Date.now()
+    const duration = getTrainingTime(unitType, barrackLevel.value) * 1000 // ms
+
+    // La prochaine unité commence après la fin de la dernière en file
+    const queue = missionState.town.trainingQueue
+    const lastEndsAt = queue.length > 0 ? queue[queue.length - 1].endsAt : now
+    const startedAt = Math.max(now, lastEndsAt)
+
+    const entry: TrainingQueueEntry = {
+      id: `${unitType}-${now}-${Math.random().toString(36).slice(2, 7)}`,
+      type: unitType,
+      startedAt,
+      endsAt: startedAt + duration,
     }
 
-    const totalCost = {
-      wood: unitCosts[unitType].wood * quantity,
-      clay: unitCosts[unitType].clay * quantity,
-      iron: unitCosts[unitType].iron * quantity,
-      crop: unitCosts[unitType].crop * quantity,
-    }
+    missionState.town.trainingQueue.push(entry)
+    saveMissionState()
+    return true
+  }
 
-    if (spendResources(totalCost)) {
-      // Ajouter les unités
-      const existingUnit = missionState.town.units.find((u) => u.type === unitType)
-      if (existingUnit) {
-        existingUnit.count += quantity
+  /**
+   * Traite la file de construction : complète les entrées dont le timer est écoulé.
+   * Appelée à chaque tick de l'intervalle d'affichage.
+   */
+  const processTrainingQueue = (): void => {
+    const now = Date.now()
+    const completed = missionState.town.trainingQueue.filter((e) => e.endsAt <= now)
+    if (completed.length === 0) return
+
+    missionState.town.trainingQueue = missionState.town.trainingQueue.filter((e) => e.endsAt > now)
+
+    for (const entry of completed) {
+      const def = UNIT_DEFINITIONS[entry.type]
+      const existing = missionState.town.units.find((u) => u.type === entry.type)
+      if (existing) {
+        existing.count++
       } else {
-        const unitStats = {
-          infantry: { attack: 40, defense: 35, health: 100 },
-          archer: { attack: 25, defense: 15, health: 80 },
-          cavalry: { attack: 100, defense: 50, health: 150 },
-          siege: { attack: 200, defense: 20, health: 300 },
-        }
-
         missionState.town.units.push({
-          id: `${unitType}-${Date.now()}`,
-          type: unitType,
-          count: quantity,
-          attack: unitStats[unitType].attack,
-          defense: unitStats[unitType].defense,
-          health: unitStats[unitType].health,
-          cost: unitCosts[unitType],
-          trainingTime: 60, // 1 minute par unité
+          id: `${entry.type}-${Date.now()}`,
+          type: entry.type,
+          count: 1,
+          attack: def.stats.attack,
+          defense: def.stats.defense,
+          health: def.stats.health,
+          cost: def.cost,
+          trainingTime: def.baseTrainingTime,
         })
       }
-
-      saveMissionState()
-      return true
     }
 
-    return false
+    saveMissionState()
+  }
+
+  /**
+   * Annule une entrée en attente dans la file et rembourse les ressources.
+   * Seules les entrées qui n'ont pas encore débuté (index > 0) peuvent être annulées.
+   * L'entrée en cours de construction (#1) ne peut pas être annulée.
+   */
+  const cancelQueueEntry = (entryId: string): boolean => {
+    const queue = missionState.town.trainingQueue
+    const index = queue.findIndex((e) => e.id === entryId)
+    // Refus si non trouvée ou si c'est l'entrée en cours (#1)
+    if (index <= 0) return false
+
+    const entry = queue[index]
+    const def = UNIT_DEFINITIONS[entry.type]
+
+    // Rembourser les ressources
+    missionState.town.resources.wood += def.cost.wood
+    missionState.town.resources.clay += def.cost.clay
+    missionState.town.resources.iron += def.cost.iron
+    missionState.town.resources.crop += def.cost.crop
+
+    // Retirer de la file
+    queue.splice(index, 1)
+
+    // Recalculer les startedAt/endsAt des entrées suivantes pour combler le trou
+    for (let i = index; i < queue.length; i++) {
+      const prev = i > 0 ? queue[i - 1] : null
+      const baseStart = prev ? prev.endsAt : Date.now()
+      const duration = queue[i].endsAt - queue[i].startedAt
+      queue[i].startedAt = baseStart
+      queue[i].endsAt = baseStart + duration
+    }
+
+    saveMissionState()
+    return true
+  }
+
+  // Actions pour les unités (legacy — conservation pour compatibilité éventuelle)
+  const trainUnit = (unitType: MilitaryUnit['type'], quantity: number): boolean => {
+    for (let i = 0; i < quantity; i++) {
+      if (!enqueueUnit(unitType)) return i > 0 // true si au moins 1 unité enfilée
+    }
+    return true
   }
 
   // Sauvegarde et chargement
@@ -513,7 +654,10 @@ export const useMissionStore = () => {
     const data = {
       isInMission: missionState.isInMission,
       currentMission: missionState.currentMission,
-      town: { ...missionState.town },
+      town: {
+        ...missionState.town,
+        trainingQueue: missionState.town.trainingQueue,
+      },
       lastUpdateTime: missionState.lastUpdateTime,
       gameElapsedMs: missionState.gameElapsedMs,
       scoutsAvailable: missionState.scoutsAvailable,
@@ -535,6 +679,10 @@ export const useMissionStore = () => {
 
         if (data.town) {
           Object.assign(missionState.town, data.town)
+          // Garantir la présence de trainingQueue pour les sauvegardes anciennes
+          if (!missionState.town.trainingQueue) {
+            missionState.town.trainingQueue = []
+          }
         }
 
         // Charger les données des éclaireurs
@@ -607,6 +755,7 @@ export const useMissionStore = () => {
           },
         ],
         units: [],
+        trainingQueue: [],
         population: 10,
       },
       lastUpdateTime: Date.now(),
@@ -656,6 +805,7 @@ export const useMissionStore = () => {
     if (displayUpdateInterval) return
     displayUpdateInterval = window.setInterval(() => {
       displayTrigger.timestamp = Date.now()
+      processTrainingQueue()
     }, 1000) // 1 seconde pour un affichage fluide
   }
 
@@ -847,6 +997,11 @@ export const useMissionStore = () => {
 
     // Actions unités
     trainUnit,
+    enqueueUnit,
+    cancelQueueEntry,
+    processTrainingQueue,
+    barrackLevel,
+    trainingQueue,
 
     // Temps in-game
     getGameTimestamp,

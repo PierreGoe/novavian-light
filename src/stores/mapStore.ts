@@ -3,7 +3,13 @@ import { createRawGrid } from '@/utils/map/TerrainGrid'
 import { smoothTerrain } from '@/utils/map/CellularAutomata'
 import type { TerrainType as CATerrainType } from '@/utils/map/TerrainTypes'
 import { TERRAIN_CONFIG } from '@/utils/map/TerrainTypes'
-import { GAME_SPEED_MULTIPLIER } from '@/config'
+import {
+  GAME_SPEED_MULTIPLIER,
+  GARRISON_REGEN_DURATION_MS,
+  RECENT_PILLAGE_THRESHOLD_MS,
+} from '@/config'
+import { computePillage } from '@/combat/loot'
+export type { EnemyLootStock, PillageResult } from '@/combat/loot'
 
 // Types pour la carte et l'exploration
 export type TerrainType =
@@ -86,7 +92,13 @@ export interface GarrisonUnit {
 export interface TileGarrison {
   units: GarrisonUnit[]
   lastAttackedAt?: number // game-time en ms
+  /** Garnison initiale complète — utilisée pour la régénération progressive */
+  maxUnits?: GarrisonUnit[]
+  /** Timestamp réel du début de régénération (undefined = pas en cours) */
+  regenStartedAt?: number
 }
+
+import type { EnemyLootStock } from '@/combat/loot'
 
 export interface MapTile {
   id: string
@@ -107,6 +119,10 @@ export interface MapTile {
   }[]
   /** Garnison persistée — remplie au premier combat, mise à jour ensuite */
   garrison?: TileGarrison
+  /** Stock de ressources pillables (généré à la création du village) */
+  lootStock?: EnemyLootStock
+  /** Timestamp réel du dernier pillage (pour réduire le butin si récent) */
+  lastPillagedAt?: number
 }
 
 export interface ExplorationState {
@@ -158,6 +174,18 @@ const CA_TO_MAP_TERRAIN: Record<CATerrainType, TerrainType> = {
   water: 'water',
 }
 
+/** Génère un stock de ressources aléatoire pour un village ennemi ou une forteresse */
+const generateLootStock = (isStronghold: boolean): EnemyLootStock => {
+  const base = isStronghold ? 200 : 80
+  const jitter = () => Math.floor(Math.random() * base * 0.4)
+  return {
+    gold: base + jitter(),
+    wood: base + jitter(),
+    iron: Math.floor((base + jitter()) * 0.7),
+    crop: base + jitter(),
+  }
+}
+
 // Générer la carte initiale via automate cellulaire (clusters naturels)
 const generateInitialMap = (): MapTile[] => {
   const mapSize = MAP_CONFIG.size
@@ -202,6 +230,11 @@ const generateInitialMap = (): MapTile[] => {
               : type === 'water'
                 ? '+50% Poisson'
                 : undefined,
+        // Générer un stock de ressources initial pour les villages ennemis et forteresses
+        lootStock:
+          type === 'village_enemy' || type === 'stronghold'
+            ? generateLootStock(type === 'stronghold')
+            : undefined,
       })
     }
   }
@@ -550,6 +583,108 @@ export const useMapStore = () => {
     return mapState.activeMovements.filter((m) => m.targetTileId === tileId)
   }
 
+  // ------------------------------------
+  // Phase 2 — Pillage & garnison régénérable
+  // ------------------------------------
+
+  /**
+   * Calcule le pillage d'un village et met à jour son stock.
+   * Délègue tout le calcul à src/combat/loot.ts (poids des survivants + fraction).
+   *
+   * @param tileId    Identifiant de la tuile ennemie
+   * @param survivors Unités survivantes de l'attaquant (snapshot post-combat)
+   */
+  const pillageVillage = (
+    tileId: string,
+    survivors: Array<{ type: string; count: number }>,
+  ) => {
+    const tile = getTileById(tileId)
+    const empty = { gold: 0, wood: 0, iron: 0, crop: 0 }
+    if (!tile?.lootStock) {
+      return {
+        loot: empty,
+        newStock: empty,
+        carryCapacity: 0,
+        wasCapacityLimited: false,
+        wasRecentlyPillaged: false,
+      }
+    }
+
+    const result = computePillage(tile.lootStock, survivors, tile.lastPillagedAt)
+
+    tile.lootStock = result.newStock
+    tile.lastPillagedAt = Date.now()
+
+    return result
+  }
+
+  /**
+   * Régénère le stock de ressources de tous les villages ennemis encore sur la carte.
+   * Appelé périodiquement par le timer ENEMY_REGEN_INTERVAL_MS.
+   * Le stock remonte progressivement vers son maximum (reconstitution de 10% par tick).
+   */
+  const tickLootRegen = () => {
+    let changed = false
+    for (const tile of mapState.mapTiles) {
+      if (tile.type !== 'village_enemy' && tile.type !== 'stronghold') continue
+      if (!tile.lootStock) {
+        tile.lootStock = generateLootStock(tile.type === 'stronghold')
+        changed = true
+        continue
+      }
+      const max = generateLootStock(tile.type === 'stronghold')
+      const rate = 0.1 // 10% de régén par tick
+      let tileChanged = false
+      for (const key of ['gold', 'wood', 'iron', 'crop'] as const) {
+        if (tile.lootStock[key] < max[key]) {
+          tile.lootStock[key] = Math.min(max[key], Math.floor(tile.lootStock[key] + max[key] * rate))
+          tileChanged = true
+        }
+      }
+      if (tileChanged) changed = true
+    }
+    if (changed) saveMapState()
+  }
+
+  /**
+   * Met à jour la garnison de tous les villages ennemis en cours de régénération.
+   * La garnison se reconstitue linéairement sur GARRISON_REGEN_DURATION_MS.
+   * Si le village a été pillé récemment, la garnison max est réduite à 50%.
+   */
+  const tickGarrisonRegen = () => {
+    const now = Date.now()
+    let changed = false
+    for (const tile of mapState.mapTiles) {
+      if (tile.type !== 'village_enemy' && tile.type !== 'stronghold') continue
+      if (!tile.garrison?.regenStartedAt || !tile.garrison.maxUnits) continue
+
+      const elapsed = now - tile.garrison.regenStartedAt
+      const progress = Math.min(1, elapsed / GARRISON_REGEN_DURATION_MS)
+
+      if (progress <= 0) continue
+
+      // Réduire la garnison max à 50% si pillé récemment
+      const wasRecentlyPillaged =
+        tile.lastPillagedAt !== undefined &&
+        now - tile.lastPillagedAt < RECENT_PILLAGE_THRESHOLD_MS
+      const maxFactor = wasRecentlyPillaged ? 0.5 : 1.0
+
+      // Reconstituer les unités proportionnellement à la progression
+      tile.garrison.units = tile.garrison.maxUnits.map((u) => ({
+        ...u,
+        count: Math.floor(u.count * progress * maxFactor),
+      })).filter((u) => u.count > 0)
+
+      if (progress >= 1) {
+        // Régénération terminée
+        tile.garrison.regenStartedAt = undefined
+      }
+
+      changed = true
+    }
+    if (changed) saveMapState()
+  }
+
   // Sauvegarde et chargement
   const saveMapState = () => {
     // PROTECTION: Ne jamais sauvegarder une carte vide
@@ -661,6 +796,11 @@ export const useMapStore = () => {
     resolveMovement,
     getArrivedMovements,
     getMovementsToTile,
+
+    // Phase 2 — Pillage & garnison régénérable
+    pillageVillage,
+    tickLootRegen,
+    tickGarrisonRegen,
 
     // Persistance
     saveMapState,

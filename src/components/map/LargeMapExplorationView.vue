@@ -64,7 +64,7 @@ import { useMissionStore } from '../../stores/missionStore'
 import { useGameStore } from '../../stores/gameStore'
 import { defaultResolver } from '../../combat/combatResolver'
 import type { Army, CombatReport, CombatUnit, SavedBattleReport } from '../../combat/types'
-import { ENEMY_BASE_INFANTRY, ENEMY_STRONGHOLD_INFANTRY } from '../../config'
+import { ENEMY_BASE_INFANTRY, ENEMY_STRONGHOLD_INFANTRY, ENEMY_REGEN_INTERVAL_MS } from '../../config'
 import { useNotifications } from '../../composables/useNotifications'
 
 // Composants
@@ -154,12 +154,11 @@ const handleTileSelect = (tileId: string) => {
   }
 }
 
-const handleAttackTile = (tileId: string) => {
+const handleAttackTile = (tileId: string, selectedUnits: MovementUnit[]) => {
   const tile = mapStore.getTileById(tileId)
   if (!tile) return
 
-  const playerUnits = missionStore.town.value?.units || []
-  if (playerUnits.length === 0 || playerUnits.every((u) => u.count <= 0)) {
+  if (selectedUnits.length === 0 || selectedUnits.every((u) => u.count <= 0)) {
     showNotification("Vous n'avez aucune unité à envoyer !", 'warning')
     return
   }
@@ -170,26 +169,15 @@ const handleAttackTile = (tileId: string) => {
     return
   }
 
-  // Snapshot des unités au moment du départ
-  const units: MovementUnit[] = playerUnits
-    .filter((u) => u.count > 0)
-    .map((u) => ({
-      type: u.type,
-      count: u.count,
-      attack: u.attack,
-      defense: u.defense,
-      health: u.health,
-    }))
-
-  // Calculer le temps de trajet en tenant compte de la vitesse des unités (la plus lente)
-  const travelMs = mapStore.calculateTravelTimeMs(tileId, units)
+  // Les unités viennent déjà du plan d'attaque (AttackPanel), pas besoin de snapshot manuel
+  const travelMs = mapStore.calculateTravelTimeMs(tileId, selectedUnits)
   const totalSeconds = Math.ceil(travelMs / 1000)
   const travelLabel =
     totalSeconds >= 60
       ? `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
       : `${totalSeconds}s`
 
-  const movement = mapStore.dispatchTroops(tileId, units)
+  const movement = mapStore.dispatchTroops(tileId, selectedUnits)
   if (!movement) {
     showNotification('Impossible de calculer le trajet.', 'error')
     return
@@ -309,21 +297,61 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
   tile.garrison.units = report.defender.losses.survivors
   tile.garrison.lastAttackedAt = missionStore.getGameTimestamp()
 
-  // Si victoire, convertir la case
+  // Si victoire
   if (report.attackerVictory) {
-    tile.type = 'ruins'
-    tile.garrison = undefined
-    showNotification(report.summary, 'success')
+    // Vérifier si le joueur dispose d'armes de siège (nécessaires pour détruire un village)
+    const hasSiegeUnit = movement.units.some((u) => u.type === 'siege')
 
-    gameStore.addVictoryPoints('combat', 1, `Victoire en combat contre ${defenderArmy.label}`)
-    if (isStronghold) {
-      gameStore.addVictoryPoints('combat', 4, 'Forteresse ennemie détruite')
+    // --- Pillage (capacité limitée par le poids des survivants) ---
+    const attackerSurvivors = report.attacker.losses.survivors
+    const pillageResult = mapStore.pillageVillage(tile.id, attackerSurvivors)
+    // Attacher le résultat au rapport pour l'afficher dans l'overlay
+    report.pillage = pillageResult
+    combatReport.value = { ...report }
+    const { loot, carryCapacity, wasCapacityLimited, wasRecentlyPillaged } = pillageResult
+    const lootTotal = loot.gold + loot.wood + loot.iron + loot.crop
+    if (lootTotal > 0) {
+      gameStore.addGold(loot.gold)
+      missionStore.addResources({ wood: loot.wood, iron: loot.iron, crop: loot.crop })
+      const lootMsg = `💰 Butin : ${loot.gold}or ${loot.wood}🪵 ${loot.iron}⚙️ ${loot.crop}🌾`
+      showNotification(lootMsg, 'success')
+      if (wasCapacityLimited) {
+        showNotification(`🎒 Capacité de transport atteinte (${carryCapacity} ressources max avec vos survivants)`, 'info')
+      }
+      if (wasRecentlyPillaged) {
+        showNotification('⚠️ Village récemment pillé — butin réduit de 50%', 'info')
+      }
+    }
+
+    if (hasSiegeUnit) {
+      // Destruction complète du village (comportement précédent)
+      tile.type = 'ruins'
+      tile.garrison = undefined
+      tile.lootStock = undefined
+      showNotification(report.summary, 'success')
+      gameStore.addVictoryPoints('combat', 1, `Victoire en combat contre ${defenderArmy.label}`)
+      if (isStronghold) {
+        gameStore.addVictoryPoints('combat', 4, 'Forteresse ennemie détruite')
+      } else {
+        gameStore.addVictoryPoints('combat', 2, 'Village ennemi détruit')
+      }
     } else {
-      gameStore.addVictoryPoints('combat', 2, 'Village ennemi détruit')
+      // Sans armes de siège : le village reste mais la garnison est vaincue et commence à régénérer
+      if (!tile.garrison) tile.garrison = { units: [] }
+      tile.garrison.units = []
+      tile.garrison.maxUnits = report.defender.army.units.map((u) => ({ ...u }))
+      tile.garrison.regenStartedAt = Date.now()
+      showNotification(report.summary + ' (sans siège — village non détruit)', 'success')
+      gameStore.addVictoryPoints('combat', 1, `Victoire en combat contre ${defenderArmy.label}`)
     }
 
     applyPostVictorySpecialPowers(equippedArtifacts, tile.position)
   } else {
+    // Après défaite, si la garnison avait commencé à régénérer, on repart du niveau actuel
+    if (tile.garrison && tile.garrison.units.length > 0) {
+      tile.garrison.maxUnits = report.defender.army.units.map((u) => ({ ...u }))
+      tile.garrison.regenStartedAt = undefined // Arrêter la régén en cours
+    }
     showNotification(report.summary, 'error')
   }
 
@@ -470,6 +498,8 @@ const handleScoutTile = (tileId: string) => {
 // Timer pour la régénération automatique des points
 let regenerationTimer: number | null = null
 let displayRefreshTimer: number | null = null
+/** Timer de régénération du stock ennemi (Phase 2 — toutes les ENEMY_REGEN_INTERVAL_MS ms) */
+let lootRegenTimer: number | null = null
 
 // Lifecycle
 onMounted(() => {
@@ -501,6 +531,12 @@ onMounted(() => {
   regenerationTimer = window.setInterval(() => {
     mapStore.regenerateExplorationPoints()
   }, 60000) // Vérifier toutes les minutes
+
+  // Timer Phase 2 — régénérer stock ennemi et garnisons progressivement
+  lootRegenTimer = window.setInterval(() => {
+    mapStore.tickLootRegen()
+    mapStore.tickGarrisonRegen()
+  }, ENEMY_REGEN_INTERVAL_MS)
 
   // Timer pour forcer le rafraîchissement de l'affichage des timers
   // Les computed vérifieront automatiquement l'état des missions
@@ -537,6 +573,9 @@ onUnmounted(() => {
   }
   if (displayRefreshTimer) {
     clearInterval(displayRefreshTimer)
+  }
+  if (lootRegenTimer) {
+    clearInterval(lootRegenTimer)
   }
 
   // Arrêter les services du mission store

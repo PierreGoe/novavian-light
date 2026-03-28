@@ -76,8 +76,31 @@ export const CHEAT_RESOURCES = import.meta.env.VITE_CHEAT_RESOURCES === 'true'
 /** Donne 1 000 points de victoire au démarrage d’une mission (debug uniquement) */
 export const CHEAT_VICTORY_POINTS = import.meta.env.VITE_CHEAT_VICTORY_POINTS === 'true'
 
+// ------------------------------------// Phase 2 — Pillage & économie de guerre
 // ------------------------------------
-// Meta
+
+/** Durée en ms pour qu'une garnison vaincue se reconstitue complètement (défaut : 5 min) */
+export const GARRISON_REGEN_DURATION_MS = parseNumber(
+  import.meta.env.VITE_GARRISON_REGEN_DURATION_MS,
+  5 * 60 * 1000,
+)
+
+/** Intervalle en ms entre deux ticks de régénération du stock ennemi (défaut : 2 min) */
+export const ENEMY_REGEN_INTERVAL_MS = parseNumber(
+  import.meta.env.VITE_ENEMY_REGEN_INTERVAL_MS,
+  2 * 60 * 1000,
+)
+
+/** Fraction du stock pillée par attaque victorieuse (défaut : 0.4 = 40%) */
+export const LOOT_FRACTION = parseNumber(import.meta.env.VITE_LOOT_FRACTION, 0.4)
+
+/** Durée en ms sous laquelle un village est considéré « récemment pillé » (défaut : 10 min) */
+export const RECENT_PILLAGE_THRESHOLD_MS = parseNumber(
+  import.meta.env.VITE_RECENT_PILLAGE_THRESHOLD_MS,
+  10 * 60 * 1000,
+)
+
+// ------------------------------------// Meta
 // ------------------------------------
 
 export const APP_ENV = import.meta.env.VITE_APP_ENV ?? 'development'

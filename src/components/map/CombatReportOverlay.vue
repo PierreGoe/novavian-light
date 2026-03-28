@@ -47,6 +47,33 @@
         </div>
       </div>
 
+      <!-- Section butin (uniquement si victoire avec pillage) -->
+      <div v-if="report.pillage && lootTotal > 0" class="report-loot">
+        <h4 class="loot-title">💰 Butin récupéré</h4>
+        <div class="loot-resources">
+          <span v-if="report.pillage.loot.gold > 0" class="loot-item">
+            🪙 <strong>{{ report.pillage.loot.gold }}</strong>
+          </span>
+          <span v-if="report.pillage.loot.wood > 0" class="loot-item">
+            🪵 <strong>{{ report.pillage.loot.wood }}</strong>
+          </span>
+          <span v-if="report.pillage.loot.iron > 0" class="loot-item">
+            ⚙️ <strong>{{ report.pillage.loot.iron }}</strong>
+          </span>
+          <span v-if="report.pillage.loot.crop > 0" class="loot-item">
+            🌾 <strong>{{ report.pillage.loot.crop }}</strong>
+          </span>
+        </div>
+        <div class="loot-meta">
+          <span class="loot-capacity">🎒 Capacité : {{ report.pillage.carryCapacity }}</span>
+          <span v-if="report.pillage.wasCapacityLimited" class="loot-warning">⚠️ Limité par la capacité</span>
+          <span v-if="report.pillage.wasRecentlyPillaged" class="loot-warning">⚠️ Pillé récemment (−50%)</span>
+        </div>
+      </div>
+      <div v-else-if="report.attackerVictory && report.pillage" class="report-loot report-loot--empty">
+        <span>🏜️ Village vide — aucune ressource à piller</span>
+      </div>
+
       <button class="report-close-btn" @click="emit('close')">Fermer</button>
     </section>
   </Transition>
@@ -67,6 +94,13 @@ const attackerBonusPct = computed(() => {
   if (rawPower === 0) return 0
   const bonus = props.report.attacker.totalPowerUsed - rawPower
   return bonus > 0 ? Math.round((bonus / rawPower) * 100) : 0
+})
+
+/** Total des ressources pillées (pour masquer la section si rien) */
+const lootTotal = computed(() => {
+  const p = props.report?.pillage?.loot
+  if (!p) return 0
+  return p.gold + p.wood + p.iron + p.crop
 })
 </script>
 
@@ -229,5 +263,68 @@ const attackerBonusPct = computed(() => {
 .slide-fade-leave-to {
   transform: translate(-50%, -50%) scale(0.95);
   opacity: 0;
+}
+
+/* ── Section butin ── */
+.report-loot {
+  margin-top: 16px;
+  background: rgba(234, 179, 8, 0.07);
+  border: 1px solid rgba(234, 179, 8, 0.25);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.report-loot--empty {
+  text-align: center;
+  font-size: 0.84em;
+  color: #78716c;
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.loot-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fbbf24;
+  margin: 0;
+}
+
+.loot-resources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.loot-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.95rem;
+  color: #e2e8f0;
+}
+
+.loot-item strong {
+  color: #fde68a;
+  font-size: 1.05em;
+}
+
+.loot-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.76rem;
+  color: #94a3b8;
+}
+
+.loot-capacity {
+  color: #7dd3fc;
+}
+
+.loot-warning {
+  color: #fb923c;
+  font-weight: 600;
 }
 </style>

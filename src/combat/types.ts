@@ -5,6 +5,8 @@
 // Utilisés par le resolver ET par les composants UI.
 // ============================================================
 
+import type { PillageResult } from './loot'
+
 /** Une unité dans une armée (escouade d'un type) */
 export interface CombatUnit {
   type: string // 'infantry' | 'archer' | 'cavalry' | 'siege' | custom
@@ -59,6 +61,8 @@ export interface CombatReport {
   }
   /** Résumé textuel (pour afficher au joueur) */
   summary: string
+  /** Butin récupéré après une victoire (uniquement si pillage effectué) */
+  pillage?: PillageResult
   /** Données arbitraires que le resolver peut ajouter (butin, etc.) */
   extra?: Record<string, unknown>
 }
