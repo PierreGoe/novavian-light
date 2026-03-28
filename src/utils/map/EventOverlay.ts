@@ -70,9 +70,7 @@ const NODE_DEFINITIONS: Record<
   },
 }
 
-const generateRewardForType = (
-  type: GameNodeType,
-): NodeContent['reward'] => {
+const generateRewardForType = (type: GameNodeType): NodeContent['reward'] => {
   switch (type) {
     case 'combat':
       return { type: 'gold', amount: Math.floor(Math.random() * 50) + 25 }
