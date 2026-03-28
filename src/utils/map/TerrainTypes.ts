@@ -10,6 +10,8 @@ export interface TerrainConfig {
   passable: boolean
   /** Probabilité initiale d'apparition avant lissage CA */
   initialDensity: number
+  /** Coût de déplacement (multiplicateur). 1.0 = plaine, 99 = infranchissable */
+  moveCost: number
 }
 
 export const TERRAIN_CONFIG: Record<TerrainType, TerrainConfig> = {
@@ -19,6 +21,7 @@ export const TERRAIN_CONFIG: Record<TerrainType, TerrainConfig> = {
     label: 'Plaine',
     passable: true,
     initialDensity: 0.55,
+    moveCost: 1.0,
   },
   mountain: {
     icon: '⛰️',
@@ -26,6 +29,7 @@ export const TERRAIN_CONFIG: Record<TerrainType, TerrainConfig> = {
     label: 'Montagne',
     passable: false,
     initialDensity: 0.2,
+    moveCost: 99,
   },
   water: {
     icon: '🌊',
@@ -33,6 +37,7 @@ export const TERRAIN_CONFIG: Record<TerrainType, TerrainConfig> = {
     label: 'Lac',
     passable: false,
     initialDensity: 0.12,
+    moveCost: 99,
   },
   forest: {
     icon: '🌲',
@@ -40,6 +45,7 @@ export const TERRAIN_CONFIG: Record<TerrainType, TerrainConfig> = {
     label: 'Forêt',
     passable: true,
     initialDensity: 0.13,
+    moveCost: 1.5,
   },
 }
 

@@ -1,14 +1,15 @@
 import { reactive, computed } from 'vue'
 import { useGameStore } from './gameStore'
-import { useMapStore } from './mapStore'
+import { useMapStore, TERRAIN_MOVE_COST } from './mapStore'
 import type { SavedBattleReport } from '../combat/types'
 import {
   MAX_OFFLINE_MS,
   AUTOSAVE_INTERVAL_MS,
   PRODUCTION_INTERVAL_MS,
-  SCOUT_MISSION_DURATION_MS,
   CHEAT_RESOURCES,
   CHEAT_VICTORY_POINTS,
+  GAME_SPEED_MULTIPLIER,
+  SCOUT_MOVE_SPEED_TPS,
 } from '../config'
 
 // Ré-export pour compatibilité avec les imports existants
@@ -684,7 +685,7 @@ export const useMissionStore = () => {
 
   const startScoutMission = (
     target: { x: number; y: number },
-    options?: { durationOverride?: number; extraRevealRadius?: number },
+    options?: { speedMultiplier?: number; extraRevealRadius?: number },
   ): boolean => {
     // Vérifier qu'un éclaireur est disponible
     if (missionState.scoutsAvailable <= 0) {
@@ -710,7 +711,25 @@ export const useMissionStore = () => {
 
     // Créer la mission d'éclaireur
     const now = Date.now()
-    const duration = options?.durationOverride ?? SCOUT_MISSION_DURATION_MS
+
+    // Formule : travel_ms = (distance / effective_speed) * 1000 / GAME_SPEED_MULTIPLIER
+    // effective_speed = scout_tps / terrain_cost
+    // speedMultiplier permet de doubler la vitesse (artefact double_scout_speed)
+    const mapStore = useMapStore()
+    const currentPos = mapStore.currentPosition.value
+    const distance = Math.max(
+      Math.abs(target.x - currentPos.x),
+      Math.abs(target.y - currentPos.y),
+    )
+    const destTile = mapStore.getTileAt(target.x, target.y)
+    const terrainCost = destTile ? (TERRAIN_MOVE_COST[destTile.type] ?? 1.0) : 1.0
+    const scoutTps = SCOUT_MOVE_SPEED_TPS * (options?.speedMultiplier ?? 1)
+    const effectiveSpeed = scoutTps / terrainCost
+    // Au minimum 500ms (case adjacente ou même case)
+    const duration = distance === 0
+      ? 500
+      : Math.max(500, Math.round((distance / effectiveSpeed) * 1000 / GAME_SPEED_MULTIPLIER))
+
     const mission: ScoutMission = {
       id: `scout-${now}-${target.x}-${target.y}`,
       target,

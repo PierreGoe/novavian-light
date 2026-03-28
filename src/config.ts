@@ -40,11 +40,15 @@ export const ENEMY_STRONGHOLD_INFANTRY = parseNumber(
 // Éclaireurs
 // ------------------------------------
 
-/** Durée d'une mission d'éclaireur (ms) */
-export const SCOUT_MISSION_DURATION_MS = parseNumber(
-  import.meta.env.VITE_SCOUT_MISSION_DURATION_MS,
-  10_000,
-)
+/** Vitesse de déplacement des éclaireurs en cases/seconde */
+export const SCOUT_MOVE_SPEED_TPS = parseNumber(import.meta.env.VITE_SCOUT_MOVE_SPEED_TPS, 3)
+
+// ------------------------------------
+// Déplacement & temps de voyage
+// ------------------------------------
+
+/** Multiplicateur de vitesse globale du jeu (1 = normal, 10 = accéléré en dev) */
+export const GAME_SPEED_MULTIPLIER = parseNumber(import.meta.env.VITE_GAME_SPEED_MULTIPLIER, 1)
 
 // ------------------------------------
 // Sauvegarde & timers

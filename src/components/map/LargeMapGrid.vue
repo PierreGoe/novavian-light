@@ -74,6 +74,8 @@
             </div>
           </div>
           <div class="current-marker" v-if="tile.current">📍</div>
+          <!-- Indicateur : troupes en route vers cette tuile -->
+          <div class="troops-en-route" v-if="hasTroopsEnRoute(tile.id)">🪖</div>
         </div>
       </div>
     </div>
@@ -175,6 +177,10 @@ const getTileClasses = (tile: MapTile) => {
 
 const selectTile = (tileId: string) => emit('selectTile', tileId)
 const getTileIcon = (type: MapTile['type']) => mapStore.getTileIcon(type)
+
+/** Retourne true si des troupes du joueur sont en route vers cette tuile */
+const hasTroopsEnRoute = (tileId: string): boolean =>
+  mapStore.getMovementsToTile(tileId).length > 0
 </script>
 
 <style scoped>
@@ -350,6 +356,20 @@ const getTileIcon = (type: MapTile['type']) => mapStore.getTileIcon(type)
   right: -3px;
   font-size: clamp(10px, 1.5vw, 14px);
   z-index: 4;
+}
+
+.troops-en-route {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: clamp(9px, 1.3vw, 13px);
+  z-index: 4;
+  animation: pulse-troop 1s ease-in-out infinite;
+}
+
+@keyframes pulse-troop {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 /* Minimap supprimée */

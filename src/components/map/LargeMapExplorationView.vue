@@ -1,37 +1,45 @@
 <template>
   <div class="large-map-exploration-view">
-    <!-- Instructions -->
-    <div class="controls-help">
-      <div class="help-item">🖱️ <strong>Clic & Glisser</strong>: Déplacer la carte</div>
-      <div class="help-item">⌨️ <strong>Flèches / WASD</strong>: Navigation</div>
-      <div class="help-item">🔍 <strong>Boutons +/-</strong>: Zoom</div>
-      <div class="help-item">⌨️ <strong>Espace</strong>: Centrer sur position</div>
-    </div>
 
-    <!-- Grande grille de la carte -->
-    <section class="map-section">
-      <LargeMapGrid
-        :tiles="mapTiles"
-        :selected-tile-id="selectedTileId"
-        @select-tile="handleTileSelect"
-      />
-    </section>
+    <!-- VUE CARTE -->
+    <template v-if="!selectedTile">
+      <!-- Instructions -->
+      <div class="controls-help">
+        <div class="help-item">🖱️ <strong>Clic & Glisser</strong>: Déplacer la carte</div>
+        <div class="help-item">⌨️ <strong>Flèches / WASD</strong>: Navigation</div>
+        <div class="help-item">🔍 <strong>Boutons +/-</strong>: Zoom</div>
+        <div class="help-item">⌨️ <strong>Espace</strong>: Centrer sur position</div>
+      </div>
 
-    <!-- Détails de la tuile sélectionnée -->
-    <TileDetails
-      v-if="selectedTile"
-      :tile="selectedTile"
-      @attack-tile="handleAttackTile"
-      @trade-tile="handleTradeTile"
-      @explore-tile="handleExploreTile"
-      @scout-tile="handleScoutTile"
-    />
+      <!-- Grande grille de la carte -->
+      <section class="map-section">
+        <LargeMapGrid
+          :tiles="mapTiles"
+          :selected-tile-id="selectedTileId"
+          @select-tile="handleTileSelect"
+        />
+      </section>
 
-    <!-- Panel éclaireurs -->
-    <ScoutsPanel />
+      <!-- Mouvements (éclaireurs + troupes en transit) -->
+      <MovementsPanel />
 
-    <!-- Historique des rapports -->
-    <BattleReportsPanel @view-report="openCombatReport" />
+      <!-- Historique des rapports -->
+      <BattleReportsPanel @view-report="openCombatReport" />
+    </template>
+
+    <!-- VUE DÉTAILS (remplace la carte) -->
+    <template v-else>
+      <div class="tile-details-view">
+        <button class="back-btn" @click="closeDetails">← Retour à la carte</button>
+        <TileDetails
+          :tile="selectedTile"
+          @attack-tile="handleAttackTile"
+          @trade-tile="handleTradeTile"
+          @explore-tile="handleExploreTile"
+          @scout-tile="handleScoutTile"
+        />
+      </div>
+    </template>
 
     <!-- Rapport de combat (overlay) -->
     <CombatReportOverlay :report="combatReport" @close="combatReport = null" />
@@ -47,7 +55,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useMapStore, type MapTile } from '../../stores/mapStore'
+import { useMapStore, type MapTile, type MovementUnit, type TroopMovement } from '../../stores/mapStore'
 import { useMissionStore } from '../../stores/missionStore'
 import { useGameStore } from '../../stores/gameStore'
 import { defaultResolver } from '../../combat/combatResolver'
@@ -55,14 +63,13 @@ import type { Army, CombatReport, CombatUnit, SavedBattleReport } from '../../co
 import {
   ENEMY_BASE_INFANTRY,
   ENEMY_STRONGHOLD_INFANTRY,
-  SCOUT_MISSION_DURATION_MS,
 } from '../../config'
 import { useNotifications } from '../../composables/useNotifications'
 
 // Composants
 import LargeMapGrid from './LargeMapGrid.vue'
 import TileDetails from './TileDetails.vue'
-import ScoutsPanel from './ScoutsPanel.vue'
+import MovementsPanel from './MovementsPanel.vue'
 import BattleReportsPanel from './BattleReportsPanel.vue'
 import CombatReportOverlay from './CombatReportOverlay.vue'
 
@@ -88,6 +95,12 @@ const openCombatReport = (report: SavedBattleReport) => {
   requestAnimationFrame(() => {
     combatReport.value = report
   })
+}
+
+/** Ferme la vue détails et revient à la carte */
+const closeDetails = () => {
+  selectedTileId.value = null
+  mapStore.clearSelection()
 }
 
 // Methods
@@ -123,7 +136,7 @@ const handleTileSelect = (tileId: string) => {
     // Lancer la mission d'éclaireur
     const success = missionStore.startScoutMission(target, {
       extraRevealRadius: scoutRangeBonus > 0 ? scoutRangeBonus : undefined,
-      durationOverride: hasDoubleSpeed ? Math.floor(SCOUT_MISSION_DURATION_MS / 2) : undefined,
+      speedMultiplier: hasDoubleSpeed ? 2 : undefined,
     })
     if (success) {
       showNotification(`🔭 Éclaireur envoyé vers (${target.x}, ${target.y})`, 'success')
@@ -150,8 +163,14 @@ const handleAttackTile = (tileId: string) => {
     return
   }
 
-  // Construire l'armée attaquante
-  const attackerUnits: CombatUnit[] = playerUnits
+  // Bloquer si un mouvement est déjà en cours vers cette tuile
+  if (mapStore.getMovementsToTile(tileId).length > 0) {
+    showNotification('Des troupes sont déjà en route vers cette case.', 'warning')
+    return
+  }
+
+  // Snapshot des unités au moment du départ
+  const units: MovementUnit[] = playerUnits
     .filter((u) => u.count > 0)
     .map((u) => ({
       type: u.type,
@@ -161,13 +180,48 @@ const handleAttackTile = (tileId: string) => {
       health: u.health,
     }))
 
+  // Calculer le temps de trajet en tenant compte de la vitesse des unités (la plus lente)
+  const travelMs = mapStore.calculateTravelTimeMs(tileId, units)
+  const totalSeconds = Math.ceil(travelMs / 1000)
+  const travelLabel =
+    totalSeconds >= 60
+      ? `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
+      : `${totalSeconds}s`
+
+  const movement = mapStore.dispatchTroops(tileId, units)
+  if (!movement) {
+    showNotification('Impossible de calculer le trajet.', 'error')
+    return
+  }
+
+  showNotification(`🪖 Troupes envoyées — arrivée dans ${travelLabel}`, 'info')
+  // Revenir à la carte pour voir le mouvement en temps réel
+  closeDetails()
+}
+
+/** Résout le combat quand les troupes arrivent à destination */
+const executeCombat = (movement: TroopMovement, tile: MapTile) => {
+  // Vérifier que la tuile est toujours hostile (peut avoir changé pendant le trajet)
+  if (!['village_enemy', 'stronghold'].includes(tile.type)) {
+    showNotification('La cible n\'est plus hostile, troupes revenues.', 'info')
+    return
+  }
+
   const isStronghold = tile.type === 'stronghold'
 
-  // Construire les modificateurs issus des artefacts actifs
+  // Armée attaquante depuis le snapshot du mouvement (état au moment du départ)
+  const attackerUnits: CombatUnit[] = movement.units.map((u) => ({
+    type: u.type,
+    count: u.count,
+    attack: u.attack,
+    defense: u.defense,
+    health: u.health,
+  }))
+
+  // Construire les modificateurs issus des artefacts actifs (lus à la résolution)
   const equippedArtifacts = gameStore.getEquippedArtifacts.value
   const artifactModifiers: CombatModifier[] = []
 
-  // Agrégation des bonus militaire/défense des artefacts (% → multiplicateur)
   const totalMilitary = equippedArtifacts.reduce((sum, a) => sum + (a.effects.military ?? 0), 0)
   const totalDefense = equippedArtifacts.reduce((sum, a) => sum + (a.effects.defense ?? 0), 0)
   if (totalMilitary > 0) {
@@ -187,7 +241,6 @@ const handleAttackTile = (tileId: string) => {
     })
   }
 
-  // Pouvoir spécial : first_strike → meilleure résistance aux dégâts reçus
   const hasFirstStrike = equippedArtifacts.some((a) => a.specialPower?.type === 'first_strike')
   if (hasFirstStrike) {
     artifactModifiers.push({
@@ -198,7 +251,6 @@ const handleAttackTile = (tileId: string) => {
     })
   }
 
-  // Pouvoir spécial : siege_bonus → bonus offensif pour les forteresses
   if (isStronghold) {
     const siegeBonus = equippedArtifacts
       .filter((a) => a.specialPower?.type === 'siege_bonus')
@@ -240,7 +292,7 @@ const handleAttackTile = (tileId: string) => {
     modifiers: [],
   }
 
-  // Résoudre
+  // Résoudre le combat
   const report = defaultResolver.resolve(attackerArmy, defenderArmy)
   combatReport.value = report
 
@@ -262,17 +314,13 @@ const handleAttackTile = (tileId: string) => {
     tile.garrison = undefined
     showNotification(report.summary, 'success')
 
-    // Points de victoire au combat
-    // +1 PV pour chaque victoire en combat
     gameStore.addVictoryPoints('combat', 1, `Victoire en combat contre ${defenderArmy.label}`)
-    // +2 PV supplémentaires pour destruction d'un village ou forteresse
     if (isStronghold) {
       gameStore.addVictoryPoints('combat', 4, 'Forteresse ennemie détruite')
     } else {
       gameStore.addVictoryPoints('combat', 2, 'Village ennemi détruit')
     }
 
-    // Pouvoirs spéciaux : effets post-victoire
     applyPostVictorySpecialPowers(equippedArtifacts, tile.position)
   } else {
     showNotification(report.summary, 'error')
@@ -456,6 +504,14 @@ onMounted(() => {
   // Timer pour forcer le rafraîchissement de l'affichage des timers
   // Les computed vérifieront automatiquement l'état des missions
   displayRefreshTimer = window.setInterval(() => {
+    // Résoudre les mouvements de troupes arrivés à destination
+    const arrivals = mapStore.getArrivedMovements()
+    for (const movement of arrivals) {
+      const tile = mapStore.getTileById(movement.targetTileId)
+      if (tile) executeCombat(movement, tile)
+      mapStore.resolveMovement(movement.id)
+    }
+
     // Synchroniser les cases découvertes avec le mapStore
     const discoveredTiles = missionStore.getDiscoveredTiles.value
     let hasChanges = false
@@ -553,6 +609,37 @@ onUnmounted(() => {
 
 .map-section {
   margin: 20px 0;
+}
+
+.tile-details-view {
+  position: relative;
+  width: 100%;
+  min-height: 600px;
+  background: #1a1a1a;
+  border-radius: 12px;
+  padding: 20px;
+  box-sizing: border-box;
+  margin: 20px 0;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #ccc;
+  padding: 10px 18px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.95em;
+  transition: background 0.15s, color 0.15s;
+}
+
+.back-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
 }
 
 .notification {

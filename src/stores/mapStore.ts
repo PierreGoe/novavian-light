@@ -3,6 +3,7 @@ import { createRawGrid } from '@/utils/map/TerrainGrid'
 import { smoothTerrain } from '@/utils/map/CellularAutomata'
 import type { TerrainType as CATerrainType } from '@/utils/map/TerrainTypes'
 import { TERRAIN_CONFIG } from '@/utils/map/TerrainTypes'
+import { GAME_SPEED_MULTIPLIER } from '@/config'
 
 // Types pour la carte et l'exploration
 export type TerrainType =
@@ -14,6 +15,50 @@ export type TerrainType =
   | 'village_enemy'
   | 'ruins'
   | 'stronghold'
+
+/** Unité dans un mouvement de troupes (snapshot envoyé au moment du dispatch) */
+export interface MovementUnit {
+  type: string
+  count: number
+  attack: number
+  defense: number
+  health: number
+}
+
+/** Mouvement de troupes en transit sur la carte */
+export interface TroopMovement {
+  id: string
+  sourceTileId: string
+  targetTileId: string
+  /** Timestamp réel au départ (Date.now()) */
+  departureTime: number
+  /** Timestamp réel à l'arrivée (Date.now() + durée du trajet) */
+  arrivalTime: number
+  units: MovementUnit[]
+}
+
+/** Coût de déplacement par type de terrain (exploration map) */
+export const TERRAIN_MOVE_COST: Record<TerrainType, number> = {
+  plains: 1.0,
+  forest: 1.5,
+  mountain: 99,
+  water: 99,
+  village_player: 1.0,
+  village_enemy: 1.0,
+  ruins: 1.2,
+  stronghold: 2.0,
+}
+
+/**
+ * Vitesse de déplacement par type d'unité, en cases/seconde.
+ * L'armée se déplace à la vitesse de l'unité la plus lente.
+ */
+export const UNIT_MOVE_SPEED: Record<string, number> = {
+  infantry: 1.0,   // 1 case/sec — référence
+  archer:   0.8,   // Moins mobile (équipement + carquois)
+  cavalry:  2.5,   // Très rapide
+  siege:    0.3,   // Engins de siège — extrêmement lent
+}
 
 export interface ScoutInfo {
   enemies?: Array<{ type: string; strength: number }>
@@ -74,6 +119,8 @@ export interface ExplorationState {
   discoveredLocations: string[]
   viewportOffset: { x: number; y: number } // Position du viewport pour le scroll
   zoomLevel: number // Niveau de zoom (nombre de tuiles visibles: 5, 6, 7... 15, 20, etc.)
+  /** Mouvements de troupes en cours vers des tuiles ennemies */
+  activeMovements: TroopMovement[]
 }
 
 // Configuration de la carte
@@ -100,6 +147,7 @@ const initialMapState: ExplorationState = {
     y: 50 - Math.floor(MAP_CONFIG.defaultViewportSize / 2),
   },
   zoomLevel: MAP_CONFIG.defaultViewportSize, // Le zoom est maintenant le nombre de tuiles visibles
+  activeMovements: [],
 }
 
 // Correspondance biome CA → terrain mapStore
@@ -433,6 +481,77 @@ export const useMapStore = () => {
     }
   }
 
+  // ------------------------------------
+  // Déplacement de troupes
+  // ------------------------------------
+
+  /**
+   * Calcule le temps de trajet en ms vers une tuile cible.
+   *
+   * Formule : travel_ms = (distance_tiles / effective_speed) * 1000 / GAME_SPEED_MULTIPLIER
+   *   - distance      : distance de Chebyshev en tiles
+   *   - effective_speed = slowest_unit_tps / terrain_cost
+   *   - GAME_SPEED_MULTIPLIER : accélérateur global (env var)
+   *
+   * @param units Si omis, utilise la vitesse infanterie (1.0 t/s) par défaut.
+   */
+  const calculateTravelTimeMs = (targetTileId: string, units?: MovementUnit[]): number => {
+    const dest = getTileById(targetTileId)
+    if (!dest) return 0
+    const { x: sx, y: sy } = mapState.currentPosition
+    const distance = Math.max(
+      Math.abs(dest.position.x - sx),
+      Math.abs(dest.position.y - sy),
+    )
+    if (distance === 0) return 0
+    const terrainCost = TERRAIN_MOVE_COST[dest.type] ?? 1
+    // Vitesse en tiles/sec de l'unité la plus lente (ou 1.0 par défaut)
+    const slowestTps = units && units.length > 0
+      ? Math.min(...units.map((u) => UNIT_MOVE_SPEED[u.type] ?? 1.0))
+      : 1.0
+    // Vitesse effective : terrain dur étend le trajet
+    const effectiveSpeed = slowestTps / terrainCost
+    return Math.round((distance / effectiveSpeed) * 1000 / GAME_SPEED_MULTIPLIER)
+  }
+
+  /** Envoie un snapshot de troupes vers une tuile cible. Retourne le mouvement créé. */
+  const dispatchTroops = (targetTileId: string, units: MovementUnit[]): TroopMovement | null => {
+    const travelMs = calculateTravelTimeMs(targetTileId, units)
+    if (travelMs <= 0) return null
+    const now = Date.now()
+    const movement: TroopMovement = {
+      id: `mov-${now}`,
+      sourceTileId: `${mapState.currentPosition.x}-${mapState.currentPosition.y}`,
+      targetTileId,
+      departureTime: now,
+      arrivalTime: now + travelMs,
+      units,
+    }
+    mapState.activeMovements.push(movement)
+    saveMapState()
+    return movement
+  }
+
+  /** Retire un mouvement de la liste (après résolution du combat ou annulation) */
+  const resolveMovement = (movementId: string) => {
+    const idx = mapState.activeMovements.findIndex((m) => m.id === movementId)
+    if (idx !== -1) {
+      mapState.activeMovements.splice(idx, 1)
+      saveMapState()
+    }
+  }
+
+  /** Renvoie les mouvements dont l'heure d'arrivée est passée */
+  const getArrivedMovements = (): TroopMovement[] => {
+    const now = Date.now()
+    return mapState.activeMovements.filter((m) => m.arrivalTime <= now)
+  }
+
+  /** Renvoie les mouvements actifs vers une tuile donnée */
+  const getMovementsToTile = (tileId: string): TroopMovement[] => {
+    return mapState.activeMovements.filter((m) => m.targetTileId === tileId)
+  }
+
   // Sauvegarde et chargement
   const saveMapState = () => {
     // PROTECTION: Ne jamais sauvegarder une carte vide
@@ -448,6 +567,7 @@ export const useMapStore = () => {
       explorationPoints: mapState.explorationPoints,
       lastExplorationTime: mapState.lastExplorationTime,
       discoveredLocations: mapState.discoveredLocations,
+      activeMovements: mapState.activeMovements,
     }
 
     localStorage.setItem('novavian-map', JSON.stringify(data))
@@ -536,6 +656,13 @@ export const useMapStore = () => {
 
     // Points d'exploration
     regenerateExplorationPoints,
+
+    // Déplacement de troupes
+    calculateTravelTimeMs,
+    dispatchTroops,
+    resolveMovement,
+    getArrivedMovements,
+    getMovementsToTile,
 
     // Persistance
     saveMapState,
