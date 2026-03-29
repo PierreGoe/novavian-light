@@ -550,6 +550,8 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
+
 // ===== Couleurs par rareté =====
 $rarity-common: #9ca3af;
 $rarity-rare: #3b82f6;
@@ -940,7 +942,7 @@ $rarity-legendary: #f59e0b;
     &.active {
       background: rgba($rarity-rare, 0.25);
       border-color: $rarity-rare;
-      color: lighten($rarity-rare, 30%);
+      color: color.adjust($rarity-rare, $lightness: 30%);
     }
   }
   &.rarity.rarity-epic {
@@ -948,7 +950,7 @@ $rarity-legendary: #f59e0b;
     &.active {
       background: rgba($rarity-epic, 0.25);
       border-color: $rarity-epic;
-      color: lighten($rarity-epic, 25%);
+      color: color.adjust($rarity-epic, $lightness: 25%);
     }
   }
   &.rarity.rarity-legendary {
@@ -956,7 +958,7 @@ $rarity-legendary: #f59e0b;
     &.active {
       background: rgba($rarity-legendary, 0.25);
       border-color: $rarity-legendary;
-      color: lighten($rarity-legendary, 20%);
+      color: color.adjust($rarity-legendary, $lightness: 20%);
     }
   }
 }

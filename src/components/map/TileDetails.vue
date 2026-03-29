@@ -139,7 +139,7 @@
       </div>
       <AttackPanel
         :available-units="playerAvailableUnits"
-        :compute-travel-ms="(units) => mapStore.calculateTravelTimeMs(tile.id, units)"
+        :compute-travel-ms="(units) => mapStore.calculateTravelTimeMs(tile!.id, units)"
         @confirm="onAttackConfirm"
       />
     </div>

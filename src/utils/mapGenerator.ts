@@ -10,6 +10,7 @@ export interface MapNode {
   connections: string[] // IDs des nodes suivants connectés
   completed: boolean
   accessible: boolean
+  inProgress?: boolean // Mission en cours (pas encore terminée)
   reward?: {
     type: 'gold' | 'card' | 'relic' | 'leadership'
     amount?: number

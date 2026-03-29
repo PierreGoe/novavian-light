@@ -130,6 +130,7 @@ const selectNode = (node: MapNode) => {
   // On appelle handleMapNodeAction séparément uniquement pour passer router et toastStore
   // mais avec le guard appliqué ici aussi pour éviter tout doublon
   if (node.completed || (!node.accessible && !node.inProgress)) return
+
   gameStore.selectMapNode(node)
   gameStore.handleMapNodeAction(node, router, toastStore)
 }
