@@ -1,6 +1,8 @@
 <template>
   <section class="buildings-section">
-    <h3>Bâtiments <span class="hq-badge">QG niv. {{ hqLevel }}</span></h3>
+    <h3>
+      Bâtiments <span class="hq-badge">QG niv. {{ hqLevel }}</span>
+    </h3>
     <div class="buildings-grid">
       <div
         v-for="building in town?.buildings || []"
@@ -15,7 +17,7 @@
               <div class="building-name">{{ getBuildingName(building.type) }}</div>
               <div class="building-level-badges">
                 <span
-                  v-for="i in (BUILDING_DEFINITIONS[building.type]?.maxLevel ?? 5)"
+                  v-for="i in BUILDING_DEFINITIONS[building.type]?.maxLevel ?? 5"
                   :key="i"
                   class="level-pip"
                   :class="{ active: i <= building.level }"
@@ -54,24 +56,42 @@
           <div class="upgrade-costs">
             <span
               class="cost-chip"
-              :class="{ insufficient: (town?.resources?.wood || 0) < getUpgradeCost(building.type, building.level).wood }"
-              >🪵 {{ getUpgradeCost(building.type, building.level).wood }}</span>
+              :class="{
+                insufficient:
+                  (town?.resources?.wood || 0) < getUpgradeCost(building.type, building.level).wood,
+              }"
+              >🪵 {{ getUpgradeCost(building.type, building.level).wood }}</span
+            >
             <span
               class="cost-chip"
-              :class="{ insufficient: (town?.resources?.clay || 0) < getUpgradeCost(building.type, building.level).clay }"
-              >🧱 {{ getUpgradeCost(building.type, building.level).clay }}</span>
+              :class="{
+                insufficient:
+                  (town?.resources?.clay || 0) < getUpgradeCost(building.type, building.level).clay,
+              }"
+              >🧱 {{ getUpgradeCost(building.type, building.level).clay }}</span
+            >
             <span
               class="cost-chip"
-              :class="{ insufficient: (town?.resources?.iron || 0) < getUpgradeCost(building.type, building.level).iron }"
-              >⚒️ {{ getUpgradeCost(building.type, building.level).iron }}</span>
+              :class="{
+                insufficient:
+                  (town?.resources?.iron || 0) < getUpgradeCost(building.type, building.level).iron,
+              }"
+              >⚒️ {{ getUpgradeCost(building.type, building.level).iron }}</span
+            >
             <span
               class="cost-chip"
-              :class="{ insufficient: (town?.resources?.crop || 0) < getUpgradeCost(building.type, building.level).crop }"
-              >🌾 {{ getUpgradeCost(building.type, building.level).crop }}</span>
+              :class="{
+                insufficient:
+                  (town?.resources?.crop || 0) < getUpgradeCost(building.type, building.level).crop,
+              }"
+              >🌾 {{ getUpgradeCost(building.type, building.level).crop }}</span
+            >
           </div>
 
           <div
-            v-if="!canUpgradeBuilding(building) && getTimeUntilUpgrade(building.type, building.level)"
+            v-if="
+              !canUpgradeBuilding(building) && getTimeUntilUpgrade(building.type, building.level)
+            "
             class="upgrade-eta"
           >
             ⏱️ Disponible dans {{ getTimeUntilUpgrade(building.type, building.level) }}
@@ -114,7 +134,10 @@ const getBuildingName = (type: string): string =>
 
 const getUpgradeCost = (type: string, level: number) =>
   BUILDING_DEFINITIONS[type as BuildingType]?.upgradeCost(level) ?? {
-    wood: 0, clay: 0, iron: 0, crop: 0,
+    wood: 0,
+    clay: 0,
+    iron: 0,
+    crop: 0,
   }
 
 const getBuildingProductionGain = (type: string): number | null =>
@@ -131,7 +154,8 @@ const isBuildingAtMax = (building: { type: string; level: number }): boolean =>
 
 const canUpgradeBuilding = (building: { type: string; level: number }): boolean => {
   if (!town.value?.resources) return false
-  if (!canBuildingBeUpgraded(building.type as BuildingType, building.level, hqLevel.value)) return false
+  if (!canBuildingBeUpgraded(building.type as BuildingType, building.level, hqLevel.value))
+    return false
   const cost = getUpgradeCost(building.type, building.level)
   return (
     town.value.resources.wood >= cost.wood &&

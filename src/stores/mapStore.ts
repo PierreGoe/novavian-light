@@ -194,7 +194,9 @@ const generateInitialMap = (): MapTile[] => {
   const CENTER = Math.floor(mapSize / 2)
   const revealRange = RANK_REVEAL_RANGE
 
-  console.log(`🗺️ [generateInitialMap] DISABLE_FOG_OF_WAR=${DISABLE_FOG_OF_WAR}, revealRange=${revealRange}`)
+  console.log(
+    `🗺️ [generateInitialMap] DISABLE_FOG_OF_WAR=${DISABLE_FOG_OF_WAR}, revealRange=${revealRange}`,
+  )
 
   // Pipeline CA — grille brute puis lissage en 5 itérations
   const rawGrid = createRawGrid(mapSize, mapSize)
@@ -207,8 +209,7 @@ const generateInitialMap = (): MapTile[] => {
       const id = `${x}-${y}`
       const isCenter = x === CENTER && y === CENTER
       // Cases révélées au départ selon le rang (distance de Chebyshev)
-      const isStartingReveal =
-        Math.max(Math.abs(x - CENTER), Math.abs(y - CENTER)) <= revealRange
+      const isStartingReveal = Math.max(Math.abs(x - CENTER), Math.abs(y - CENTER)) <= revealRange
       const caTerrain = smoothGrid[y][x].terrain // [row=y][col=x]
       const passable = TERRAIN_CONFIG[caTerrain].passable
 
@@ -247,7 +248,9 @@ const generateInitialMap = (): MapTile[] => {
     }
   }
 
-  console.log(`🗺️ [generateInitialMap] Tuiles générées: ${tiles.length}, explorées: ${tiles.filter(t => t.explored).length}/${tiles.length}`)
+  console.log(
+    `🗺️ [generateInitialMap] Tuiles générées: ${tiles.length}, explorées: ${tiles.filter((t) => t.explored).length}/${tiles.length}`,
+  )
   return tiles
 }
 
@@ -726,7 +729,9 @@ export const useMapStore = () => {
         // Si les données sauvegardées ont des tuiles, les charger
         if (data.mapTiles && data.mapTiles.length > 0) {
           const exploredBefore = data.mapTiles.filter((t: MapTile) => t.explored).length
-          console.log(`📂 [loadMapState] Tuiles en localStorage: ${data.mapTiles.length}, explorées avant reset: ${exploredBefore}`)
+          console.log(
+            `📂 [loadMapState] Tuiles en localStorage: ${data.mapTiles.length}, explorées avant reset: ${exploredBefore}`,
+          )
           Object.assign(mapState, {
             ...initialMapState,
             ...data,
@@ -749,7 +754,9 @@ export const useMapStore = () => {
             mapState.mapTiles.forEach((tile) => {
               tile.explored = exploredIds.has(tile.id) || tile.current
             })
-            console.log(`🌫️ [loadMapState] Fog réappliqué — explorées après reset: ${mapState.mapTiles.filter(t => t.explored).length}`)
+            console.log(
+              `🌫️ [loadMapState] Fog réappliqué — explorées après reset: ${mapState.mapTiles.filter((t) => t.explored).length}`,
+            )
           } else {
             console.log(`☀️ [loadMapState] Fog désactivé — toutes les tuiles restent visibles`)
           }

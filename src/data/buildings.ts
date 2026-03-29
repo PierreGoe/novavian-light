@@ -9,11 +9,11 @@ import type { TravianResources } from '@/stores/missionStore'
 // Types de bâtiments disponibles
 export type BuildingType =
   | 'headquarters' // Bâtiment principal — débloque les autres
-  | 'barracks'    // Casernes — entraîne l'infanterie / archers / cavalerie / siège
-  | 'lumbermill'  // Scierie — produit du bois
-  | 'farm'        // Ferme — produit des céréales
-  | 'quarry'      // Carrière — produit de l'argile (nécessite HQ niv. 4)
-  | 'mine'        // Mine de fer — produit du fer (nécessite HQ niv. 4)
+  | 'barracks' // Casernes — entraîne l'infanterie / archers / cavalerie / siège
+  | 'lumbermill' // Scierie — produit du bois
+  | 'farm' // Ferme — produit des céréales
+  | 'quarry' // Carrière — produit de l'argile (nécessite HQ niv. 4)
+  | 'mine' // Mine de fer — produit du fer (nécessite HQ niv. 4)
 
 // Métadonnées statiques d'un bâtiment
 export interface BuildingDefinition {
@@ -52,7 +52,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     type: 'barracks',
     name: 'Casernes',
     icon: '🏛️',
-    description: 'Forme les troupes. Un niveau plus élevé réduit le temps d\'entraînement.',
+    description: "Forme les troupes. Un niveau plus élevé réduit le temps d'entraînement.",
     maxLevel: 20,
     hqLevelRequired: 1,
     upgradeCost: (level) => ({
@@ -100,7 +100,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     type: 'quarry',
     name: 'Carrière',
     icon: '🗿',
-    description: 'Produit de l\'argile. Nécessite le Bâtiment Principal niveau 4.',
+    description: "Produit de l'argile. Nécessite le Bâtiment Principal niveau 4.",
     maxLevel: 20,
     hqLevelRequired: 4,
     upgradeCost: (level) => ({

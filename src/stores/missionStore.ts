@@ -554,8 +554,7 @@ export const useMissionStore = () => {
             level: 1,
             position: { x: 4, y: 3 },
           })
-          missionState.town.production.iron +=
-            BUILDING_DEFINITIONS.mine.productionPerLevel!.amount
+          missionState.town.production.iron += BUILDING_DEFINITIONS.mine.productionPerLevel!.amount
         }
       }
 
