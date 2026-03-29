@@ -7,6 +7,8 @@ import {
   GAME_SPEED_MULTIPLIER,
   GARRISON_REGEN_DURATION_MS,
   RECENT_PILLAGE_THRESHOLD_MS,
+  DISABLE_FOG_OF_WAR,
+  RANK_REVEAL_RANGE,
 } from '@/config'
 import { computePillage } from '@/combat/loot'
 export type { EnemyLootStock, PillageResult } from '@/combat/loot'
@@ -190,6 +192,9 @@ const generateLootStock = (isStronghold: boolean): EnemyLootStock => {
 const generateInitialMap = (): MapTile[] => {
   const mapSize = MAP_CONFIG.size
   const CENTER = Math.floor(mapSize / 2)
+  const revealRange = RANK_REVEAL_RANGE
+
+  console.log(`🗺️ [generateInitialMap] DISABLE_FOG_OF_WAR=${DISABLE_FOG_OF_WAR}, revealRange=${revealRange}`)
 
   // Pipeline CA — grille brute puis lissage en 5 itérations
   const rawGrid = createRawGrid(mapSize, mapSize)
@@ -201,6 +206,9 @@ const generateInitialMap = (): MapTile[] => {
     for (let y = 0; y < mapSize; y++) {
       const id = `${x}-${y}`
       const isCenter = x === CENTER && y === CENTER
+      // Cases révélées au départ selon le rang (distance de Chebyshev)
+      const isStartingReveal =
+        Math.max(Math.abs(x - CENTER), Math.abs(y - CENTER)) <= revealRange
       const caTerrain = smoothGrid[y][x].terrain // [row=y][col=x]
       const passable = TERRAIN_CONFIG[caTerrain].passable
 
@@ -219,7 +227,7 @@ const generateInitialMap = (): MapTile[] => {
       tiles.push({
         id,
         type,
-        explored: isCenter,
+        explored: isStartingReveal || DISABLE_FOG_OF_WAR,
         current: isCenter,
         position: { x, y },
         bonus:
@@ -239,6 +247,7 @@ const generateInitialMap = (): MapTile[] => {
     }
   }
 
+  console.log(`🗺️ [generateInitialMap] Tuiles générées: ${tiles.length}, explorées: ${tiles.filter(t => t.explored).length}/${tiles.length}`)
   return tiles
 }
 
@@ -356,7 +365,7 @@ export const useMapStore = () => {
   } // Actions de sélection
   const selectTile = (tileId: string) => {
     const tile = getTileById(tileId)
-    if (tile && tile.explored) {
+    if (tile && (tile.explored || DISABLE_FOG_OF_WAR)) {
       mapState.selectedTileId = tileId
       return true
     }
@@ -708,6 +717,7 @@ export const useMapStore = () => {
   }
 
   const loadMapState = (): boolean => {
+    console.log(`🔍 [loadMapState] DISABLE_FOG_OF_WAR=${DISABLE_FOG_OF_WAR}`)
     try {
       const saved = localStorage.getItem('novavian-map')
       if (saved) {
@@ -715,10 +725,35 @@ export const useMapStore = () => {
 
         // Si les données sauvegardées ont des tuiles, les charger
         if (data.mapTiles && data.mapTiles.length > 0) {
+          const exploredBefore = data.mapTiles.filter((t: MapTile) => t.explored).length
+          console.log(`📂 [loadMapState] Tuiles en localStorage: ${data.mapTiles.length}, explorées avant reset: ${exploredBefore}`)
           Object.assign(mapState, {
             ...initialMapState,
             ...data,
           })
+
+          // Réappliquer le brouillard de guerre si activé
+          // (évite de restaurer une carte entièrement révélée sauvegardée avec fog désactivé)
+          if (!DISABLE_FOG_OF_WAR) {
+            const exploredIds = new Set<string>(mapState.discoveredLocations)
+            const CENTER = Math.floor(MAP_CONFIG.size / 2)
+            const revealRange = RANK_REVEAL_RANGE
+            // Toujours révéler la zone de départ selon le rang
+            for (let dx = -revealRange; dx <= revealRange; dx++) {
+              for (let dy = -revealRange; dy <= revealRange; dy++) {
+                if (Math.max(Math.abs(dx), Math.abs(dy)) <= revealRange) {
+                  exploredIds.add(`${CENTER + dx}-${CENTER + dy}`)
+                }
+              }
+            }
+            mapState.mapTiles.forEach((tile) => {
+              tile.explored = exploredIds.has(tile.id) || tile.current
+            })
+            console.log(`🌫️ [loadMapState] Fog réappliqué — explorées après reset: ${mapState.mapTiles.filter(t => t.explored).length}`)
+          } else {
+            console.log(`☀️ [loadMapState] Fog désactivé — toutes les tuiles restent visibles`)
+          }
+
           return true
         }
 
@@ -750,7 +785,8 @@ export const useMapStore = () => {
       ...initialMapState,
       mapTiles: generateInitialMap(),
     })
-    localStorage.removeItem('novavian-map')
+    // Sauvegarder immédiatement pour écraser toute ancienne carte en localStorage
+    saveMapState()
   }
 
   return {

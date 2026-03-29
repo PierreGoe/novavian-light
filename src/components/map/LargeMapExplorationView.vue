@@ -63,7 +63,13 @@ import {
 import { useMissionStore } from '../../stores/missionStore'
 import { useGameStore } from '../../stores/gameStore'
 import { defaultResolver } from '../../combat/combatResolver'
-import type { Army, CombatModifier, CombatReport, CombatUnit, SavedBattleReport } from '../../combat/types'
+import type {
+  Army,
+  CombatModifier,
+  CombatReport,
+  CombatUnit,
+  SavedBattleReport,
+} from '../../combat/types'
 import {
   ENEMY_BASE_INFANTRY,
   ENEMY_STRONGHOLD_INFANTRY,

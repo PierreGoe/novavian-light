@@ -43,9 +43,13 @@
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
+import { useMissionStore } from '@/stores/missionStore'
+import { useMapStore } from '@/stores/mapStore'
 
 const router = useRouter()
 const gameStore = useGameStore()
+const missionStore = useMissionStore()
+const mapStore = useMapStore()
 
 onMounted(() => {
   // Vérifier s'il existe une sauvegarde au montage
@@ -53,6 +57,11 @@ onMounted(() => {
 })
 
 const startNewGame = () => {
+  // Réinitialiser tous les stores avant de démarrer une nouvelle partie
+  gameStore.resetGameCompletely()
+  missionStore.resetMissionState()
+  mapStore.resetMapState()
+
   // Naviguer vers la sélection de race
   router.push('/race-selection')
 }

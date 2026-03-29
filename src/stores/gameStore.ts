@@ -379,6 +379,13 @@ export const useGameStore = () => {
     gameState.currentGameSection = freshState.currentGameSection
     gameState.isMissionStarted = freshState.isMissionStarted
 
+    // Réinitialiser les stores de mission et de carte d'exploration
+    const missionStore = useMissionStore()
+    missionStore.resetMissionState()
+
+    const mapStore = useMapStore()
+    mapStore.resetMapState()
+
     // Redonner les artefacts de démarrage
     giveStartingArtifacts(raceToKeep)
 

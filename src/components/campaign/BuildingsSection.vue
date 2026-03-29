@@ -1,6 +1,6 @@
 <template>
   <section class="buildings-section">
-    <h3>Bâtiments</h3>
+    <h3>Bâtiments <span class="hq-badge">QG niv. {{ hqLevel }}</span></h3>
     <div class="buildings-grid">
       <div
         v-for="building in town?.buildings || []"
@@ -15,7 +15,7 @@
               <div class="building-name">{{ getBuildingName(building.type) }}</div>
               <div class="building-level-badges">
                 <span
-                  v-for="i in 5"
+                  v-for="i in (BUILDING_DEFINITIONS[building.type]?.maxLevel ?? 5)"
                   :key="i"
                   class="level-pip"
                   :class="{ active: i <= building.level }"
@@ -34,7 +34,13 @@
           </span>
         </div>
 
-        <div class="upgrade-section">
+        <!-- Niveau max atteint -->
+        <div v-if="isBuildingAtMax(building)" class="upgrade-section upgrade-section--maxed">
+          <span class="maxed-label">✅ Niveau maximum atteint</span>
+        </div>
+
+        <!-- Section amélioration -->
+        <div v-else class="upgrade-section">
           <div class="upgrade-header">
             <span class="upgrade-label">⬆️ Niveau {{ building.level + 1 }}</span>
             <span v-if="getBuildingProductionGain(building.type)" class="upgrade-gain">
@@ -48,39 +54,27 @@
           <div class="upgrade-costs">
             <span
               class="cost-chip"
-              :class="{
-                insufficient: (town?.resources?.wood || 0) < getUpgradeCost(building.level).wood,
-              }"
-              >🪵 {{ getUpgradeCost(building.level).wood }}</span
-            >
+              :class="{ insufficient: (town?.resources?.wood || 0) < getUpgradeCost(building.type, building.level).wood }"
+              >🪵 {{ getUpgradeCost(building.type, building.level).wood }}</span>
             <span
               class="cost-chip"
-              :class="{
-                insufficient: (town?.resources?.clay || 0) < getUpgradeCost(building.level).clay,
-              }"
-              >🧱 {{ getUpgradeCost(building.level).clay }}</span
-            >
+              :class="{ insufficient: (town?.resources?.clay || 0) < getUpgradeCost(building.type, building.level).clay }"
+              >🧱 {{ getUpgradeCost(building.type, building.level).clay }}</span>
             <span
               class="cost-chip"
-              :class="{
-                insufficient: (town?.resources?.iron || 0) < getUpgradeCost(building.level).iron,
-              }"
-              >⚒️ {{ getUpgradeCost(building.level).iron }}</span
-            >
+              :class="{ insufficient: (town?.resources?.iron || 0) < getUpgradeCost(building.type, building.level).iron }"
+              >⚒️ {{ getUpgradeCost(building.type, building.level).iron }}</span>
             <span
               class="cost-chip"
-              :class="{
-                insufficient: (town?.resources?.crop || 0) < getUpgradeCost(building.level).crop,
-              }"
-              >🌾 {{ getUpgradeCost(building.level).crop }}</span
-            >
+              :class="{ insufficient: (town?.resources?.crop || 0) < getUpgradeCost(building.type, building.level).crop }"
+              >🌾 {{ getUpgradeCost(building.type, building.level).crop }}</span>
           </div>
 
           <div
-            v-if="!canUpgradeBuilding(building) && getTimeUntilUpgrade(building.level)"
+            v-if="!canUpgradeBuilding(building) && getTimeUntilUpgrade(building.type, building.level)"
             class="upgrade-eta"
           >
-            ⏱️ Disponible dans {{ getTimeUntilUpgrade(building.level) }}
+            ⏱️ Disponible dans {{ getTimeUntilUpgrade(building.type, building.level) }}
           </div>
 
           <button
@@ -101,57 +95,44 @@
 import { computed } from 'vue'
 import { useMissionStore } from '@/stores/missionStore'
 import { useToastStore } from '@/stores/toastStore'
+import { BUILDING_DEFINITIONS, getHQLevel, canBuildingBeUpgraded } from '@/data/buildings'
+import type { BuildingType } from '@/data/buildings'
 
 const missionStore = useMissionStore()
 const toastStore = useToastStore()
 const town = computed(() => missionStore.town.value)
 
-const getBuildingIcon = (type: string): string => {
-  const icons = {
-    barracks: '🏛️',
-    stable: '🐎',
-    workshop: '🔨',
-    farm: '🌾',
-    mine: '⛏️',
-    quarry: '🗿',
-    lumbermill: '🪓',
+// Niveau du bâtiment principal courant
+const hqLevel = computed(() => getHQLevel(town.value?.buildings ?? []))
+
+// Fonctions déléguées à BUILDING_DEFINITIONS (source unique de vérité)
+const getBuildingIcon = (type: string): string =>
+  BUILDING_DEFINITIONS[type as BuildingType]?.icon ?? '🏢'
+
+const getBuildingName = (type: string): string =>
+  BUILDING_DEFINITIONS[type as BuildingType]?.name ?? type
+
+const getUpgradeCost = (type: string, level: number) =>
+  BUILDING_DEFINITIONS[type as BuildingType]?.upgradeCost(level) ?? {
+    wood: 0, clay: 0, iron: 0, crop: 0,
   }
-  return icons[type as keyof typeof icons] || '🏢'
-}
 
-const getBuildingName = (type: string): string => {
-  const names = {
-    barracks: 'Casernes',
-    stable: 'Écuries',
-    workshop: 'Atelier',
-    farm: 'Ferme',
-    mine: 'Mine de Fer',
-    quarry: 'Carrière',
-    lumbermill: 'Scierie',
-  }
-  return names[type as keyof typeof names] || type
-}
-
-const getUpgradeCost = (level: number) => ({
-  wood: level * 100,
-  clay: level * 80,
-  iron: level * 60,
-  crop: level * 40,
-})
-
-const getBuildingProductionGain = (type: string): number | null => {
-  const gains: Record<string, number> = { lumbermill: 10, quarry: 8, mine: 6, farm: 12 }
-  return gains[type] ?? null
-}
+const getBuildingProductionGain = (type: string): number | null =>
+  BUILDING_DEFINITIONS[type as BuildingType]?.productionPerLevel?.amount ?? null
 
 const getBuildingProductionIcon = (type: string): string => {
-  const icons: Record<string, string> = { lumbermill: '🪵', quarry: '🧱', mine: '⛒️', farm: '🌾' }
-  return icons[type] ?? ''
+  const resource = BUILDING_DEFINITIONS[type as BuildingType]?.productionPerLevel?.resource
+  const icons: Record<string, string> = { wood: '🪵', clay: '🧱', iron: '⚒️', crop: '🌾' }
+  return resource ? (icons[resource] ?? '') : ''
 }
 
-const canUpgradeBuilding = (building: { level: number }): boolean => {
+const isBuildingAtMax = (building: { type: string; level: number }): boolean =>
+  building.level >= (BUILDING_DEFINITIONS[building.type as BuildingType]?.maxLevel ?? 99)
+
+const canUpgradeBuilding = (building: { type: string; level: number }): boolean => {
   if (!town.value?.resources) return false
-  const cost = getUpgradeCost(building.level)
+  if (!canBuildingBeUpgraded(building.type as BuildingType, building.level, hqLevel.value)) return false
+  const cost = getUpgradeCost(building.type, building.level)
   return (
     town.value.resources.wood >= cost.wood &&
     town.value.resources.clay >= cost.clay &&
@@ -160,11 +141,11 @@ const canUpgradeBuilding = (building: { level: number }): boolean => {
   )
 }
 
-const getTimeUntilUpgrade = (level: number): string | null => {
+const getTimeUntilUpgrade = (type: string, level: number): string | null => {
   const resources = town.value?.resources
   const production = town.value?.production
   if (!resources || !production) return null
-  const cost = getUpgradeCost(level)
+  const cost = getUpgradeCost(type, level)
   const minutesNeeded: number[] = []
 
   const check = (current: number, needed: number, rate: number) => {
@@ -203,9 +184,35 @@ const upgradeBuilding = (buildingId: string) => {
 }
 
 .buildings-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   margin: 0 0 1rem 0;
   color: #daa520;
   font-size: 1.2rem;
+}
+
+.hq-badge {
+  font-size: 0.72rem;
+  font-weight: normal;
+  padding: 0.15rem 0.55rem;
+  background: rgba(218, 165, 32, 0.12);
+  border: 1px solid rgba(218, 165, 32, 0.35);
+  border-radius: 10px;
+  color: #daa520;
+}
+
+.upgrade-section--maxed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1rem;
+}
+
+.maxed-label {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-style: italic;
 }
 
 .buildings-grid {

@@ -2,6 +2,8 @@ import { reactive, computed } from 'vue'
 import { useGameStore } from './gameStore'
 import { useMapStore, TERRAIN_MOVE_COST } from './mapStore'
 import type { SavedBattleReport } from '../combat/types'
+import { BUILDING_DEFINITIONS, getHQLevel } from '../data/buildings'
+import type { BuildingType } from '../data/buildings'
 import {
   MAX_OFFLINE_MS,
   AUTOSAVE_INTERVAL_MS,
@@ -34,7 +36,7 @@ export interface ResourceProduction {
 // Bâtiments de la ville de mission
 export interface MissionBuilding {
   id: string
-  type: 'barracks' | 'stable' | 'workshop' | 'farm' | 'mine' | 'quarry' | 'lumbermill'
+  type: BuildingType
   level: number
   position: { x: number; y: number }
   isUnderConstruction?: boolean
@@ -204,20 +206,26 @@ const initialState: MissionState = {
     },
     buildings: [
       {
+        id: 'headquarters-1',
+        type: 'headquarters' as BuildingType,
+        level: 1,
+        position: { x: 0, y: 0 },
+      },
+      {
         id: 'barracks-1',
-        type: 'barracks',
+        type: 'barracks' as BuildingType,
         level: 1,
         position: { x: 2, y: 2 },
       },
       {
         id: 'farm-1',
-        type: 'farm',
+        type: 'farm' as BuildingType,
         level: 1,
         position: { x: 1, y: 1 },
       },
       {
         id: 'lumbermill-1',
-        type: 'lumbermill',
+        type: 'lumbermill' as BuildingType,
         level: 1,
         position: { x: 3, y: 1 },
       },
@@ -501,26 +509,54 @@ export const useMissionStore = () => {
     const building = missionState.town.buildings.find((b) => b.id === buildingId)
     if (!building) return false
 
-    // Coût d'amélioration (exemple simple)
-    const upgradeCost = {
-      wood: building.level * 100,
-      clay: building.level * 80,
-      iron: building.level * 60,
-      crop: building.level * 40,
-    }
+    const def = BUILDING_DEFINITIONS[building.type as BuildingType]
+    if (!def) return false
+
+    // Vérification niveau max
+    if (building.level >= def.maxLevel) return false
+
+    // Vérification prérequis HQ
+    const hqLevel = getHQLevel(missionState.town.buildings)
+    if (hqLevel < def.hqLevelRequired) return false
+
+    const upgradeCost = def.upgradeCost(building.level)
 
     if (spendResources(upgradeCost)) {
       building.level += 1
 
-      // Améliorer la production si c'est un bâtiment de ressource
-      if (building.type === 'lumbermill') {
-        missionState.town.production.wood += 10
-      } else if (building.type === 'quarry') {
-        missionState.town.production.clay += 8
-      } else if (building.type === 'mine') {
-        missionState.town.production.iron += 6
-      } else if (building.type === 'farm') {
-        missionState.town.production.crop += 12
+      // Mise à jour de la production si applicable
+      if (def.productionPerLevel) {
+        const { resource, amount } = def.productionPerLevel
+        missionState.town.production[resource] += amount
+      }
+
+      // Déblocage automatique de la mine et de la carrière au niveau 4 du HQ
+      if (building.type === 'headquarters' && building.level === 4) {
+        const hasQuarry = missionState.town.buildings.some((b) => b.type === 'quarry')
+        const hasMine = missionState.town.buildings.some((b) => b.type === 'mine')
+
+        if (!hasQuarry) {
+          missionState.town.buildings.push({
+            id: `quarry-${Date.now()}`,
+            type: 'quarry',
+            level: 1,
+            position: { x: 4, y: 2 },
+          })
+          // Production initiale du niveau 1
+          missionState.town.production.clay +=
+            BUILDING_DEFINITIONS.quarry.productionPerLevel!.amount
+        }
+
+        if (!hasMine) {
+          missionState.town.buildings.push({
+            id: `mine-${Date.now()}`,
+            type: 'mine',
+            level: 1,
+            position: { x: 4, y: 3 },
+          })
+          missionState.town.production.iron +=
+            BUILDING_DEFINITIONS.mine.productionPerLevel!.amount
+        }
       }
 
       saveMissionState()
@@ -736,20 +772,26 @@ export const useMissionStore = () => {
         },
         buildings: [
           {
+            id: 'headquarters-1',
+            type: 'headquarters' as BuildingType,
+            level: 1,
+            position: { x: 0, y: 0 },
+          },
+          {
             id: 'barracks-1',
-            type: 'barracks',
+            type: 'barracks' as BuildingType,
             level: 1,
             position: { x: 2, y: 2 },
           },
           {
             id: 'farm-1',
-            type: 'farm',
+            type: 'farm' as BuildingType,
             level: 1,
             position: { x: 1, y: 1 },
           },
           {
             id: 'lumbermill-1',
-            type: 'lumbermill',
+            type: 'lumbermill' as BuildingType,
             level: 1,
             position: { x: 3, y: 1 },
           },
