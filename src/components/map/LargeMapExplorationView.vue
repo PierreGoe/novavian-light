@@ -3,11 +3,14 @@
     <!-- VUE CARTE -->
     <template v-if="!selectedTile">
       <!-- Instructions -->
-      <div class="controls-help">
-        <div class="help-item">🖱️ <strong>Clic & Glisser</strong>: Déplacer la carte</div>
-        <div class="help-item">⌨️ <strong>Flèches / WASD</strong>: Navigation</div>
-        <div class="help-item">🔍 <strong>Boutons +/-</strong>: Zoom</div>
-        <div class="help-item">⌨️ <strong>Espace</strong>: Centrer sur position</div>
+      <div class="controls-help-wrap">
+        <span class="controls-help-trigger">⌨️</span>
+        <div class="controls-help-tooltip">
+          <div class="help-item">🖱️ <strong>Clic & Glisser</strong> : Déplacer la carte</div>
+          <div class="help-item">⌨️ <strong>Flèches / WASD</strong> : Navigation</div>
+          <div class="help-item">🔍 <strong>Boutons +/-</strong> : Zoom</div>
+          <div class="help-item">⌨️ <strong>Espace</strong> : Centrer sur position</div>
+        </div>
       </div>
 
       <!-- Grande grille de la carte -->
@@ -639,28 +642,59 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
-.controls-help {
-  background: rgba(42, 82, 152, 0.1);
+.controls-help-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.controls-help-trigger {
+  font-size: 1rem;
+  cursor: help;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+  user-select: none;
+  padding: 2px 6px;
+  border-radius: 6px;
   border: 1px solid rgba(42, 82, 152, 0.3);
-  border-radius: 8px;
-  padding: 12px 20px;
-  margin-bottom: 15px;
+  background: rgba(42, 82, 152, 0.08);
+}
+.controls-help-trigger:hover {
+  opacity: 1;
+}
+
+.controls-help-tooltip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  background: rgba(10, 15, 30, 0.97);
+  border: 1px solid rgba(42, 82, 152, 0.4);
+  border-radius: 10px;
+  padding: 0.6rem 0.85rem;
+  min-width: 240px;
+  flex-direction: column;
+  gap: 0.4rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+.controls-help-wrap:hover .controls-help-tooltip {
   display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-  justify-content: center;
 }
 
 .help-item {
-  font-size: 0.85em;
-  color: #666;
+  font-size: 0.82em;
+  color: #94a3b8;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 
 .help-item strong {
-  color: #333;
+  color: #e2e8f0;
 }
 
 .map-section {

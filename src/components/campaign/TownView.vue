@@ -9,7 +9,7 @@
       </div>
     </header>
 
-    <BuildingsSection />
+    <VillagePlanView />
     <UnitsTrainingSection />
   </div>
 </template>
@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useMissionStore } from '@/stores/missionStore'
-import BuildingsSection from './BuildingsSection.vue'
+import VillagePlanView from './VillagePlanView.vue'
 import UnitsTrainingSection from './UnitsTrainingSection.vue'
 
 const missionStore = useMissionStore()
