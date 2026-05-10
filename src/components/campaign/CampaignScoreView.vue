@@ -1,5 +1,15 @@
 <template>
   <div class="score-view">
+    <!-- Modal de victoire de campagne -->
+    <CampaignVictoryModal
+      :visible="showVictoryModal"
+      :node-title="completedNodeTitle"
+      :bonus-gold="CAMPAIGN_BONUS_GOLD"
+      :node-reward-gold="pendingNodeRewardGold"
+      :node-reward-artifact="pendingNodeRewardArtifact"
+      :artifact-bonuses="pendingArtifactBonuses"
+      @close="onModalClose"
+    />
     <!-- Header -->
     <header class="score-header">
       <button class="btn-back" @click="goBack">← Retour à la campagne</button>
@@ -182,8 +192,9 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore, COMBAT_VP_GOAL } from '@/stores/gameStore'
-import type { VictoryPointType } from '@/stores/gameStore'
+import type { VictoryPointType, Artifact } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
+import CampaignVictoryModal from './CampaignVictoryModal.vue'
 
 const CAMPAIGN_BONUS_GOLD = 100
 
@@ -192,6 +203,21 @@ const gameStore = useGameStore()
 const toastStore = useToastStore()
 
 const continuing = ref(false)
+
+// État de la modal de victoire
+const showVictoryModal = ref(false)
+const pendingNodeRewardGold = ref(0)
+const pendingNodeRewardArtifact = ref<Artifact | null>(null)
+const completedNodeTitle = ref('')
+
+interface ArtifactBonus {
+  id: string
+  name: string
+  icon: string
+  goldBonus: number
+  leadershipBonus: number
+}
+const pendingArtifactBonuses = ref<ArtifactBonus[]>([])
 
 const totalCombatVP = computed(() => gameStore.victoryPoints.value.combat)
 const objectiveReached = computed(() => gameStore.campaignObjectiveReached.value)
@@ -214,15 +240,51 @@ function goBack() {
 }
 
 function handleComplete() {
-  const { nodeRewardArtifact, nodeRewardGold } = gameStore.completeCampaign(CAMPAIGN_BONUS_GOLD)
-  if (nodeRewardArtifact) {
-    toastStore.showSuccess(
-      `🏆 Récompense : ${nodeRewardArtifact.name} (relique ${nodeRewardArtifact.rarity}) ajoutée à votre inventaire !`,
-      { duration: 7000 },
-    )
-  } else if (nodeRewardGold > 0) {
-    toastStore.showSuccess(`💰 Récompense : +${nodeRewardGold} or !`, { duration: 4000 })
+  // Calculer les bonus artefacts actifs AVANT completeCampaign (qui les consomme)
+  const equippedArtifacts = gameStore.gameState.inventory.artifacts.filter((a) =>
+    gameStore.gameState.inventory.activeArtifacts.includes(a.id),
+  )
+  const bonuses: ArtifactBonus[] = []
+  for (const artifact of equippedArtifacts) {
+    const sp = artifact.specialPower
+    if (!sp) continue
+    if (sp.type === 'gold_on_victory' || sp.type === 'leadership_on_victory') {
+      bonuses.push({
+        id: artifact.id,
+        name: artifact.name,
+        icon: artifact.icon,
+        goldBonus: sp.type === 'gold_on_victory' ? sp.value : 0,
+        leadershipBonus: sp.type === 'leadership_on_victory' ? sp.value : 0,
+      })
+    }
   }
+  pendingArtifactBonuses.value = bonuses
+
+  // Récupérer le titre du node courant
+  const nodeId = gameStore.gameState.mapState.selectedNodeId
+  let nodeTitle = 'Node de mission complété'
+  if (nodeId) {
+    for (const layer of gameStore.gameState.mapState.layers) {
+      const node = layer.nodes.find((n) => n.id === nodeId)
+      if (node) {
+        nodeTitle = node.title
+        break
+      }
+    }
+  }
+  completedNodeTitle.value = nodeTitle
+
+  // Exécuter la completion (récompenses distribuées ici)
+  const { nodeRewardArtifact, nodeRewardGold } = gameStore.completeCampaign(CAMPAIGN_BONUS_GOLD)
+  pendingNodeRewardGold.value = nodeRewardGold
+  pendingNodeRewardArtifact.value = nodeRewardArtifact
+
+  // Afficher la modal
+  showVictoryModal.value = true
+}
+
+function onModalClose() {
+  showVictoryModal.value = false
   router.push('/mission-tree')
 }
 
