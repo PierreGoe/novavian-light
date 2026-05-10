@@ -50,10 +50,7 @@
     <!-- Stats joueur (visibles uniquement en jeu) -->
     <div class="nav-stats" v-if="isInGame">
       <!-- Or -->
-      <div
-        class="stat-item stat-gold"
-        :title="isCollapsed ? `${formatNumber(gold)} Or` : ''"
-      >
+      <div class="stat-item stat-gold" :title="isCollapsed ? `${formatNumber(gold)} Or` : ''">
         <span class="stat-icon" ref="goldIconRef">💰</span>
         <Transition name="fade-text">
           <span v-if="!isCollapsed" class="stat-value">{{ formatNumber(gold) }}</span>
@@ -73,11 +70,7 @@
       </div>
 
       <!-- Race -->
-      <div
-        class="stat-item stat-race"
-        v-if="race"
-        :title="isCollapsed ? race.name : ''"
-      >
+      <div class="stat-item stat-race" v-if="race" :title="isCollapsed ? race.name : ''">
         <span class="stat-icon">{{ race.icon }}</span>
         <Transition name="fade-text">
           <span v-if="!isCollapsed" class="stat-value">{{ race.name }}</span>
@@ -86,12 +79,7 @@
     </div>
 
     <!-- Bouton menu principal (retour accueil) -->
-    <button
-      v-if="isInGame"
-      class="nav-home-btn"
-      @click="goHome"
-      title="Menu principal"
-    >
+    <button v-if="isInGame" class="nav-home-btn" @click="goHome" title="Menu principal">
       <span class="nav-icon">🏠</span>
       <Transition name="fade-text">
         <span v-if="!isCollapsed" class="nav-label">Menu principal</span>
@@ -150,9 +138,7 @@ const router = useRouter()
 // Etat du sidebar (collapse / expand)
 // ===============================================================
 const STORAGE_KEY = 'sidebar-collapsed'
-const isCollapsed = ref<boolean>(
-  localStorage.getItem(STORAGE_KEY) === 'true',
-)
+const isCollapsed = ref<boolean>(localStorage.getItem(STORAGE_KEY) === 'true')
 
 const toggleCollapsed = () => {
   isCollapsed.value = !isCollapsed.value
@@ -165,9 +151,7 @@ const toggleCollapsed = () => {
 // Routes qui n'affichent pas la sidebar (écrans plein page)
 // ===============================================================
 const FULLSCREEN_ROUTES = new Set(['home', 'race-selection', 'game-over'])
-const isFullscreenRoute = computed(() =>
-  FULLSCREEN_ROUTES.has(route.name as string),
-)
+const isFullscreenRoute = computed(() => FULLSCREEN_ROUTES.has(route.name as string))
 
 // ===============================================================
 // Liens de navigation
@@ -328,7 +312,9 @@ $mobile-breakpoint: 768px;
   justify-content: center;
   font-size: 1.1rem;
   line-height: 1;
-  transition: background $transition, border-color $transition;
+  transition:
+    background $transition,
+    border-color $transition;
   flex-shrink: 0;
 
   &:hover {
@@ -392,7 +378,9 @@ $mobile-breakpoint: 768px;
   font-size: 0.9rem;
   white-space: nowrap;
   overflow: hidden;
-  transition: background $transition, color $transition;
+  transition:
+    background $transition,
+    color $transition;
   border: 1px solid transparent;
 
   &:hover {
@@ -498,8 +486,14 @@ $mobile-breakpoint: 768px;
 }
 
 @keyframes leadershipAlert {
-  0%, 100% { border-color: rgba(220, 38, 38, 0.7); }
-  50% { border-color: rgba(255, 0, 0, 1); box-shadow: 0 0 8px rgba(255, 0, 0, 0.4); }
+  0%,
+  100% {
+    border-color: rgba(220, 38, 38, 0.7);
+  }
+  50% {
+    border-color: rgba(255, 0, 0, 1);
+    box-shadow: 0 0 8px rgba(255, 0, 0, 0.4);
+  }
 }
 
 // Bouton menu principal
@@ -518,7 +512,10 @@ $mobile-breakpoint: 768px;
   font-size: 0.9rem;
   white-space: nowrap;
   overflow: hidden;
-  transition: background $transition, border-color $transition, color $transition;
+  transition:
+    background $transition,
+    border-color $transition,
+    color $transition;
 
   &:hover {
     background: rgba(218, 165, 32, 0.2);
@@ -561,20 +558,34 @@ $mobile-breakpoint: 768px;
   animation: floatUp 2s ease-out forwards;
   white-space: nowrap;
 
-  &--positive { color: #22c55e; }
-  &--negative { color: #ef4444; }
+  &--positive {
+    color: #22c55e;
+  }
+  &--negative {
+    color: #ef4444;
+  }
 }
 
 @keyframes floatUp {
-  0%   { opacity: 1; transform: translateY(0); }
-  70%  { opacity: 1; }
-  100% { opacity: 0; transform: translateY(-40px); }
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-40px);
+  }
 }
 
 // Transition du texte (fade lors du collapse)
 .fade-text-enter-active,
 .fade-text-leave-active {
-  transition: opacity 0.15s ease, max-width 0.25s ease;
+  transition:
+    opacity 0.15s ease,
+    max-width 0.25s ease;
   max-width: 200px;
   overflow: hidden;
 }
@@ -617,7 +628,9 @@ $mobile-breakpoint: 768px;
   color: rgba(244, 228, 188, 0.7);
   text-decoration: none;
   font-size: 0.65rem;
-  transition: color $transition, background $transition;
+  transition:
+    color $transition,
+    background $transition;
   padding: 0.4rem 0.25rem;
 
   &:hover,
