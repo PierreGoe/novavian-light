@@ -123,6 +123,9 @@ const handleTileSelect = (tileId: string) => {
     return
   }
 
+  // Les plaines sont des cases neutres non interactives
+  if (tile.type === 'plains') return
+
   // Si la case n'est pas explorée, proposer une mission d'éclaireur
   if (!tile.explored) {
     const target = { x: tile.position.x, y: tile.position.y }

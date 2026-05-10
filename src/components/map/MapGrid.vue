@@ -5,7 +5,7 @@
       :key="tile.id"
       class="map-tile"
       :class="getTileClasses(tile)"
-      @click="selectTile(tile.id)"
+      @click="tile.type !== 'plains' && selectTile(tile.id)"
     >
       <div class="tile-icon">{{ getTileIcon(tile.type) }}</div>
       <div class="tile-overlay" v-if="!DISABLE_FOG_OF_WAR && !tile.explored">?</div>
@@ -47,6 +47,7 @@ const getTileClasses = (tile: MapTile) => {
       'tile-current': tile.current,
       'tile-selected': props.selectedTileId === tile.id,
       'tile-unexplored': !revealed,
+      'tile-neutral': tile.type === 'plains',
     },
   ]
 }
@@ -109,6 +110,15 @@ const getTileIcon = (type: MapTile['type']) => {
 .tile-unexplored {
   background: #1a1a1a;
   opacity: 0.6;
+}
+
+.tile-neutral {
+  cursor: default;
+}
+
+.tile-neutral:hover {
+  transform: none;
+  border-color: #555;
 }
 
 /* Terrains spécifiques */

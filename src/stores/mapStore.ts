@@ -368,7 +368,10 @@ export const useMapStore = () => {
   } // Actions de sélection
   const selectTile = (tileId: string) => {
     const tile = getTileById(tileId)
-    if (tile && (tile.explored || DISABLE_FOG_OF_WAR)) {
+    if (!tile) return false
+    // Les plaines sont des cases neutres non sélectionnables
+    if (tile.type === 'plains') return false
+    if (tile.explored || DISABLE_FOG_OF_WAR) {
       mapState.selectedTileId = tileId
       return true
     }

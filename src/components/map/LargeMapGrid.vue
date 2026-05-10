@@ -33,7 +33,7 @@
             ...getTileStyle(tile),
             opacity: isBeingExplored(tile) ? getTileExploringOpacity(tile) : '1',
           }"
-          @click="selectTile(tile.id)"
+          @click="tile.type !== 'plains' && selectTile(tile.id)"
         >
           <!-- Icône du terrain visible uniquement si exploré (pas affiché pour les plaines) -->
           <div
@@ -171,6 +171,7 @@ const getTileClasses = (tile: MapTile) => {
       'tile-selected': props.selectedTileId === tile.id,
       'tile-unexplored': !explored,
       'tile-being-explored': isBeingExplored(tile),
+      'tile-neutral': tile.type === 'plains',
     },
   ]
 }
@@ -240,6 +241,15 @@ const hasTroopsEnRoute = (tileId: string): boolean => mapStore.getMovementsToTil
 .tile-unexplored {
   background: #1a1a1a !important;
   opacity: 0.8;
+}
+
+.tile-neutral {
+  cursor: default;
+}
+
+.tile-neutral:hover {
+  transform: none;
+  border-color: #555;
 }
 
 .tile-being-explored {
