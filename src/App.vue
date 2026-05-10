@@ -1,32 +1,58 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
-import InventoryHeader from '@/components/mission/MissionTreeHeader.vue'
+import SideNavBar from '@/components/globals/SideNavBar.vue'
 import ToastContainer from '@/components/globals/ToastContainer.vue'
 
 const gameStore = useGameStore()
+const route = useRoute()
+
+// Largeur de la sidebar — synchronisée avec l'état collapse stocké dans localStorage
+const STORAGE_KEY = 'sidebar-collapsed'
+const sidebarWidth = ref(localStorage.getItem(STORAGE_KEY) === 'true' ? '64px' : '220px')
+
+// Routes sans sidebar (plein écran)
+const FULLSCREEN_ROUTES = new Set(['home', 'race-selection', 'game-over'])
+const hasSidebar = ref(!FULLSCREEN_ROUTES.has(route.name as string))
+
+watch(
+  () => route.name,
+  (name) => {
+    hasSidebar.value = !FULLSCREEN_ROUTES.has(name as string)
+  },
+)
+
+// Ecoute les changements de collapse sidebar
+const onSidebarToggle = (e: Event) => {
+  const collapsed = (e as CustomEvent<boolean>).detail
+  sidebarWidth.value = collapsed ? '64px' : '220px'
+}
 
 onMounted(() => {
-  // Charger la sauvegarde au démarrage de l'app
   gameStore.loadGame()
-
-  // Démarrer l'auto-save au montage de l'app
   gameStore.startAutoSave()
+  window.addEventListener('sidebar-toggle', onSidebarToggle)
 })
 
 onUnmounted(() => {
-  // Arrêter l'auto-save au démontage
   gameStore.stopAutoSave()
+  window.removeEventListener('sidebar-toggle', onSidebarToggle)
 })
 </script>
 
 <template>
-  <div id="app">
-    <!-- Barre d'inventaire - Toujours affichée -->
-    <InventoryHeader />
+  <div
+    id="app"
+    :style="hasSidebar ? { '--sidebar-width': sidebarWidth } : { '--sidebar-width': '0px' }"
+  >
+    <SideNavBar />
 
-    <RouterView />
-    <ToastContainer />
+    <!-- Contenu principal décalé selon la largeur de la sidebar -->
+    <div class="app-content">
+      <RouterView />
+      <ToastContainer />
+    </div>
   </div>
 </template>
 
@@ -48,14 +74,30 @@ body {
 
 #app {
   min-height: 100vh;
+  --sidebar-width: 220px;
 }
 
-/* Classe pour les pages principales qui doivent éviter le header */
+/* Zone de contenu principale — décalée à droite de la sidebar */
+.app-content {
+  margin-left: var(--sidebar-width);
+  min-height: 100vh;
+  transition: margin-left 0.25s ease;
+}
+
+/* Classe pour les pages full-écran (home, race-selection…) */
 .main-content {
-  min-height: calc(100vh - 80px); /* Ajuster selon la hauteur du header */
+  min-height: 100vh;
 }
 
-/* Styles utilitaires globaux */
+/* Mobile : pas de décalage latéral, padding en bas pour la bottom nav */
+@media (max-width: 768px) {
+  .app-content {
+    margin-left: 0;
+    padding-bottom: 64px;
+  }
+}
+
+/* Transitions de route globales */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.3s ease;
@@ -77,30 +119,5 @@ body {
 
 .slide-leave-to {
   transform: translateX(-100%);
-}
-
-/* Scrollbar personnalisée */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(139, 69, 19, 0.2);
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(218, 165, 32, 0.6);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(218, 165, 32, 0.8);
-}
-
-/* Responsivité globale */
-@media (max-width: 768px) {
-  body {
-    font-size: 0.9rem;
-  }
 }
 </style>

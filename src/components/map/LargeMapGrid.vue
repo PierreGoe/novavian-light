@@ -199,6 +199,8 @@ const hasTroopsEnRoute = (tileId: string): boolean => mapStore.getMovementsToTil
   overflow: hidden;
   position: relative;
   user-select: none;
+  display: flex;
+  justify-content: space-evenly;
 }
 
 .map-grid-large {

@@ -67,7 +67,7 @@
           <span class="time-separator">|</span>
           <span class="time-item time-real" title="Heure réelle"> 🕒 {{ formattedRealTime }} </span>
         </div>
-        <button class="btn-exit" @click="exitCampaign">🏠 Retour aux missions</button>
+        <!--<button class="btn-exit" @click="exitCampaign">🏠 Retour aux missions</button>-->
       </div>
     </header>
 
