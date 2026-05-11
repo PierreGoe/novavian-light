@@ -4,15 +4,8 @@ import { useMapStore, TERRAIN_MOVE_COST } from './mapStore'
 import type { SavedBattleReport } from '../combat/types'
 import { BUILDING_DEFINITIONS, getHQLevel } from '../data/buildings'
 import type { BuildingType } from '../data/buildings'
-import {
-  MAX_OFFLINE_MS,
-  AUTOSAVE_INTERVAL_MS,
-  PRODUCTION_INTERVAL_MS,
-  CHEAT_RESOURCES,
-  CHEAT_VICTORY_POINTS,
-  GAME_SPEED_MULTIPLIER,
-  SCOUT_MOVE_SPEED_TPS,
-} from '../config'
+import { MAX_OFFLINE_MS, AUTOSAVE_INTERVAL_MS, PRODUCTION_INTERVAL_MS } from '../config'
+import { gameSettings } from './gameSettingsStore'
 
 // Ré-export pour compatibilité avec les imports existants
 export { MAX_OFFLINE_MS }
@@ -405,14 +398,20 @@ export const useMissionStore = () => {
     missionState.isInMission = true
     mission.isActive = true
 
+    // Appliquer les ressources initiales définies dans les paramètres
+    missionState.town.resources.wood = gameSettings.initialResources.wood
+    missionState.town.resources.clay = gameSettings.initialResources.clay
+    missionState.town.resources.iron = gameSettings.initialResources.iron
+    missionState.town.resources.crop = gameSettings.initialResources.crop
+
     // Triche debug : ressources et points de victoire offerts au démarrage
-    if (CHEAT_RESOURCES) {
+    if (gameSettings.cheatResources) {
       missionState.town.resources.wood = 10_000
       missionState.town.resources.clay = 10_000
       missionState.town.resources.iron = 10_000
       missionState.town.resources.crop = 10_000
     }
-    if (CHEAT_VICTORY_POINTS) {
+    if (gameSettings.cheatVictoryPoints) {
       const gameStore = useGameStore()
       gameStore.addVictoryPoints('combat', 1_000, '[CHEAT] Points de victoire de débogage')
     }
@@ -911,13 +910,13 @@ export const useMissionStore = () => {
     const distance = Math.max(Math.abs(target.x - currentPos.x), Math.abs(target.y - currentPos.y))
     const destTile = mapStore.getTileAt(target.x, target.y)
     const terrainCost = destTile ? (TERRAIN_MOVE_COST[destTile.type] ?? 1.0) : 1.0
-    const scoutTps = SCOUT_MOVE_SPEED_TPS * (options?.speedMultiplier ?? 1)
+    const scoutTps = gameSettings.scoutMoveSpeedTps * (options?.speedMultiplier ?? 1)
     const effectiveSpeed = scoutTps / terrainCost
     // Au minimum 500ms (case adjacente ou même case)
     const duration =
       distance === 0
         ? 500
-        : Math.max(500, Math.round(((distance / effectiveSpeed) * 1000) / GAME_SPEED_MULTIPLIER))
+        : Math.max(500, Math.round(((distance / effectiveSpeed) * 1000) / gameSettings.gameSpeedMultiplier))
 
     const mission: ScoutMission = {
       id: `scout-${now}-${target.x}-${target.y}`,

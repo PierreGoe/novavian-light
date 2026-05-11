@@ -73,11 +73,8 @@ import type {
   CombatUnit,
   SavedBattleReport,
 } from '../../combat/types'
-import {
-  ENEMY_BASE_INFANTRY,
-  ENEMY_STRONGHOLD_INFANTRY,
-  ENEMY_REGEN_INTERVAL_MS,
-} from '../../config'
+import { ENEMY_REGEN_INTERVAL_MS } from '../../config'
+import { gameSettings } from '../../stores/gameSettingsStore'
 import { useNotifications } from '../../composables/useNotifications'
 
 // Composants
@@ -463,7 +460,7 @@ function applyPostVictorySpecialPowers(artifacts: Artifact[], position: { x: num
 /** Génère une garnison ennemie selon le type de case (appelé une seule fois au 1er combat) */
 function generateEnemyGarrison(tile: MapTile): { units: CombatUnit[] } {
   const isStronghold = tile.type === 'stronghold'
-  const baseCount = isStronghold ? ENEMY_STRONGHOLD_INFANTRY : ENEMY_BASE_INFANTRY
+  const baseCount = isStronghold ? gameSettings.enemyStrongholdInfantry : gameSettings.enemyBaseInfantry
   const variation = Math.floor(Math.random() * 3)
 
   const units: CombatUnit[] = [

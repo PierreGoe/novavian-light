@@ -25,7 +25,7 @@
           <p>{{ gameStore.hasSavedGame.value ? 'Reprenez votre partie' : 'Aucune sauvegarde' }}</p>
         </div>
 
-        <div class="option-card settings comming-soon" @click="showSettings">
+        <div class="option-card settings" @click="showSettings">
           <div class="card-icon">⚙️</div>
           <h3>Paramètres</h3>
           <p>Configuration du jeu</p>
@@ -82,8 +82,7 @@ const loadGame = () => {
 }
 
 const showSettings = () => {
-  // TODO: Implémenter les paramètres
-  console.log('Paramètres (à implémenter)')
+  router.push('/settings')
 }
 </script>
 

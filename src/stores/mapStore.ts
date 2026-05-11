@@ -1,15 +1,13 @@
-import { reactive, computed } from 'vue'
+import { reactive, computed, watch } from 'vue'
 import { createRawGrid } from '@/utils/map/TerrainGrid'
 import { smoothTerrain } from '@/utils/map/CellularAutomata'
 import type { TerrainType as CATerrainType } from '@/utils/map/TerrainTypes'
 import { TERRAIN_CONFIG } from '@/utils/map/TerrainTypes'
 import {
-  GAME_SPEED_MULTIPLIER,
   GARRISON_REGEN_DURATION_MS,
   RECENT_PILLAGE_THRESHOLD_MS,
-  DISABLE_FOG_OF_WAR,
-  RANK_REVEAL_RANGE,
 } from '@/config'
+import { gameSettings } from '@/stores/gameSettingsStore'
 import { computePillage } from '@/combat/loot'
 export type { EnemyLootStock, PillageResult } from '@/combat/loot'
 
@@ -192,10 +190,10 @@ const generateLootStock = (isStronghold: boolean): EnemyLootStock => {
 const generateInitialMap = (): MapTile[] => {
   const mapSize = MAP_CONFIG.size
   const CENTER = Math.floor(mapSize / 2)
-  const revealRange = RANK_REVEAL_RANGE
+  const revealRange = gameSettings.rankRevealRange
 
   console.log(
-    `🗺️ [generateInitialMap] DISABLE_FOG_OF_WAR=${DISABLE_FOG_OF_WAR}, revealRange=${revealRange}`,
+    `🗺️ [generateInitialMap] DISABLE_FOG_OF_WAR=${gameSettings.disableFogOfWar}, revealRange=${revealRange}`,
   )
 
   // Pipeline CA — grille brute puis lissage en 5 itérations
@@ -228,7 +226,7 @@ const generateInitialMap = (): MapTile[] => {
       tiles.push({
         id,
         type,
-        explored: isStartingReveal || DISABLE_FOG_OF_WAR,
+        explored: isStartingReveal || gameSettings.disableFogOfWar,
         current: isCenter,
         position: { x, y },
         bonus:
@@ -258,6 +256,31 @@ const generateInitialMap = (): MapTile[] => {
 const mapState = reactive<ExplorationState>({
   ...initialMapState,
 })
+
+// Réapplique ou retire le brouillard de guerre selon le paramètre
+watch(
+  () => gameSettings.disableFogOfWar,
+  (disabled) => {
+    if (!mapState.mapTiles.length) return
+    const CENTER = Math.floor(MAP_CONFIG.size / 2)
+    const revealRange = gameSettings.rankRevealRange
+    if (disabled) {
+      // Tout révéler
+      mapState.mapTiles.forEach((tile) => { tile.explored = true })
+    } else {
+      // Réappliquer le brouillard — garder uniquement les cases vraiment découvertes
+      const exploredIds = new Set<string>(mapState.discoveredLocations)
+      for (let dx = -revealRange; dx <= revealRange; dx++) {
+        for (let dy = -revealRange; dy <= revealRange; dy++) {
+          exploredIds.add(`${CENTER + dx}-${CENTER + dy}`)
+        }
+      }
+      mapState.mapTiles.forEach((tile) => {
+        tile.explored = exploredIds.has(tile.id) || tile.current
+      })
+    }
+  },
+)
 
 // Store principal
 export const useMapStore = () => {
@@ -371,7 +394,7 @@ export const useMapStore = () => {
     if (!tile) return false
     // Les plaines sont des cases neutres non sélectionnables
     if (tile.type === 'plains') return false
-    if (tile.explored || DISABLE_FOG_OF_WAR) {
+    if (tile.explored || gameSettings.disableFogOfWar) {
       mapState.selectedTileId = tileId
       return true
     }
@@ -557,7 +580,7 @@ export const useMapStore = () => {
         : 1.0
     // Vitesse effective : terrain dur étend le trajet
     const effectiveSpeed = slowestTps / terrainCost
-    return Math.round(((distance / effectiveSpeed) * 1000) / GAME_SPEED_MULTIPLIER)
+    return Math.round(((distance / effectiveSpeed) * 1000) / gameSettings.gameSpeedMultiplier)
   }
 
   /** Envoie un snapshot de troupes vers une tuile cible. Retourne le mouvement créé. */
@@ -723,7 +746,7 @@ export const useMapStore = () => {
   }
 
   const loadMapState = (): boolean => {
-    console.log(`🔍 [loadMapState] DISABLE_FOG_OF_WAR=${DISABLE_FOG_OF_WAR}`)
+    console.log(`🔍 [loadMapState] DISABLE_FOG_OF_WAR=${gameSettings.disableFogOfWar}`)
     try {
       const saved = localStorage.getItem('novavian-map')
       if (saved) {
@@ -742,10 +765,10 @@ export const useMapStore = () => {
 
           // Réappliquer le brouillard de guerre si activé
           // (évite de restaurer une carte entièrement révélée sauvegardée avec fog désactivé)
-          if (!DISABLE_FOG_OF_WAR) {
+          if (!gameSettings.disableFogOfWar) {
             const exploredIds = new Set<string>(mapState.discoveredLocations)
             const CENTER = Math.floor(MAP_CONFIG.size / 2)
-            const revealRange = RANK_REVEAL_RANGE
+            const revealRange = gameSettings.rankRevealRange
             // Toujours révéler la zone de départ selon le rang
             for (let dx = -revealRange; dx <= revealRange; dx++) {
               for (let dy = -revealRange; dy <= revealRange; dy++) {

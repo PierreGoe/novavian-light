@@ -168,6 +168,7 @@ const NAV_LINKS: NavLink[] = [
   { to: '/campaign', icon: '⚔️', label: 'Campagne', requireGame: true },
   { to: '/inventory', icon: '🎒', label: 'Inventaire', requireGame: true },
   { to: '/bazar', icon: '🛒', label: 'Bazar Mystique', requireGame: true },
+  { to: '/settings', icon: '⚙️', label: 'Paramètres' },
 ]
 
 const isInGame = computed(() => gameStore.gameState.currentStatus === 'in-progress')

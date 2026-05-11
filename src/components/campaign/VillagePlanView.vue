@@ -18,54 +18,54 @@
 
     <!-- Carte du village -->
     <div class="village-map">
-      <!-- Chemins visuels entre les bâtiments -->
-      <div class="path path-vertical"></div>
-      <div class="path path-horizontal-top"></div>
-      <div class="path path-horizontal-bottom"></div>
+      <!-- Routes SVG en fond -->
+      <svg class="map-roads" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <!-- Routes rayonnant depuis HQ (50,50) vers chaque bâtiment -->
+        <line x1="50" y1="50" x2="20" y2="20" />
+        <line x1="50" y1="50" x2="80" y2="20" />
+        <line x1="50" y1="50" x2="20" y2="50" />
+        <line x1="50" y1="50" x2="20" y2="80" />
+        <line x1="50" y1="50" x2="80" y2="80" />
+        <!-- Place centrale -->
+        <circle cx="50" cy="50" r="3" class="road-center" />
+      </svg>
 
       <!-- Tuiles des bâtiments -->
       <div
         v-for="def in ALL_BUILDINGS"
         :key="def.type"
-        class="building-slot"
+        class="building-tile"
         :class="[
-          `slot-${def.type}`,
+          `tile-${def.type}`,
           `state-${getBuildingState(def.type)}`,
           { selected: selectedType === def.type },
         ]"
         @click="toggleSelect(def.type)"
       >
-        <!-- Icône principale -->
-        <div class="slot-icon">
-          <span v-if="getBuildingState(def.type) === 'locked'" class="icon-locked">🔒</span>
-          <span v-else>{{ def.icon }}</span>
-        </div>
-
-        <!-- Nom du bâtiment -->
-        <div class="slot-name">{{ def.name }}</div>
-
-        <!-- Niveau (si construit) -->
-        <div v-if="getBuilding(def.type)" class="slot-level">
-          <span
-            v-for="i in Math.min(def.maxLevel, 10)"
-            :key="i"
-            class="level-pip"
-            :class="{ active: i <= getBuilding(def.type)!.level }"
-          ></span>
-          <span class="level-num">{{ getBuilding(def.type)!.level }}</span>
-        </div>
-
-        <!-- Badge d'état -->
-        <div class="slot-badge">
-          <template v-if="getBuildingState(def.type) === 'locked'">
-            QG {{ def.hqLevelRequired }} requis
-          </template>
-          <template v-else-if="getBuildingState(def.type) === 'available'"> Construire </template>
-          <template v-else-if="getBuildingState(def.type) === 'upgradable'">
-            ⬆️ Améliorer
-          </template>
-          <template v-else-if="getBuildingState(def.type) === 'waiting'"> 🪙 Attendre </template>
-          <template v-else-if="getBuildingState(def.type) === 'maxed'"> ✅ Max </template>
+        <div class="tile-inner">
+          <!-- Icône + badge niveau -->
+          <div class="tile-icon-wrap">
+            <span class="tile-icon" :class="{ 'tile-icon--locked': getBuildingState(def.type) === 'locked' }">
+              {{ def.icon }}
+            </span>
+            <span
+              v-if="getBuilding(def.type)"
+              class="level-badge"
+              :class="{ 'level-badge--maxed': getBuildingState(def.type) === 'maxed' }"
+            >
+              {{ getBuilding(def.type)!.level }}
+            </span>
+          </div>
+          <!-- Nom -->
+          <div class="tile-name">{{ def.name }}</div>
+          <!-- Statut -->
+          <div class="tile-status">
+            <template v-if="getBuildingState(def.type) === 'locked'">QG {{ def.hqLevelRequired }}</template>
+            <template v-else-if="getBuildingState(def.type) === 'available'">construire</template>
+            <template v-else-if="getBuildingState(def.type) === 'upgradable'">▲ améliorer</template>
+            <template v-else-if="getBuildingState(def.type) === 'waiting'">⏳ ressources</template>
+            <template v-else-if="getBuildingState(def.type) === 'maxed'">max</template>
+          </div>
         </div>
       </div>
     </div>
@@ -466,227 +466,218 @@ const doUpgrade = () => {
 .village-map {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: auto auto auto;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
   grid-template-areas:
-    '. hq .'
-    'barracks lumbermill farm'
-    '. quarry mine';
-  gap: 0.6rem;
-  padding: 1.25rem 1rem;
+    'lumb  .    farm'
+    'bar   hq   .   '
+    'quar  .    mine';
+  gap: 0.65rem;
+  padding: 1.4rem 1.2rem;
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(74, 222, 128, 0.04) 0%, transparent 70%),
-    linear-gradient(160deg, rgba(22, 40, 18, 0.85) 0%, rgba(10, 25, 10, 0.9) 100%);
-  border: 1px solid rgba(74, 222, 128, 0.15);
+    radial-gradient(ellipse at 55% 45%, rgba(40, 80, 25, 0.5) 0%, transparent 55%),
+    radial-gradient(ellipse at 20% 80%, rgba(60, 40, 15, 0.3) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 15%, rgba(20, 40, 60, 0.2) 0%, transparent 35%),
+    linear-gradient(160deg, rgba(14, 26, 10, 0.97) 0%, rgba(8, 14, 6, 0.99) 100%);
+  border: 1px solid rgba(80, 120, 55, 0.2);
   border-radius: 14px;
   overflow: hidden;
+  min-height: 260px;
 }
 
-/* Chemins visuels entre les bâtiments */
-.path {
+/* SVG des routes */
+.map-roads {
   position: absolute;
-  background: rgba(180, 140, 80, 0.12);
+  inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   z-index: 0;
 }
 
-.path-vertical {
-  width: 2px;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
+.map-roads line {
+  stroke: rgba(155, 115, 55, 0.18);
+  stroke-width: 3;
+  stroke-linecap: round;
 }
 
-.path-horizontal-top {
-  height: 2px;
-  left: 5%;
-  right: 5%;
-  /* Milieu de la ligne 2 (barracks-lumbermill-farm) : approximatif */
-  top: calc(50% - 10px);
+.road-center {
+  fill: rgba(155, 115, 55, 0.15);
 }
 
-.path-horizontal-bottom {
-  height: 2px;
-  left: 30%;
-  right: 5%;
-  top: calc(75% - 5px);
-}
+/* Placement des tuiles dans la grille */
+.tile-lumbermill   { grid-area: lumb; }
+.tile-farm         { grid-area: farm; }
+.tile-barracks     { grid-area: bar;  }
+.tile-headquarters { grid-area: hq;   }
+.tile-quarry       { grid-area: quar; }
+.tile-mine         { grid-area: mine; }
 
-/* ---- Positionnement des tuiles ---- */
-.slot-headquarters {
-  grid-area: hq;
-}
-.slot-barracks {
-  grid-area: barracks;
-}
-.slot-lumbermill {
-  grid-area: lumbermill;
-}
-.slot-farm {
-  grid-area: farm;
-}
-.slot-quarry {
-  grid-area: quarry;
-}
-.slot-mine {
-  grid-area: mine;
-}
+/* Couleur thématique par type */
+.tile-headquarters { --tc: 218, 165, 32;  } /* or */
+.tile-barracks     { --tc: 220, 70,  70;  } /* rouge */
+.tile-lumbermill   { --tc: 74,  197, 100; } /* vert forêt */
+.tile-farm         { --tc: 234, 189, 30;  } /* blé */
+.tile-quarry       { --tc: 148, 163, 184; } /* pierre */
+.tile-mine         { --tc: 96,  165, 220; } /* acier */
 
 /* ---- Tuile de bâtiment ---- */
-.building-slot {
+.building-tile {
   position: relative;
   z-index: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.65rem 0.5rem 0.55rem;
-  border-radius: 10px;
-  border: 2px solid transparent;
+  justify-content: center;
+  border-radius: 11px;
+  border: 1.5px solid rgba(var(--tc), 0.28);
+  background: rgba(var(--tc), 0.07);
   cursor: pointer;
   transition:
-    border-color 0.2s ease,
-    background 0.2s ease,
+    transform 0.15s ease,
     box-shadow 0.2s ease,
-    transform 0.15s ease;
-  background: rgba(10, 20, 10, 0.7);
-  text-align: center;
-  min-height: 110px;
-  justify-content: center;
+    border-color 0.2s ease,
+    background 0.2s ease;
+  min-height: 88px;
 }
 
-.building-slot:hover {
-  transform: translateY(-2px);
+.tile-headquarters {
+  min-height: 108px;
+  border-width: 2px;
 }
 
-.building-slot.selected {
-  outline: 2px solid #f4e4bc;
+.building-tile:hover {
+  transform: translateY(-2px) scale(1.03);
+}
+
+.building-tile.selected {
+  outline: 2px solid rgba(var(--tc), 0.85);
   outline-offset: 2px;
 }
 
-/* --- États visuels --- */
-/* Améliorable : vert lumineux */
+/* États (override couleur type) */
 .state-upgradable {
-  border-color: rgba(34, 197, 94, 0.6);
-  background: rgba(20, 50, 20, 0.75);
-  box-shadow: 0 0 12px rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.65);
+  background: rgba(18, 48, 18, 0.75);
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.18), inset 0 0 10px rgba(34, 197, 94, 0.04);
 }
 .state-upgradable:hover {
-  box-shadow: 0 0 18px rgba(34, 197, 94, 0.3);
+  box-shadow: 0 0 22px rgba(34, 197, 94, 0.32);
 }
 
-/* Disponible : bleu */
 .state-available {
-  border-color: rgba(96, 165, 250, 0.5);
+  border-color: rgba(96, 165, 250, 0.45);
   border-style: dashed;
-  background: rgba(15, 30, 55, 0.6);
+  background: rgba(12, 25, 50, 0.55);
 }
 .state-available:hover {
-  background: rgba(20, 40, 70, 0.75);
+  background: rgba(18, 36, 70, 0.68);
 }
 
-/* En attente de ressources : doré */
 .state-waiting {
-  border-color: rgba(245, 158, 11, 0.45);
-  background: rgba(40, 30, 10, 0.7);
+  border-color: rgba(245, 158, 11, 0.42);
+  background: rgba(38, 26, 8, 0.68);
 }
 
-/* Verrouillé : gris */
 .state-locked {
-  border-color: rgba(107, 114, 128, 0.25);
-  background: rgba(15, 15, 15, 0.65);
-  opacity: 0.65;
+  border-color: rgba(60, 60, 60, 0.25);
+  background: rgba(10, 10, 10, 0.6);
+  opacity: 0.45;
   cursor: default;
 }
 .state-locked:hover {
   transform: none;
 }
 
-/* Niveau max : violet doux */
 .state-maxed {
-  border-color: rgba(139, 92, 246, 0.4);
-  background: rgba(25, 15, 45, 0.7);
+  border-color: rgba(139, 92, 246, 0.42);
+  background: rgba(18, 10, 36, 0.68);
 }
 
 /* ---- Contenu de la tuile ---- */
-.slot-icon {
-  font-size: 1.9rem;
+.tile-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.55rem 0.4rem 0.45rem;
+  width: 100%;
+}
+
+.tile-icon-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.tile-icon {
+  font-size: 2rem;
+  line-height: 1;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.6));
+  transition: filter 0.2s;
+}
+
+.tile-icon--locked {
+  filter: grayscale(1) opacity(0.45);
+}
+
+.tile-headquarters .tile-icon {
+  font-size: 2.4rem;
+}
+
+/* Badge niveau (coin haut-droite) */
+.level-badge {
+  position: absolute;
+  top: -5px;
+  right: -9px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 3px;
+  background: #b8860b;
+  color: #fff8e0;
+  font-size: 0.6rem;
+  font-weight: 800;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   line-height: 1;
 }
 
-.icon-locked {
-  font-size: 1.4rem;
-  opacity: 0.5;
+.level-badge--maxed {
+  background: rgba(139, 92, 246, 0.9);
+  color: #f0ebff;
 }
 
-.slot-name {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #f4e4bc;
+.tile-name {
+  font-size: 0.63rem;
+  font-weight: 700;
+  color: rgba(var(--tc), 0.85);
+  text-align: center;
   line-height: 1.2;
+  max-width: 82px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Jauge de niveau (pips) */
-.slot-level {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-wrap: wrap;
-  justify-content: center;
-  max-width: 90px;
+.state-locked .tile-name {
+  color: #374151;
 }
 
-.level-pip {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(218, 165, 32, 0.2);
-  border: 1px solid rgba(218, 165, 32, 0.3);
-  flex-shrink: 0;
+/* Libellé de statut */
+.tile-status {
+  font-size: 0.56rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #374151;
+  line-height: 1;
 }
 
-.level-pip.active {
-  background: #daa520;
-  border-color: #daa520;
-}
-
-.level-num {
-  font-size: 0.65rem;
-  color: #daa520;
-  margin-left: 3px;
-}
-
-/* Badge d'état sous la tuile */
-.slot-badge {
-  font-size: 0.62rem;
-  padding: 0.1rem 0.35rem;
-  border-radius: 6px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.state-upgradable .slot-badge {
-  background: rgba(34, 197, 94, 0.15);
-  color: #4ade80;
-}
-.state-available .slot-badge {
-  background: rgba(96, 165, 250, 0.15);
-  color: #93c5fd;
-}
-.state-waiting .slot-badge {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
-}
-.state-locked .slot-badge {
-  background: rgba(107, 114, 128, 0.15);
-  color: #6b7280;
-  font-weight: normal;
-}
-.state-maxed .slot-badge {
-  background: rgba(139, 92, 246, 0.12);
-  color: #c4b5fd;
-}
+.state-upgradable .tile-status { color: #4ade80; }
+.state-available  .tile-status { color: #60a5fa; }
+.state-waiting    .tile-status { color: #f59e0b; }
+.state-locked     .tile-status { color: #374151; }
+.state-maxed      .tile-status { color: #a78bfa; }
 
 /* ====== Panneau de détails ====== */
 .detail-panel {

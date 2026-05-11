@@ -38,7 +38,7 @@
           <!-- Icône du terrain visible uniquement si exploré (pas affiché pour les plaines) -->
           <div
             class="tile-icon"
-            v-if="(DISABLE_FOG_OF_WAR || tile.explored) && tile.type !== 'plains'"
+            v-if="(gameSettings.disableFogOfWar || tile.explored) && tile.type !== 'plains'"
           >
             {{ getTileIcon(tile.type) }}
           </div>
@@ -46,7 +46,7 @@
           <!-- Case inconnue (pas explorée, pas en cours d'exploration) -->
           <div
             class="tile-overlay"
-            v-if="!DISABLE_FOG_OF_WAR && !tile.explored && !isBeingExplored(tile)"
+            v-if="!gameSettings.disableFogOfWar && !tile.explored && !isBeingExplored(tile)"
           >
             ?
           </div>
@@ -90,7 +90,7 @@ import { ref, computed } from 'vue'
 import { useMapStore, type MapTile, MAP_CONFIG } from '../../stores/mapStore'
 import { useMapViewport } from '../../composables/useMapViewport'
 import { useScoutDisplay } from '../../composables/useScoutDisplay'
-import { DISABLE_FOG_OF_WAR } from '../../config'
+import { gameSettings } from '../../stores/gameSettingsStore'
 
 // Props
 interface Props {
@@ -162,7 +162,7 @@ const getTileStyle = (tile: MapTile) => ({
 })
 
 const getTileClasses = (tile: MapTile) => {
-  const explored = DISABLE_FOG_OF_WAR || tile.explored
+  const explored = gameSettings.disableFogOfWar || tile.explored
   return [
     `terrain-${tile.type}`,
     {
