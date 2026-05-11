@@ -44,11 +44,7 @@
         <!-- Détails production par bâtiment -->
         <div class="prod-buildings">
           <div class="prod-title">Bâtiments producteurs</div>
-          <div
-            v-for="b in productionBuildings"
-            :key="b.id"
-            class="prod-row"
-          >
+          <div v-for="b in productionBuildings" :key="b.id" class="prod-row">
             <span class="prod-icon">{{ b.icon }}</span>
             <span class="prod-name">{{ b.name }}</span>
             <span class="prod-level">niv. {{ b.level }}</span>

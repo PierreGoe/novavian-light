@@ -3,10 +3,7 @@ import { createRawGrid } from '@/utils/map/TerrainGrid'
 import { smoothTerrain } from '@/utils/map/CellularAutomata'
 import type { TerrainType as CATerrainType } from '@/utils/map/TerrainTypes'
 import { TERRAIN_CONFIG } from '@/utils/map/TerrainTypes'
-import {
-  GARRISON_REGEN_DURATION_MS,
-  RECENT_PILLAGE_THRESHOLD_MS,
-} from '@/config'
+import { GARRISON_REGEN_DURATION_MS, RECENT_PILLAGE_THRESHOLD_MS } from '@/config'
 import { gameSettings } from '@/stores/gameSettingsStore'
 import { computePillage } from '@/combat/loot'
 export type { EnemyLootStock, PillageResult } from '@/combat/loot'
@@ -266,7 +263,9 @@ watch(
     const revealRange = gameSettings.rankRevealRange
     if (disabled) {
       // Tout révéler
-      mapState.mapTiles.forEach((tile) => { tile.explored = true })
+      mapState.mapTiles.forEach((tile) => {
+        tile.explored = true
+      })
     } else {
       // Réappliquer le brouillard — garder uniquement les cases vraiment découvertes
       const exploredIds = new Set<string>(mapState.discoveredLocations)

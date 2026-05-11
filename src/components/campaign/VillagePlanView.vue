@@ -45,7 +45,10 @@
         <div class="tile-inner">
           <!-- Icône + badge niveau -->
           <div class="tile-icon-wrap">
-            <span class="tile-icon" :class="{ 'tile-icon--locked': getBuildingState(def.type) === 'locked' }">
+            <span
+              class="tile-icon"
+              :class="{ 'tile-icon--locked': getBuildingState(def.type) === 'locked' }"
+            >
               {{ def.icon }}
             </span>
             <span
@@ -60,7 +63,9 @@
           <div class="tile-name">{{ def.name }}</div>
           <!-- Statut -->
           <div class="tile-status">
-            <template v-if="getBuildingState(def.type) === 'locked'">QG {{ def.hqLevelRequired }}</template>
+            <template v-if="getBuildingState(def.type) === 'locked'"
+              >QG {{ def.hqLevelRequired }}</template
+            >
             <template v-else-if="getBuildingState(def.type) === 'available'">construire</template>
             <template v-else-if="getBuildingState(def.type) === 'upgradable'">▲ améliorer</template>
             <template v-else-if="getBuildingState(def.type) === 'waiting'">⏳ ressources</template>
@@ -506,20 +511,44 @@ const doUpgrade = () => {
 }
 
 /* Placement des tuiles dans la grille */
-.tile-lumbermill   { grid-area: lumb; }
-.tile-farm         { grid-area: farm; }
-.tile-barracks     { grid-area: bar;  }
-.tile-headquarters { grid-area: hq;   }
-.tile-quarry       { grid-area: quar; }
-.tile-mine         { grid-area: mine; }
+.tile-lumbermill {
+  grid-area: lumb;
+}
+.tile-farm {
+  grid-area: farm;
+}
+.tile-barracks {
+  grid-area: bar;
+}
+.tile-headquarters {
+  grid-area: hq;
+}
+.tile-quarry {
+  grid-area: quar;
+}
+.tile-mine {
+  grid-area: mine;
+}
 
 /* Couleur thématique par type */
-.tile-headquarters { --tc: 218, 165, 32;  } /* or */
-.tile-barracks     { --tc: 220, 70,  70;  } /* rouge */
-.tile-lumbermill   { --tc: 74,  197, 100; } /* vert forêt */
-.tile-farm         { --tc: 234, 189, 30;  } /* blé */
-.tile-quarry       { --tc: 148, 163, 184; } /* pierre */
-.tile-mine         { --tc: 96,  165, 220; } /* acier */
+.tile-headquarters {
+  --tc: 218, 165, 32;
+} /* or */
+.tile-barracks {
+  --tc: 220, 70, 70;
+} /* rouge */
+.tile-lumbermill {
+  --tc: 74, 197, 100;
+} /* vert forêt */
+.tile-farm {
+  --tc: 234, 189, 30;
+} /* blé */
+.tile-quarry {
+  --tc: 148, 163, 184;
+} /* pierre */
+.tile-mine {
+  --tc: 96, 165, 220;
+} /* acier */
 
 /* ---- Tuile de bâtiment ---- */
 .building-tile {
@@ -558,7 +587,9 @@ const doUpgrade = () => {
 .state-upgradable {
   border-color: rgba(34, 197, 94, 0.65);
   background: rgba(18, 48, 18, 0.75);
-  box-shadow: 0 0 14px rgba(34, 197, 94, 0.18), inset 0 0 10px rgba(34, 197, 94, 0.04);
+  box-shadow:
+    0 0 14px rgba(34, 197, 94, 0.18),
+    inset 0 0 10px rgba(34, 197, 94, 0.04);
 }
 .state-upgradable:hover {
   box-shadow: 0 0 22px rgba(34, 197, 94, 0.32);
@@ -673,11 +704,21 @@ const doUpgrade = () => {
   line-height: 1;
 }
 
-.state-upgradable .tile-status { color: #4ade80; }
-.state-available  .tile-status { color: #60a5fa; }
-.state-waiting    .tile-status { color: #f59e0b; }
-.state-locked     .tile-status { color: #374151; }
-.state-maxed      .tile-status { color: #a78bfa; }
+.state-upgradable .tile-status {
+  color: #4ade80;
+}
+.state-available .tile-status {
+  color: #60a5fa;
+}
+.state-waiting .tile-status {
+  color: #f59e0b;
+}
+.state-locked .tile-status {
+  color: #374151;
+}
+.state-maxed .tile-status {
+  color: #a78bfa;
+}
 
 /* ====== Panneau de détails ====== */
 .detail-panel {

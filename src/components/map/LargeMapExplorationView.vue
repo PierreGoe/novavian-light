@@ -460,7 +460,9 @@ function applyPostVictorySpecialPowers(artifacts: Artifact[], position: { x: num
 /** Génère une garnison ennemie selon le type de case (appelé une seule fois au 1er combat) */
 function generateEnemyGarrison(tile: MapTile): { units: CombatUnit[] } {
   const isStronghold = tile.type === 'stronghold'
-  const baseCount = isStronghold ? gameSettings.enemyStrongholdInfantry : gameSettings.enemyBaseInfantry
+  const baseCount = isStronghold
+    ? gameSettings.enemyStrongholdInfantry
+    : gameSettings.enemyBaseInfantry
   const variation = Math.floor(Math.random() * 3)
 
   const units: CombatUnit[] = [

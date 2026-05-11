@@ -916,7 +916,10 @@ export const useMissionStore = () => {
     const duration =
       distance === 0
         ? 500
-        : Math.max(500, Math.round(((distance / effectiveSpeed) * 1000) / gameSettings.gameSpeedMultiplier))
+        : Math.max(
+            500,
+            Math.round(((distance / effectiveSpeed) * 1000) / gameSettings.gameSpeedMultiplier),
+          )
 
     const mission: ScoutMission = {
       id: `scout-${now}-${target.x}-${target.y}`,

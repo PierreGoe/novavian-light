@@ -6,7 +6,6 @@
     </header>
 
     <div class="settings-body">
-
       <!-- ── Vitesse & moteur ─────────────────────────────── -->
       <section class="settings-section">
         <h2 class="section-title">🎮 Vitesse & Moteur</h2>
@@ -14,7 +13,9 @@
         <div class="setting-row">
           <div class="setting-info">
             <span class="setting-label">Vitesse du jeu</span>
-            <span class="setting-desc">Multiplicateur global de vitesse (déplacements, scouts)</span>
+            <span class="setting-desc"
+              >Multiplicateur global de vitesse (déplacements, scouts)</span
+            >
           </div>
           <div class="setting-control">
             <div class="range-wrap">
@@ -28,9 +29,7 @@
               />
               <span class="range-value">×{{ settings.gameSpeedMultiplier }}</span>
             </div>
-            <div class="range-labels">
-              <span>Normale</span><span>Rapide</span>
-            </div>
+            <div class="range-labels"><span>Normale</span><span>Rapide</span></div>
           </div>
         </div>
 
@@ -194,7 +193,6 @@
         <button class="btn-reset" @click="confirmReset">↺ Réinitialiser les paramètres</button>
         <span class="saved-hint">✓ Paramètres sauvegardés automatiquement</span>
       </div>
-
     </div>
   </div>
 </template>
@@ -206,16 +204,18 @@ import { gameSettings, resetGameSettings } from '@/stores/gameSettingsStore'
 const settings = gameSettings
 
 const INITIAL_RESOURCES = [
-  { key: 'wood' as const, icon: '🪵', label: 'Bois',    min: 0, max: 2000, step: 50 },
-  { key: 'clay' as const, icon: '🧱', label: 'Argile',  min: 0, max: 2000, step: 50 },
-  { key: 'iron' as const, icon: '⚒️', label: 'Fer',     min: 0, max: 2000, step: 50 },
+  { key: 'wood' as const, icon: '🪵', label: 'Bois', min: 0, max: 2000, step: 50 },
+  { key: 'clay' as const, icon: '🧱', label: 'Argile', min: 0, max: 2000, step: 50 },
+  { key: 'iron' as const, icon: '⚒️', label: 'Fer', min: 0, max: 2000, step: 50 },
   { key: 'crop' as const, icon: '🌾', label: 'Céréales', min: 0, max: 2000, step: 50 },
 ]
 
 // Inverse de disableFogOfWar pour un toggle plus intuitif ("Brouillard actif")
 const fogEnabled = computed({
   get: () => !settings.disableFogOfWar,
-  set: (v: boolean) => { settings.disableFogOfWar = !v },
+  set: (v: boolean) => {
+    settings.disableFogOfWar = !v
+  },
 })
 
 const confirmReset = () => {
@@ -293,8 +293,8 @@ const confirmReset = () => {
   padding: 0.4rem 1rem;
   font-size: 0.72rem;
   color: #4b5563;
-  background: rgba(255,255,255,0.02);
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .debug-warning {
