@@ -1,7 +1,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMapStore, MAP_CONFIG } from '../stores/mapStore'
 
-const zoomSteps = [5, 7, 9, 11]
+const zoomSteps = [11, 13, 15, 17, 20]
 
 export function useMapViewport() {
   const mapStore = useMapStore()

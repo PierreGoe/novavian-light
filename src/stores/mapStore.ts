@@ -141,8 +141,8 @@ export const MAP_CONFIG = {
   size: 100, // Taille de la carte (100x100)
   chunkSize: 20, // Taille d'un chunk pour le chargement par sections
   defaultViewportSize: 15, // Nombre de tuiles visibles par défaut dans le viewport
-  minViewportSize: 5, // Zoom max (5x5 tuiles)
-  maxViewportSize: 25, // Dézoom max (25x25 tuiles)
+  minViewportSize: 11, // Zoom max (11x11 tuiles minimum acceptable)
+  maxViewportSize: 20, // Dézoom max (20x20 tuiles)
   tileSize: 40, // Taille d'une tuile en pixels (constante)
 }
 
