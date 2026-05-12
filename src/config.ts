@@ -37,13 +37,6 @@ export const ENEMY_STRONGHOLD_INFANTRY = parseNumber(
 )
 
 // ------------------------------------
-// Éclaireurs
-// ------------------------------------
-
-/** Vitesse de déplacement des éclaireurs en cases/seconde */
-export const SCOUT_MOVE_SPEED_TPS = parseNumber(import.meta.env.VITE_SCOUT_MOVE_SPEED_TPS, 3)
-
-// ------------------------------------
 // Déplacement & temps de voyage
 // ------------------------------------
 

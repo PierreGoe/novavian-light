@@ -165,16 +165,6 @@
         <span class="action-label">Commerce</span>
         <span class="action-sub">Négocier des ressources</span>
       </button>
-
-      <button
-        v-if="canExploreTile(tile)"
-        class="action-btn explore-btn"
-        @click="$emit('exploreTile', tile.id)"
-      >
-        <span class="action-icon">🏛️</span>
-        <span class="action-label">Explorer</span>
-        <span class="action-sub">Fouiller les ruines</span>
-      </button>
     </div>
   </div>
 </template>
@@ -210,8 +200,6 @@ const showAttackPanel = ref(false)
 const emit = defineEmits<{
   attackTile: [tileId: string, units: MovementUnit[]]
   tradeTile: [tileId: string]
-  exploreTile: [tileId: string]
-  scoutTile: [tileId: string]
 }>()
 
 /** Unités disponibles dans la garnison du joueur, compatibles avec AttackPanel */
@@ -382,10 +370,6 @@ const canAttackTile = (tile: MapTile) => {
 
 const canTradeTile = (tile: MapTile) => {
   return tile.type === 'village_enemy' && tile.explored
-}
-
-const canExploreTile = (tile: MapTile) => {
-  return tile.type === 'ruins' && tile.explored
 }
 
 // Methods
@@ -815,9 +799,6 @@ const getResourceIcon = (resource: string) => {
 }
 .explore-btn {
   background: linear-gradient(135deg, #6a1b9a, #7b1fa2);
-}
-.scout-btn {
-  background: linear-gradient(135deg, #1565c0, #1976d2);
 }
 
 @media (max-width: 600px) {

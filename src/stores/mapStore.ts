@@ -63,19 +63,6 @@ export const UNIT_MOVE_SPEED: Record<string, number> = {
   siege: 0.3, // Engins de siège — extrêmement lent
 }
 
-export interface ScoutInfo {
-  enemies?: Array<{ type: string; strength: number }>
-  resources?: {
-    gold?: number
-    wood?: number
-    clay?: number
-    iron?: number
-    crop?: number
-  }
-  treasures?: string[]
-  message?: string
-}
-
 /** Unité de garnison persistée sur une tuile ennemie */
 export interface GarrisonUnit {
   type: string
@@ -126,41 +113,40 @@ export interface ExplorationState {
   currentPosition: { x: number; y: number }
   mapTiles: MapTile[]
   selectedTileId: string | null
-  explorationPoints: number
-  maxExplorationPoints: number
-  lastExplorationTime: number
   discoveredLocations: string[]
-  viewportOffset: { x: number; y: number } // Position du viewport pour le scroll
-  zoomLevel: number // Niveau de zoom (nombre de tuiles visibles: 5, 6, 7... 15, 20, etc.)
-  /** Mouvements de troupes en cours vers des tuiles ennemies */
+  viewportOffset: { x: number; y: number }
+  zoomLevel: number
   activeMovements: TroopMovement[]
+  unlockedChunks: string[]
 }
 
 // Configuration de la carte
 export const MAP_CONFIG = {
-  size: 100, // Taille de la carte (100x100)
-  chunkSize: 20, // Taille d'un chunk pour le chargement par sections
+  size: 50, // Taille de la carte (50x50)
+  chunkSize: 10, // Taille d'un cadran (grille 5x5 de cadrans 10x10)
   defaultViewportSize: 15, // Nombre de tuiles visibles par défaut dans le viewport
   minViewportSize: 11, // Zoom max (11x11 tuiles minimum acceptable)
   maxViewportSize: 20, // Dézoom max (20x20 tuiles)
   tileSize: 40, // Taille d'une tuile en pixels (constante)
 }
 
+// Cadran de départ (chunk contenant le centre de la carte)
+const STARTING_CHUNK_ID = `${Math.floor(Math.floor(MAP_CONFIG.size / 2) / MAP_CONFIG.chunkSize)}-${Math.floor(Math.floor(MAP_CONFIG.size / 2) / MAP_CONFIG.chunkSize)}`
+
 // État initial de la carte
 const initialMapState: ExplorationState = {
-  currentPosition: { x: 50, y: 50 }, // Position de départ au centre (50, 50 pour 100x100)
+  currentPosition: { x: Math.floor(MAP_CONFIG.size / 2), y: Math.floor(MAP_CONFIG.size / 2) },
   mapTiles: [],
   selectedTileId: null,
-  explorationPoints: 3,
-  maxExplorationPoints: 3,
-  lastExplorationTime: Date.now(),
+
   discoveredLocations: [],
   viewportOffset: {
-    x: 50 - Math.floor(MAP_CONFIG.defaultViewportSize / 2),
-    y: 50 - Math.floor(MAP_CONFIG.defaultViewportSize / 2),
+    x: Math.floor(MAP_CONFIG.size / 2) - Math.floor(MAP_CONFIG.defaultViewportSize / 2),
+    y: Math.floor(MAP_CONFIG.size / 2) - Math.floor(MAP_CONFIG.defaultViewportSize / 2),
   },
-  zoomLevel: MAP_CONFIG.defaultViewportSize, // Le zoom est maintenant le nombre de tuiles visibles
+  zoomLevel: MAP_CONFIG.defaultViewportSize,
   activeMovements: [],
+  unlockedChunks: [STARTING_CHUNK_ID], // Seul le cadran de départ est débloqué initialement
 }
 
 // Correspondance biome CA → terrain mapStore
@@ -210,6 +196,11 @@ const generateInitialMap = (): MapTile[] => {
 
       let type: TerrainType = CA_TO_MAP_TERRAIN[caTerrain]
 
+      // Une tuile appartenant à un cadran verrouillé reste dans le brouillard dès le début
+      const chunkX = Math.floor(x / MAP_CONFIG.chunkSize)
+      const chunkY = Math.floor(y / MAP_CONFIG.chunkSize)
+      const isStartingChunk = `${chunkX}-${chunkY}` === STARTING_CHUNK_ID
+
       if (isCenter) {
         type = 'village_player'
       } else if (passable && type === 'plains') {
@@ -220,10 +211,13 @@ const generateInitialMap = (): MapTile[] => {
         // ~91% reste 'plains'
       }
 
+      // explored : tuile visible uniquement si son cadran est débloqué (et dans la zone de révélation)
+      const explored = gameSettings.disableFogOfWar || (isStartingChunk && isStartingReveal)
+
       tiles.push({
         id,
         type,
-        explored: isStartingReveal || gameSettings.disableFogOfWar,
+        explored,
         current: isCenter,
         position: { x, y },
         bonus:
@@ -274,6 +268,24 @@ watch(
           exploredIds.add(`${CENTER + dx}-${CENTER + dy}`)
         }
       }
+      // Inclure toutes les tuiles des cadrans débloqués
+      mapState.unlockedChunks.forEach((chunkId) => {
+        const [cxStr, cyStr] = chunkId.split('-')
+        const cx = parseInt(cxStr)
+        const cy = parseInt(cyStr)
+        const startX = cx * MAP_CONFIG.chunkSize
+        const startY = cy * MAP_CONFIG.chunkSize
+        mapState.mapTiles.forEach((tile) => {
+          if (
+            tile.position.x >= startX &&
+            tile.position.x < startX + MAP_CONFIG.chunkSize &&
+            tile.position.y >= startY &&
+            tile.position.y < startY + MAP_CONFIG.chunkSize
+          ) {
+            exploredIds.add(tile.id)
+          }
+        })
+      })
       mapState.mapTiles.forEach((tile) => {
         tile.explored = exploredIds.has(tile.id) || tile.current
       })
@@ -290,8 +302,6 @@ export const useMapStore = () => {
     if (!mapState.selectedTileId) return null
     return mapState.mapTiles.find((tile) => tile.id === mapState.selectedTileId) || null
   })
-  const explorationPoints = computed(() => mapState.explorationPoints)
-  const canExplore = computed(() => mapState.explorationPoints > 0)
 
   // Utilitaires pour les tuiles
   const getTileById = (id: string): MapTile | null => {
@@ -370,10 +380,14 @@ export const useMapStore = () => {
 
     mapState.zoomLevel = newViewportSize
 
-    // Recentrer
+    // Recentrer (arrondir pour éviter les offsets fractionnaires qui cassent CSS Grid)
     mapState.viewportOffset = {
-      x: Math.max(0, Math.min(MAP_CONFIG.size - newViewportSize, centerX - newViewportSize / 2)),
-      y: Math.max(0, Math.min(MAP_CONFIG.size - newViewportSize, centerY - newViewportSize / 2)),
+      x: Math.round(
+        Math.max(0, Math.min(MAP_CONFIG.size - newViewportSize, centerX - newViewportSize / 2)),
+      ),
+      y: Math.round(
+        Math.max(0, Math.min(MAP_CONFIG.size - newViewportSize, centerY - newViewportSize / 2)),
+      ),
     }
 
     saveMapState()
@@ -404,94 +418,8 @@ export const useMapStore = () => {
     mapState.selectedTileId = null
   }
 
-  // Actions d'exploration
-  const explore = (): { success: boolean; message: string } => {
-    if (mapState.explorationPoints <= 0) {
-      return { success: false, message: "Pas assez de points d'exploration" }
-    }
-
-    // Trouver les tuiles adjacentes non explorées
-    const { x, y } = mapState.currentPosition
-    const adjacentTiles = getAdjacentTiles(x, y)
-    const unexplored = adjacentTiles.filter((tile) => !tile.explored)
-
-    if (unexplored.length === 0) {
-      return { success: false, message: 'Aucune nouvelle zone à explorer à proximité' }
-    }
-
-    // Explorer une tuile aléatoire
-    const randomTile = unexplored[Math.floor(Math.random() * unexplored.length)]
-    randomTile.explored = true
-
-    // Consommer un point d'exploration
-    mapState.explorationPoints--
-    mapState.lastExplorationTime = Date.now()
-
-    // Ajouter à la liste des découvertes
-    mapState.discoveredLocations.push(randomTile.id)
-
-    saveMapState()
-
-    return {
-      success: true,
-      message: `Nouvelle zone découverte : ${getTileName(randomTile.type)}`,
-    }
-  }
-
-  const scout = (tileId: string): { success: boolean; message: string; info?: ScoutInfo } => {
-    const tile = getTileById(tileId)
-    if (!tile) {
-      return { success: false, message: 'Zone introuvable' }
-    }
-
-    if (!tile.explored) {
-      return { success: false, message: "Cette zone n'a pas encore été explorée" }
-    }
-
-    // Informations détaillées selon le type de terrain
-    let info: ScoutInfo = {}
-
-    switch (tile.type) {
-      case 'village_enemy':
-        info = {
-          enemies: [
-            { type: 'Garde', strength: Math.floor(Math.random() * 50) + 25 },
-            { type: 'Archer', strength: Math.floor(Math.random() * 30) + 15 },
-          ],
-          resources: {
-            gold: Math.floor(Math.random() * 100) + 50,
-            wood: Math.floor(Math.random() * 200) + 100,
-          },
-        }
-        break
-      case 'ruins':
-        info = {
-          treasures: ['Artefact ancien', 'Livre de sorts'],
-          resources: {
-            iron: Math.floor(Math.random() * 150) + 75,
-          },
-        }
-        break
-      case 'stronghold':
-        info = {
-          enemies: [{ type: 'Commandant', strength: Math.floor(Math.random() * 100) + 75 }],
-          resources: {
-            gold: Math.floor(Math.random() * 300) + 200,
-          },
-        }
-        break
-      default:
-        info = { message: 'Zone paisible, aucune menace détectée' }
-    }
-
-    return {
-      success: true,
-      message: `Reconnaissance de ${getTileName(tile.type)} terminée`,
-      info,
-    }
-  }
-
-  // Utilitaires d'affichage
+  // ------------------------------------
+  // Déplacement de troupes
   const getTileName = (type: TerrainType): string => {
     const names = {
       plains: 'Plaines',
@@ -532,23 +460,6 @@ export const useMapStore = () => {
       stronghold: 'Une puissante forteresse ennemie.',
     }
     return descriptions[type] || 'Terrain mystérieux.'
-  }
-
-  // Régénération des points d'exploration
-  const regenerateExplorationPoints = () => {
-    const now = Date.now()
-    const timeSinceLastExploration = now - mapState.lastExplorationTime
-    const hoursElapsed = timeSinceLastExploration / (1000 * 60 * 60) // en heures
-
-    if (hoursElapsed >= 1 && mapState.explorationPoints < mapState.maxExplorationPoints) {
-      const pointsToAdd = Math.min(
-        Math.floor(hoursElapsed),
-        mapState.maxExplorationPoints - mapState.explorationPoints,
-      )
-      mapState.explorationPoints += pointsToAdd
-      mapState.lastExplorationTime = now
-      saveMapState()
-    }
   }
 
   // ------------------------------------
@@ -723,6 +634,91 @@ export const useMapStore = () => {
     if (changed) saveMapState()
   }
 
+  // ------------------------------------
+  // Système de cadrans (chunks 20x20)
+  // ------------------------------------
+
+  /** Retourne l'identifiant du cadran contenant la tuile (x, y) */
+  const getChunkIdForTile = (x: number, y: number): string =>
+    `${Math.floor(x / MAP_CONFIG.chunkSize)}-${Math.floor(y / MAP_CONFIG.chunkSize)}`
+
+  /** Indique si un cadran est débloqué (ou si le brouillard est désactivé) */
+  const isChunkUnlocked = (chunkId: string): boolean =>
+    gameSettings.disableFogOfWar || mapState.unlockedChunks.includes(chunkId)
+
+  /**
+   * Débloque un cadran : révèle toutes ses tuiles et les enregistre dans discoveredLocations.
+   * Sans effet si le cadran est déjà débloqué.
+   */
+  const unlockChunk = (chunkId: string): boolean => {
+    if (mapState.unlockedChunks.includes(chunkId)) return false
+
+    const [cxStr, cyStr] = chunkId.split('-')
+    const cx = parseInt(cxStr)
+    const cy = parseInt(cyStr)
+
+    // Valider que le cadran est dans les limites de la grille (5x5)
+    const maxChunk = MAP_CONFIG.size / MAP_CONFIG.chunkSize - 1
+    if (cx < 0 || cx > maxChunk || cy < 0 || cy > maxChunk) return false
+
+    mapState.unlockedChunks.push(chunkId)
+
+    const startX = cx * MAP_CONFIG.chunkSize
+    const startY = cy * MAP_CONFIG.chunkSize
+    const endX = startX + MAP_CONFIG.chunkSize
+    const endY = startY + MAP_CONFIG.chunkSize
+
+    // Révéler toutes les tuiles du cadran
+    const exploredSet = new Set(mapState.discoveredLocations)
+    mapState.mapTiles.forEach((tile) => {
+      if (
+        tile.position.x >= startX &&
+        tile.position.x < endX &&
+        tile.position.y >= startY &&
+        tile.position.y < endY
+      ) {
+        tile.explored = true
+        exploredSet.add(tile.id)
+      }
+    })
+    mapState.discoveredLocations = Array.from(exploredSet)
+
+    saveMapState()
+    return true
+  }
+
+  /**
+   * Débloque tous les cadrans orthogonalement adjacents au cadran contenant la tuile donnée.
+   * Appelé après une victoire sur une forteresse.
+   */
+  const unlockAdjacentChunks = (tileId: string): string[] => {
+    const tile = getTileById(tileId)
+    if (!tile) return []
+
+    const cx = Math.floor(tile.position.x / MAP_CONFIG.chunkSize)
+    const cy = Math.floor(tile.position.y / MAP_CONFIG.chunkSize)
+    const maxChunk = MAP_CONFIG.size / MAP_CONFIG.chunkSize - 1
+
+    const newlyUnlocked: string[] = []
+    const directions = [
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: -1 },
+      { dx: 0, dy: 1 },
+    ]
+
+    directions.forEach(({ dx, dy }) => {
+      const ncx = cx + dx
+      const ncy = cy + dy
+      if (ncx >= 0 && ncx <= maxChunk && ncy >= 0 && ncy <= maxChunk) {
+        const chunkId = `${ncx}-${ncy}`
+        if (unlockChunk(chunkId)) newlyUnlocked.push(chunkId)
+      }
+    })
+
+    return newlyUnlocked
+  }
+
   // Sauvegarde et chargement
   const saveMapState = () => {
     // PROTECTION: Ne jamais sauvegarder une carte vide
@@ -735,10 +731,9 @@ export const useMapStore = () => {
       currentPosition: mapState.currentPosition,
       mapTiles: mapState.mapTiles,
       selectedTileId: mapState.selectedTileId,
-      explorationPoints: mapState.explorationPoints,
-      lastExplorationTime: mapState.lastExplorationTime,
       discoveredLocations: mapState.discoveredLocations,
       activeMovements: mapState.activeMovements,
+      unlockedChunks: mapState.unlockedChunks,
     }
 
     localStorage.setItem('novavian-map', JSON.stringify(data))
@@ -751,8 +746,9 @@ export const useMapStore = () => {
       if (saved) {
         const data = JSON.parse(saved)
 
-        // Si les données sauvegardées ont des tuiles, les charger
-        if (data.mapTiles && data.mapTiles.length > 0) {
+        // Si les données sauvegardées ont le bon nombre de tuiles, les charger
+        const expectedTileCount = MAP_CONFIG.size * MAP_CONFIG.size
+        if (data.mapTiles && data.mapTiles.length === expectedTileCount) {
           const exploredBefore = data.mapTiles.filter((t: MapTile) => t.explored).length
           console.log(
             `📂 [loadMapState] Tuiles en localStorage: ${data.mapTiles.length}, explorées avant reset: ${exploredBefore}`,
@@ -760,6 +756,8 @@ export const useMapStore = () => {
           Object.assign(mapState, {
             ...initialMapState,
             ...data,
+            // Migration : anciens saves sans unlockedChunks → cadran de départ uniquement
+            unlockedChunks: data.unlockedChunks ?? [STARTING_CHUNK_ID],
           })
 
           // Réappliquer le brouillard de guerre si activé
@@ -768,7 +766,7 @@ export const useMapStore = () => {
             const exploredIds = new Set<string>(mapState.discoveredLocations)
             const CENTER = Math.floor(MAP_CONFIG.size / 2)
             const revealRange = gameSettings.rankRevealRange
-            // Toujours révéler la zone de départ selon le rang
+            // Révéler la zone de départ selon le rang
             for (let dx = -revealRange; dx <= revealRange; dx++) {
               for (let dy = -revealRange; dy <= revealRange; dy++) {
                 if (Math.max(Math.abs(dx), Math.abs(dy)) <= revealRange) {
@@ -776,6 +774,26 @@ export const useMapStore = () => {
                 }
               }
             }
+            // Révéler toutes les tuiles des cadrans débloqués (évite la désynchronisation)
+            mapState.unlockedChunks.forEach((chunkId) => {
+              const [cxStr, cyStr] = chunkId.split('-')
+              const cx = parseInt(cxStr)
+              const cy = parseInt(cyStr)
+              const startX = cx * MAP_CONFIG.chunkSize
+              const startY = cy * MAP_CONFIG.chunkSize
+              const endX = startX + MAP_CONFIG.chunkSize
+              const endY = startY + MAP_CONFIG.chunkSize
+              mapState.mapTiles.forEach((tile) => {
+                if (
+                  tile.position.x >= startX &&
+                  tile.position.x < endX &&
+                  tile.position.y >= startY &&
+                  tile.position.y < endY
+                ) {
+                  exploredIds.add(tile.id)
+                }
+              })
+            })
             mapState.mapTiles.forEach((tile) => {
               tile.explored = exploredIds.has(tile.id) || tile.current
             })
@@ -829,16 +847,10 @@ export const useMapStore = () => {
     currentPosition,
     mapTiles,
     selectedTile,
-    explorationPoints,
-    canExplore,
 
     // Actions de sélection
     selectTile,
     clearSelection,
-
-    // Actions d'exploration
-    explore,
-    scout,
 
     // Utilitaires
     getTileById,
@@ -856,9 +868,6 @@ export const useMapStore = () => {
     zoomIn,
     zoomOut,
 
-    // Points d'exploration
-    regenerateExplorationPoints,
-
     // Déplacement de troupes
     calculateTravelTimeMs,
     dispatchTroops,
@@ -870,6 +879,12 @@ export const useMapStore = () => {
     pillageVillage,
     tickLootRegen,
     tickGarrisonRegen,
+
+    // Cadrans
+    getChunkIdForTile,
+    isChunkUnlocked,
+    unlockChunk,
+    unlockAdjacentChunks,
 
     // Persistance
     saveMapState,

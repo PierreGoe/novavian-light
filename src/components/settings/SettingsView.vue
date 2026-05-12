@@ -13,9 +13,7 @@
         <div class="setting-row">
           <div class="setting-info">
             <span class="setting-label">Vitesse du jeu</span>
-            <span class="setting-desc"
-              >Multiplicateur global de vitesse (déplacements, scouts)</span
-            >
+            <span class="setting-desc">Multiplicateur global de vitesse (déplacements)</span>
           </div>
           <div class="setting-control">
             <div class="range-wrap">
@@ -30,26 +28,6 @@
               <span class="range-value">×{{ settings.gameSpeedMultiplier }}</span>
             </div>
             <div class="range-labels"><span>Normale</span><span>Rapide</span></div>
-          </div>
-        </div>
-
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Vitesse des éclaireurs</span>
-            <span class="setting-desc">Cases par seconde</span>
-          </div>
-          <div class="setting-control">
-            <div class="range-wrap">
-              <input
-                type="range"
-                min="1"
-                max="10"
-                step="1"
-                v-model.number="settings.scoutMoveSpeedTps"
-                class="range-input"
-              />
-              <span class="range-value">{{ settings.scoutMoveSpeedTps }} c/s</span>
-            </div>
           </div>
         </div>
       </section>

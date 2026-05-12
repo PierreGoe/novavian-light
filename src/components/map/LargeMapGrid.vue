@@ -2,9 +2,21 @@
   <div class="large-map-container">
     <!-- Contrôles de zoom -->
     <div class="map-controls">
-      <button @click="zoomOut" :disabled="viewportSize === 5" class="control-btn">-</button>
+      <button
+        @click="zoomOut"
+        :disabled="viewportSize >= MAP_CONFIG.maxViewportSize"
+        class="control-btn"
+      >
+        -
+      </button>
       <span class="zoom-level">{{ viewportSize }}x{{ viewportSize }}</span>
-      <button @click="zoomIn" :disabled="viewportSize === 11" class="control-btn">+</button>
+      <button
+        @click="zoomIn"
+        :disabled="viewportSize <= MAP_CONFIG.minViewportSize"
+        class="control-btn"
+      >
+        +
+      </button>
       <button @click="centerOnPlayer" class="control-btn">🎯 Centre</button>
     </div>
 
@@ -22,60 +34,51 @@
       @mouseleave="endPan"
       :style="{ cursor: isPanning ? 'grabbing' : 'grab' }"
     >
-      <div class="map-grid-large" :style="getGridStyle()">
-        <!-- Rendu uniquement des tuiles visibles -->
+      <!-- Wrapper pour superposer la grille principale et l'overlay cadrans -->
+      <div class="map-grid-wrapper">
+        <div class="map-grid-large" :key="`grid-${gridRenderKey}`" :style="gridStyle">
+          <!-- Rendu uniquement des tuiles visibles -->
+          <div
+            v-for="tile in visibleTiles"
+            :key="tile.id"
+            class="map-tile"
+            :class="getTileClasses(tile)"
+            @click="tile.type !== 'plains' && !isChunkLocked(tile) && selectTile(tile.id)"
+          >
+            <!-- Icône du terrain visible uniquement si exploré (pas affiché pour les plaines) -->
+            <div
+              class="tile-icon"
+              v-if="(gameSettings.disableFogOfWar || tile.explored) && tile.type !== 'plains'"
+            >
+              {{ getTileIcon(tile.type) }}
+            </div>
+
+            <div class="current-marker" v-if="tile.current">📍</div>
+            <!-- Indicateur : troupes en route vers cette tuile -->
+            <div class="troops-en-route" v-if="hasTroopsEnRoute(tile.id)">🪖</div>
+          </div>
+        </div>
+
+        <!-- Overlay bulle par cadran verrouillé (remplace les overlays par tuile) -->
         <div
-          v-for="tile in visibleTiles"
-          :key="tile.id"
-          class="map-tile"
-          :class="getTileClasses(tile)"
-          :style="{
-            ...getTileStyle(tile),
-            opacity: isBeingExplored(tile) ? getTileExploringOpacity(tile) : '1',
-          }"
-          @click="tile.type !== 'plains' && selectTile(tile.id)"
+          v-if="!gameSettings.disableFogOfWar && visibleLockedChunks.length > 0"
+          class="map-grid-large map-chunk-overlay"
+          :key="`overlay-${gridRenderKey}`"
+          :style="gridStyle"
         >
-          <!-- Icône du terrain visible uniquement si exploré (pas affiché pour les plaines) -->
           <div
-            class="tile-icon"
-            v-if="(gameSettings.disableFogOfWar || tile.explored) && tile.type !== 'plains'"
+            v-for="chunk in visibleLockedChunks"
+            :key="chunk.id"
+            class="chunk-locked-bubble"
+            :style="getChunkBubbleStyle(chunk)"
+            @click.stop="emit('unlock-chunk', chunk.id)"
           >
-            {{ getTileIcon(tile.type) }}
-          </div>
-
-          <!-- Case inconnue (pas explorée, pas en cours d'exploration) -->
-          <div
-            class="tile-overlay"
-            v-if="!gameSettings.disableFogOfWar && !tile.explored && !isBeingExplored(tile)"
-          >
-            ?
-          </div>
-
-          <!-- Case en cours d'exploration -->
-          <div class="tile-exploring" v-if="isBeingExplored(tile)">
-            <svg class="progress-circle" viewBox="0 0 36 36">
-              <path
-                class="circle-bg"
-                d="M18 2.0845
-                  a 15.9155 15.9155 0 0 1 0 31.831
-                  a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-              <path
-                class="circle-progress"
-                :stroke-dasharray="`${getExploringProgress(tile)}, 100`"
-                d="M18 2.0845
-                  a 15.9155 15.9155 0 0 1 0 31.831
-                  a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-            </svg>
-            <div class="exploring-content">
-              <span class="exploring-icon">🔭</span>
-              <span class="exploring-timer">{{ getExploringTimer(tile) }}</span>
+            <div class="chunk-bubble-inner">
+              <span class="chunk-bubble-lock">🔒</span>
+              <span class="chunk-bubble-label">Zone {{ chunk.id }}</span>
+              <span class="chunk-bubble-hint">Cliquer pour révéler</span>
             </div>
           </div>
-          <div class="current-marker" v-if="tile.current">📍</div>
-          <!-- Indicateur : troupes en route vers cette tuile -->
-          <div class="troops-en-route" v-if="hasTroopsEnRoute(tile.id)">🪖</div>
         </div>
       </div>
     </div>
@@ -89,7 +92,6 @@
 import { ref, computed } from 'vue'
 import { useMapStore, type MapTile, MAP_CONFIG } from '../../stores/mapStore'
 import { useMapViewport } from '../../composables/useMapViewport'
-import { useScoutDisplay } from '../../composables/useScoutDisplay'
 import { gameSettings } from '../../stores/gameSettingsStore'
 
 // Props
@@ -103,6 +105,7 @@ const props = defineProps<Props>()
 // Emits
 const emit = defineEmits<{
   selectTile: [tileId: string]
+  'unlock-chunk': [chunkId: string]
 }>()
 
 // Store
@@ -122,55 +125,66 @@ const {
   endPan,
 } = useMapViewport()
 
-const { isBeingExplored, getExploringTimer, getExploringProgress, getTileExploringOpacity } =
-  useScoutDisplay()
-
 const isLoading = ref(false)
 
-// Computed - Tuiles visibles dans le viewport
-const visibleTiles = computed(() => {
+// Dimensions réelles du viewport après clamping aux bords de la carte
+const viewportDimensions = computed(() => {
   const startX = Math.max(0, viewportOffset.value.x)
   const startY = Math.max(0, viewportOffset.value.y)
   const endX = Math.min(MAP_CONFIG.size, startX + viewportSize.value)
   const endY = Math.min(MAP_CONFIG.size, startY + viewportSize.value)
-
-  return props.tiles.filter((tile) => {
-    return (
-      tile.position.x >= startX &&
-      tile.position.x < endX &&
-      tile.position.y >= startY &&
-      tile.position.y < endY
-    )
-  })
+  return { startX, startY, endX, endY, cols: endX - startX, rows: endY - startY }
 })
 
-// Styles
-const getGridStyle = () => {
+// Computed — tuiles visibles triées en ordre ligne-par-ligne (y croissant, x croissant).
+// Le tri est requis pour que le placement automatique CSS Grid soit correct
+// sans avoir à spécifier gridColumn/gridRow explicitement sur chaque tuile.
+const visibleTiles = computed(() => {
+  const { startX, startY, endX, endY } = viewportDimensions.value
+
+  return props.tiles
+    .filter(
+      (tile) =>
+        tile.position.x >= startX &&
+        tile.position.x < endX &&
+        tile.position.y >= startY &&
+        tile.position.y < endY,
+    )
+    .sort((a, b) =>
+      a.position.y !== b.position.y ? a.position.y - b.position.y : a.position.x - b.position.x,
+    )
+})
+
+// Style CSS Grid — computed pour garantir la synchronisation avec viewportDimensions
+const gridStyle = computed(() => {
+  const { cols } = viewportDimensions.value
   const containerSize = 600 - 40
-  const tileSizeAdaptive = Math.floor((containerSize - viewportSize.value * 2) / viewportSize.value)
-  return {
+  const tileSizeAdaptive = Math.floor((containerSize - cols * 2) / cols)
+  const style = {
     display: 'grid',
-    gridTemplateColumns: `repeat(${viewportSize.value}, ${tileSizeAdaptive}px)`,
-    gridTemplateRows: `repeat(${viewportSize.value}, ${tileSizeAdaptive}px)`,
+    gridTemplateColumns: `repeat(${cols}, ${tileSizeAdaptive}px)`,
+    gridAutoRows: `${tileSizeAdaptive}px`,
     gap: '2px',
   }
-}
-
-const getTileStyle = (tile: MapTile) => ({
-  gridColumn: tile.position.x - viewportOffset.value.x + 1,
-  gridRow: tile.position.y - viewportOffset.value.y + 1,
+  return style
 })
 
+// Clé de re-render : change quand le viewport (taille OU offset) change
+const gridRenderKey = computed(
+  () => `${viewportSize.value}-${viewportOffset.value.x}-${viewportOffset.value.y}`,
+)
+
 const getTileClasses = (tile: MapTile) => {
-  const explored = gameSettings.disableFogOfWar || tile.explored
+  const chunkLocked = isChunkLocked(tile)
+  // Une tuile dans un cadran débloqué est toujours visible (explored)
+  const explored = gameSettings.disableFogOfWar || tile.explored || !chunkLocked
   return [
     `terrain-${tile.type}`,
     {
-      'tile-explored': explored,
+      'tile-explored': explored && !chunkLocked,
       'tile-current': tile.current,
       'tile-selected': props.selectedTileId === tile.id,
-      'tile-unexplored': !explored,
-      'tile-being-explored': isBeingExplored(tile),
+      'tile-chunk-locked': chunkLocked,
       'tile-neutral': tile.type === 'plains',
     },
   ]
@@ -179,8 +193,111 @@ const getTileClasses = (tile: MapTile) => {
 const selectTile = (tileId: string) => emit('selectTile', tileId)
 const getTileIcon = (type: MapTile['type']) => mapStore.getTileIcon(type)
 
+/** Retourne l'identifiant du cadran de la tuile */
+const getChunkIdForTile = (tile: MapTile): string =>
+  mapStore.getChunkIdForTile(tile.position.x, tile.position.y)
+
+/** Retourne true si la tuile appartient à un cadran encore verrouillé */
+const isChunkLocked = (tile: MapTile): boolean => !mapStore.isChunkUnlocked(getChunkIdForTile(tile))
+
+/** Retourne true si des troupes du joueur sont en route vers cette tuile */
 /** Retourne true si des troupes du joueur sont en route vers cette tuile */
 const hasTroopsEnRoute = (tileId: string): boolean => mapStore.getMovementsToTile(tileId).length > 0
+
+/** Calcule le style de bordure et border-radius d'une bulle selon ses bords visibles */
+const getChunkBubbleStyle = (chunk: {
+  id: string
+  gridColumn: string
+  gridRow: string
+  borderTop: boolean
+  borderRight: boolean
+  borderBottom: boolean
+  borderLeft: boolean
+}) => {
+  const B = '2px solid rgba(100, 70, 180, 0.55)'
+  const N = 'none'
+  const R = '12px'
+  const r = '0px'
+  return {
+    gridColumn: chunk.gridColumn,
+    gridRow: chunk.gridRow,
+    borderTop: chunk.borderTop ? B : N,
+    borderRight: chunk.borderRight ? B : N,
+    borderBottom: chunk.borderBottom ? B : N,
+    borderLeft: chunk.borderLeft ? B : N,
+    // border-radius : arrondi seulement sur les coins dont les deux bords adjacents sont visibles
+    borderTopLeftRadius: chunk.borderTop && chunk.borderLeft ? R : r,
+    borderTopRightRadius: chunk.borderTop && chunk.borderRight ? R : r,
+    borderBottomRightRadius: chunk.borderBottom && chunk.borderRight ? R : r,
+    borderBottomLeftRadius: chunk.borderBottom && chunk.borderLeft ? R : r,
+    // Pas de margin sur les côtés coupés (pour coller au bord du viewport)
+    marginTop: chunk.borderTop ? '3px' : '0',
+    marginRight: chunk.borderRight ? '3px' : '0',
+    marginBottom: chunk.borderBottom ? '3px' : '0',
+    marginLeft: chunk.borderLeft ? '3px' : '0',
+  }
+}
+
+/**
+ * Calcule la liste des cadrans verrouillés visibles dans le viewport,
+ * avec leurs coordonnées CSS grid pour l'overlay bulle.
+ */
+const visibleLockedChunks = computed(() => {
+  if (gameSettings.disableFogOfWar) return []
+
+  const { startX, startY, endX, endY } = viewportDimensions.value
+  const totalChunks = MAP_CONFIG.size / MAP_CONFIG.chunkSize
+
+  const result: {
+    id: string
+    gridColumn: string
+    gridRow: string
+    borderTop: boolean
+    borderRight: boolean
+    borderBottom: boolean
+    borderLeft: boolean
+  }[] = []
+
+  for (let cy = 0; cy < totalChunks; cy++) {
+    for (let cx = 0; cx < totalChunks; cx++) {
+      const chunkId = `${cx}-${cy}`
+      if (mapStore.isChunkUnlocked(chunkId)) continue
+
+      const chunkStartX = cx * MAP_CONFIG.chunkSize
+      const chunkStartY = cy * MAP_CONFIG.chunkSize
+      const chunkEndX = chunkStartX + MAP_CONFIG.chunkSize
+      const chunkEndY = chunkStartY + MAP_CONFIG.chunkSize
+
+      // Ignorer si le cadran n'est pas dans le viewport
+      if (chunkEndX <= startX || chunkStartX >= endX || chunkEndY <= startY || chunkStartY >= endY)
+        continue
+
+      // Coordonnées CSS grid relatives au viewport (1-indexed)
+      const colStart = Math.max(chunkStartX, startX) - startX + 1
+      const colEnd = Math.min(chunkEndX, endX) - startX + 1
+      const rowStart = Math.max(chunkStartY, startY) - startY + 1
+      const rowEnd = Math.min(chunkEndY, endY) - startY + 1
+
+      // Déterminer quels bords sont visibles (le bord correspond au bord réel du cadran dans le viewport)
+      const borderLeft = chunkStartX >= startX
+      const borderRight = chunkEndX <= endX
+      const borderTop = chunkStartY >= startY
+      const borderBottom = chunkEndY <= endY
+
+      result.push({
+        id: chunkId,
+        gridColumn: `${colStart} / ${colEnd}`,
+        gridRow: `${rowStart} / ${rowEnd}`,
+        borderTop,
+        borderRight,
+        borderBottom,
+        borderLeft,
+      })
+    }
+  }
+
+  return result
+})
 </script>
 
 <style scoped>
@@ -201,6 +318,12 @@ const hasTroopsEnRoute = (tileId: string): boolean => mapStore.getMovementsToTil
   user-select: none;
   display: flex;
   justify-content: space-evenly;
+}
+
+/* Wrapper pour superposer la grille principale et l'overlay cadrans */
+.map-grid-wrapper {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .map-grid-large {
@@ -238,11 +361,6 @@ const hasTroopsEnRoute = (tileId: string): boolean => mapStore.getMovementsToTil
   border-color: #ff6b35;
   box-shadow: 0 0 15px rgba(255, 107, 53, 0.7);
   z-index: 11;
-}
-
-.tile-unexplored {
-  background: #1a1a1a !important;
-  opacity: 0.8;
 }
 
 .tile-neutral {
@@ -386,6 +504,98 @@ const hasTroopsEnRoute = (tileId: string): boolean => mapStore.getMovementsToTil
   50% {
     opacity: 0.3;
   }
+}
+
+/* Overlay cadrans : même grille CSS, superposée au-dessus */
+.map-chunk-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* laisse passer les clics vers les tuiles */
+}
+
+/* Bulle d'un cadran verrouillé */
+.chunk-locked-bubble {
+  pointer-events: auto;
+  position: relative;
+  background: rgba(5, 5, 25, 0.82);
+  /* border et border-radius injectés dynamiquement via :style */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(3px);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+  overflow: hidden;
+}
+
+.chunk-locked-bubble::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 6px,
+    rgba(100, 70, 180, 0.06) 6px,
+    rgba(100, 70, 180, 0.06) 12px
+  );
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.chunk-locked-bubble:hover {
+  background: rgba(60, 30, 120, 0.88);
+  border-color: rgba(170, 130, 255, 0.8);
+  box-shadow:
+    0 0 18px rgba(140, 90, 255, 0.45),
+    inset 0 0 12px rgba(140, 90, 255, 0.12);
+}
+
+.chunk-bubble-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  z-index: 1;
+  text-align: center;
+  padding: 4px;
+}
+
+.chunk-bubble-lock {
+  font-size: clamp(16px, 3vw, 30px);
+  line-height: 1;
+  filter: drop-shadow(0 0 6px rgba(150, 100, 255, 0.7));
+}
+
+.chunk-bubble-label {
+  font-size: clamp(9px, 1.2vw, 13px);
+  font-weight: 700;
+  color: #c0b0ff;
+  text-shadow: 0 0 6px rgba(150, 100, 255, 0.8);
+  letter-spacing: 0.04em;
+}
+
+.chunk-bubble-hint {
+  font-size: clamp(8px, 1vw, 11px);
+  color: #7060a0;
+  font-style: italic;
+}
+
+.chunk-locked-bubble:hover .chunk-bubble-hint {
+  color: #b0a0e8;
+}
+
+.tile-chunk-locked {
+  background: #0d0d1a !important;
+  cursor: default;
+  pointer-events: none;
 }
 
 /* Minimap supprimée */

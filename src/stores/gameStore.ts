@@ -36,14 +36,12 @@ export type ArtifactDurability = 'single-use' | 'uses-limited' | 'permanent'
 
 /** Types de pouvoirs spéciaux uniques */
 export type SpecialPowerType =
-  | 'scout_range_bonus' // les éclaireurs voient X cases de plus
   | 'fog_reveal_on_victory' // révèle des cases autour après victoire
   | 'gold_on_victory' // bonus d'or par victoire de combat
   | 'leadership_on_victory' // bonus de leadership par victoire
   | 'first_strike' // attaque en premier au combat
   | 'siege_bonus' // bonus aux sièges de villes
   | 'healing_after_combat' // soins partiels après chaque combat
-  | 'double_scout_speed' // les éclaireurs explorent 2x plus vite
 
 export interface SpecialPower {
   type: SpecialPowerType
@@ -85,6 +83,8 @@ export interface PlayerInventory {
   leadership: number
   artifacts: Artifact[] // tous les artefacts possédés
   activeArtifacts: string[] // IDs des artefacts actifs (max MAX_ACTIVE_ARTIFACTS)
+  /** Fragments de carte permettant de déverrouiller un nouveau cadran 20x20 */
+  mapFragments: number
 }
 
 export interface Building {
@@ -167,6 +167,7 @@ const createInitialState = (): GameState => ({
     leadership: 100,
     artifacts: [], // ← Nouveau tableau à chaque appel
     activeArtifacts: [], // ← IDs des artefacts actifs
+    mapFragments: 1, // Le joueur commence avec 1 fragment de carte
   },
   createdAt: null,
   currentGameSection: undefined,
@@ -262,6 +263,7 @@ export const useGameStore = () => {
           gameState.inventory.gold = gameData.inventory.gold || 0
           gameState.inventory.leadership = gameData.inventory.leadership ?? 100
           gameState.inventory.artifacts = gameData.inventory.artifacts || []
+          gameState.inventory.mapFragments = gameData.inventory.mapFragments ?? 1 // Migration anciens saves
           // Migration : si l'ancien save utilisait equippedArtifacts, on convertit
           if (gameData.inventory.activeArtifacts) {
             gameState.inventory.activeArtifacts = gameData.inventory.activeArtifacts
@@ -318,6 +320,7 @@ export const useGameStore = () => {
           leadership: gameState.inventory.leadership,
           artifacts: [...gameState.inventory.artifacts],
           activeArtifacts: [...gameState.inventory.activeArtifacts],
+          mapFragments: gameState.inventory.mapFragments,
         },
         mapState: {
           layers: gameState.mapState.layers.map((layer) => ({
@@ -449,6 +452,26 @@ export const useGameStore = () => {
     saveGame()
   }
 
+  // ====== FRAGMENTS DE CARTE ======
+
+  /** Consomme 1 fragment pour d\u00e9verrouiller le cadran donn\u00e9. Retourne false si aucun fragment disponible. */
+  const useMapFragment = (chunkId: string): boolean => {
+    if (gameState.inventory.mapFragments <= 0) return false
+    const mapStore = useMapStore()
+    const unlocked = mapStore.unlockChunk(chunkId)
+    if (unlocked) {
+      gameState.inventory.mapFragments--
+      saveGame()
+    }
+    return unlocked
+  }
+
+  /** Ajoute des fragments de carte \u00e0 l\u2019inventaire du joueur. */
+  const addMapFragment = (count: number = 1) => {
+    gameState.inventory.mapFragments += count
+    saveGame()
+  }
+
   // ====== POINTS DE VICTOIRE ======
 
   const addVictoryPoints = (type: VictoryPointType, amount: number, reason: string) => {
@@ -519,7 +542,7 @@ export const useGameStore = () => {
       completeMapNode(gameState.mapState.selectedNodeId)
     }
 
-    // Réinitialiser l'état de mission (ressources, ville, unités, scouts)
+    // Réinitialiser l'état de mission (ressources, ville, unités)
     const missionStore = useMissionStore()
     missionStore.resetMissionState()
 
@@ -1021,6 +1044,10 @@ export const useGameStore = () => {
     handleMapNodeAction,
     giveRandomArtifact,
     giveRandomArtifactOfRarity,
+
+    // Fragments de carte
+    useMapFragment,
+    addMapFragment,
 
     // Actions d'inventaire
     addGold,

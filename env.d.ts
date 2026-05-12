@@ -13,7 +13,6 @@ interface ImportMetaEnv {
   readonly VITE_CHEAT_RESOURCES: string
   readonly VITE_CHEAT_VICTORY_POINTS: string
   readonly VITE_GAME_SPEED_MULTIPLIER: string
-  readonly VITE_SCOUT_MOVE_SPEED_TPS: string
 }
 
 interface ImportMeta {

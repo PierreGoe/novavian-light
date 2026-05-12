@@ -117,17 +117,6 @@ export interface TrainingQueueEntry {
   endsAt: number
 }
 
-// Mission d'éclaireur
-export interface ScoutMission {
-  id: string
-  target: { x: number; y: number }
-  startedAt: number
-  endsAt: number
-  status: 'pending' | 'completed'
-  /** Rayon de tuiles supplémentaires révélées à la fin (scout_range_bonus) */
-  extraRevealRadius?: number
-}
-
 // État d'un combat/mission
 export interface Mission {
   id: string
@@ -171,11 +160,8 @@ export interface MissionState {
   lastUpdateTime: number
   /** Temps in-game cumulé en ms (plafonne le temps offline) */
   gameElapsedMs: number
-  scoutsAvailable: number
-  scoutMissions: ScoutMission[]
-  discoveredTiles: Set<string>
+
   isTransitioning: boolean
-  /** Historique des rapports de bataille */
   battleReports: SavedBattleReport[]
 }
 
@@ -229,9 +215,6 @@ const initialState: MissionState = {
   },
   lastUpdateTime: Date.now(),
   gameElapsedMs: 0,
-  scoutsAvailable: 4,
-  scoutMissions: [],
-  discoveredTiles: new Set<string>(),
   isTransitioning: false,
   battleReports: [],
 }
@@ -694,9 +677,6 @@ export const useMissionStore = () => {
       },
       lastUpdateTime: missionState.lastUpdateTime,
       gameElapsedMs: missionState.gameElapsedMs,
-      scoutsAvailable: missionState.scoutsAvailable,
-      scoutMissions: missionState.scoutMissions,
-      discoveredTiles: Array.from(missionState.discoveredTiles),
       battleReports: missionState.battleReports,
     }
     localStorage.setItem('minitravian-missions', JSON.stringify(data))
@@ -719,16 +699,6 @@ export const useMissionStore = () => {
           }
         }
 
-        // Charger les données des éclaireurs
-        if (data.scoutsAvailable !== undefined) {
-          missionState.scoutsAvailable = data.scoutsAvailable
-        }
-        if (data.scoutMissions) {
-          missionState.scoutMissions = data.scoutMissions
-        }
-        if (data.discoveredTiles) {
-          missionState.discoveredTiles = new Set(data.discoveredTiles)
-        }
         if (data.gameElapsedMs !== undefined) {
           missionState.gameElapsedMs = data.gameElapsedMs
         }
@@ -736,10 +706,7 @@ export const useMissionStore = () => {
           missionState.battleReports = data.battleReports
         }
 
-        // Vérifier immédiatement les missions au chargement et sauvegarder si nécessaire
-        // (pour gérer le cas où des missions sont terminées pendant que l'app était fermée)
-        updateScoutMissions(true)
-
+        // Sauvegarder si nécessaire (missions terminées hors-ligne)
         return true
       } catch (error) {
         console.error('Erreur lors du chargement des missions:', error)
@@ -800,9 +767,6 @@ export const useMissionStore = () => {
       },
       lastUpdateTime: Date.now(),
       gameElapsedMs: 0,
-      scoutsAvailable: 4,
-      scoutMissions: [],
-      discoveredTiles: new Set<string>(),
       isTransitioning: false,
       battleReports: [],
     }
@@ -861,154 +825,12 @@ export const useMissionStore = () => {
     startAutoSave()
     startResourceProduction()
     startDisplayUpdates()
-    startScoutMissionUpdates()
   }
 
   const stopAllServices = () => {
     stopAutoSave()
     stopResourceProduction()
     stopDisplayUpdates()
-    stopScoutMissionUpdates()
-  }
-
-  // ===== Gestion des éclaireurs =====
-
-  const startScoutMission = (
-    target: { x: number; y: number },
-    options?: { speedMultiplier?: number; extraRevealRadius?: number },
-  ): boolean => {
-    // Vérifier qu'un éclaireur est disponible
-    if (missionState.scoutsAvailable <= 0) {
-      return false
-    }
-
-    // Vérifier que la case n'est pas déjà découverte
-    const tileKey = `${target.x},${target.y}`
-    if (missionState.discoveredTiles.has(tileKey)) {
-      return false
-    }
-
-    // Vérifier qu'il n'y a pas déjà une mission en cours sur cette case
-    const alreadyExploring = missionState.scoutMissions.some(
-      (mission) =>
-        mission.status === 'pending' &&
-        mission.target.x === target.x &&
-        mission.target.y === target.y,
-    )
-    if (alreadyExploring) {
-      return false
-    }
-
-    // Créer la mission d'éclaireur
-    const now = Date.now()
-
-    // Formule : travel_ms = (distance / effective_speed) * 1000 / GAME_SPEED_MULTIPLIER
-    // effective_speed = scout_tps / terrain_cost
-    // speedMultiplier permet de doubler la vitesse (artefact double_scout_speed)
-    const mapStore = useMapStore()
-    const currentPos = mapStore.currentPosition.value
-    const distance = Math.max(Math.abs(target.x - currentPos.x), Math.abs(target.y - currentPos.y))
-    const destTile = mapStore.getTileAt(target.x, target.y)
-    const terrainCost = destTile ? (TERRAIN_MOVE_COST[destTile.type] ?? 1.0) : 1.0
-    const scoutTps = gameSettings.scoutMoveSpeedTps * (options?.speedMultiplier ?? 1)
-    const effectiveSpeed = scoutTps / terrainCost
-    // Au minimum 500ms (case adjacente ou même case)
-    const duration =
-      distance === 0
-        ? 500
-        : Math.max(
-            500,
-            Math.round(((distance / effectiveSpeed) * 1000) / gameSettings.gameSpeedMultiplier),
-          )
-
-    const mission: ScoutMission = {
-      id: `scout-${now}-${target.x}-${target.y}`,
-      target,
-      startedAt: now,
-      endsAt: now + duration,
-      status: 'pending',
-      extraRevealRadius: options?.extraRevealRadius,
-    }
-
-    missionState.scoutMissions.push(mission)
-    missionState.scoutsAvailable--
-    saveMissionState()
-    return true
-  }
-
-  const updateScoutMissions = (shouldSave: boolean = false): void => {
-    const now = Date.now()
-    let hasChanges = false
-
-    missionState.scoutMissions.forEach((mission) => {
-      if (mission.status === 'pending' && now >= mission.endsAt) {
-        // Mission terminée
-        mission.status = 'completed'
-        const tileKey = `${mission.target.x},${mission.target.y}`
-        missionState.discoveredTiles.add(tileKey)
-
-        // Révéler les cases supplémentaires autour de la cible (scout_range_bonus)
-        if (mission.extraRevealRadius && mission.extraRevealRadius > 0) {
-          const r = mission.extraRevealRadius
-          for (let dx = -r; dx <= r; dx++) {
-            for (let dy = -r; dy <= r; dy++) {
-              if (dx === 0 && dy === 0) continue
-              const adjKey = `${mission.target.x + dx},${mission.target.y + dy}`
-              missionState.discoveredTiles.add(adjKey)
-            }
-          }
-        }
-
-        missionState.scoutsAvailable++
-        hasChanges = true
-      }
-    })
-
-    // Retirer les missions terminées après un certain temps (optionnel)
-    missionState.scoutMissions = missionState.scoutMissions.filter(
-      (mission) => mission.status === 'pending' || now - mission.endsAt < 60000, // Garder 1 min après complétion
-    )
-
-    // Ne sauvegarder que si explicitement demandé (pas lors des computed)
-    if (hasChanges && shouldSave) {
-      saveMissionState()
-    }
-  }
-
-  const getScoutMissions = computed(() => missionState.scoutMissions)
-
-  const getDiscoveredTiles = computed(() => Array.from(missionState.discoveredTiles))
-
-  const scoutsAvailable = computed(() => missionState.scoutsAvailable)
-
-  const canStartScoutMission = (target: { x: number; y: number }): boolean => {
-    if (missionState.scoutsAvailable <= 0) return false
-    const tileKey = `${target.x},${target.y}`
-    if (missionState.discoveredTiles.has(tileKey)) return false
-    const alreadyExploring = missionState.scoutMissions.some(
-      (mission) =>
-        mission.status === 'pending' &&
-        mission.target.x === target.x &&
-        mission.target.y === target.y,
-    )
-    return !alreadyExploring
-  }
-
-  // Timer pour vérifier les missions d'éclaireurs
-  let scoutMissionInterval: number | null = null
-
-  const startScoutMissionUpdates = () => {
-    if (scoutMissionInterval) return
-    scoutMissionInterval = window.setInterval(() => {
-      updateScoutMissions(true) // Sauvegarder lors des vérifications périodiques
-    }, 1000) // Vérifier toutes les secondes
-  }
-
-  const stopScoutMissionUpdates = () => {
-    if (scoutMissionInterval) {
-      clearInterval(scoutMissionInterval)
-      scoutMissionInterval = null
-    }
   }
 
   return {
@@ -1070,16 +892,6 @@ export const useMissionStore = () => {
     stopDisplayUpdates,
     startAllServices,
     stopAllServices,
-
-    // Gestion des éclaireurs
-    startScoutMission,
-    updateScoutMissions,
-    getScoutMissions,
-    getDiscoveredTiles,
-    scoutsAvailable,
-    canStartScoutMission,
-    startScoutMissionUpdates,
-    stopScoutMissionUpdates,
   }
 }
 

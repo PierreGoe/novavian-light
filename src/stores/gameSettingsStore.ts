@@ -12,8 +12,6 @@ export interface GameSettings {
   // --- Vitesse & moteur ---
   /** Multiplicateur de vitesse globale (1 = normal, 10 = accéléré) */
   gameSpeedMultiplier: number
-  /** Vitesse de déplacement des éclaireurs en cases/seconde */
-  scoutMoveSpeedTps: number
 
   // --- Carte & exploration ---
   /** Désactive le brouillard de guerre (toutes les tuiles sont visibles) */
@@ -45,7 +43,6 @@ export interface GameSettings {
 
 const DEFAULT_SETTINGS: GameSettings = {
   gameSpeedMultiplier: 1,
-  scoutMoveSpeedTps: 3,
   disableFogOfWar: false,
   rankRevealRange: 10,
   enemyBaseInfantry: 3,

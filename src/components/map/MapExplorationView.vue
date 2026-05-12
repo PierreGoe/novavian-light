@@ -2,15 +2,7 @@
   <div class="map-exploration-view">
     <header class="map-header">
       <h2>🗺️ Carte et Exploration</h2>
-      <div class="header-actions">
-        <button class="btn-regenerate" @click="regeneratePoints" :disabled="pointsAtMax">
-          ⚡ Régénérer points
-        </button>
-      </div>
     </header>
-
-    <!-- Panneau d'exploration -->
-    <ExplorationPanel :selected-tile="selectedTile" @exploration-result="handleExplorationResult" />
 
     <!-- Grille de la carte -->
     <section class="map-section">
@@ -27,8 +19,6 @@
       :tile="selectedTile"
       @attack-tile="handleAttackTile"
       @trade-tile="handleTradeTile"
-      @explore-tile="handleExploreTile"
-      @scout-tile="handleScoutTile"
     />
 
     <!-- Toast de notification -->
@@ -40,11 +30,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useMapStore, type ScoutInfo } from '../../stores/mapStore'
+import { useMapStore } from '../../stores/mapStore'
 
 // Composants
 import MapGrid from './MapGrid.vue'
-import ExplorationPanel from './ExplorationPanel.vue'
 import TileDetails from './TileDetails.vue'
 
 // Stores
@@ -60,9 +49,6 @@ const selectedTile = computed(() => {
   if (!selectedTileId.value) return null
   return mapStore.getTileById(selectedTileId.value)
 })
-const pointsAtMax = computed(
-  () => mapStore.explorationPoints.value >= mapStore.mapState.maxExplorationPoints,
-)
 
 // Methods
 const handleTileSelect = (tileId: string) => {
@@ -74,44 +60,14 @@ const handleTileSelect = (tileId: string) => {
   }
 }
 
-const handleExplorationResult = (result: {
-  success: boolean
-  message: string
-  info?: ScoutInfo
-}) => {
-  if (result.success) {
-    showNotification(result.message, 'success')
-  } else {
-    showNotification(result.message, 'error')
-  }
-}
-
 const handleAttackTile = (tileId: string) => {
-  // TODO: Implémenter le système de combat
   showNotification('Système de combat en développement', 'info')
   console.log('Attack tile:', tileId)
 }
 
 const handleTradeTile = (tileId: string) => {
-  // TODO: Implémenter le système de commerce
   showNotification('Système de commerce en développement', 'info')
   console.log('Trade with tile:', tileId)
-}
-
-const handleExploreTile = (tileId: string) => {
-  // TODO: Implémenter l'exploration des ruines
-  showNotification('Exploration des ruines en développement', 'info')
-  console.log('Explore tile:', tileId)
-}
-
-const handleScoutTile = (tileId: string) => {
-  const result = mapStore.scout(tileId)
-  handleExplorationResult(result)
-}
-
-const regeneratePoints = () => {
-  mapStore.regenerateExplorationPoints()
-  showNotification("Points d'exploration régénérés", 'success')
 }
 
 const showNotification = (message: string, type: string) => {
@@ -121,27 +77,12 @@ const showNotification = (message: string, type: string) => {
   }, 3000)
 }
 
-// Timer pour la régénération automatique des points
-let regenerationTimer: number | null = null
-
 // Lifecycle
 onMounted(() => {
-  // Charger l'état de la carte
   mapStore.loadMapState()
-
-  // Démarrer le timer de régénération automatique
-  regenerationTimer = window.setInterval(() => {
-    mapStore.regenerateExplorationPoints()
-  }, 60000) // Vérifier toutes les minutes
 })
 
 onUnmounted(() => {
-  // Nettoyer le timer
-  if (regenerationTimer) {
-    clearInterval(regenerationTimer)
-  }
-
-  // Sauvegarder l'état
   mapStore.saveMapState()
 })
 </script>

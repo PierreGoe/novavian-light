@@ -139,9 +139,9 @@ export const ARTIFACT_POOL: ArtifactTemplate[] = [
     description: 'Éclaire un peu plus loin dans le brouillard de guerre.',
     effects: {},
     specialPower: {
-      type: 'scout_range_bonus',
+      type: 'fog_reveal_on_victory',
       value: 1,
-      description: "Révèle 1 case supplémentaire lors des missions d'éclaireur",
+      description: 'Révèle 1 case supplémentaire autour du champ de bataille après une victoire',
     },
     rarity: 'common',
     durability: 'uses-limited',
@@ -177,12 +177,12 @@ export const ARTIFACT_POOL: ArtifactTemplate[] = [
     type: 'relic',
     icon: '🦅',
     description:
-      'Cette relique mystique aiguise la vision des éclaireurs, leur permettant de percevoir une case supplémentaire.',
+      'Cette relique mystique élargit le champ de vision après chaque victoire, révélant les terres environnantes.',
     effects: {},
     specialPower: {
-      type: 'scout_range_bonus',
+      type: 'fog_reveal_on_victory',
       value: 1,
-      description: "Les éclaireurs révèlent 1 case supplémentaire autour d'eux",
+      description: 'Révèle 1 case supplémentaire autour de la zone conquíse après victoire',
     },
     rarity: 'rare',
     durability: 'permanent',
@@ -193,12 +193,12 @@ export const ARTIFACT_POOL: ArtifactTemplate[] = [
     type: 'accessory',
     icon: '👢',
     description:
-      "Chaussures enchantées qui permettent aux éclaireurs d'explorer deux fois plus vite.",
+      'Chaussures enchantées qui permettent aux troupes de se déplacer deux fois plus vite.',
     effects: {},
     specialPower: {
-      type: 'double_scout_speed',
+      type: 'first_strike',
       value: 2,
-      description: "Les missions d'éclaireur durent deux fois moins longtemps",
+      description: 'Les troupes équipées frappent en premier dans les combats',
     },
     rarity: 'rare',
     durability: 'permanent',

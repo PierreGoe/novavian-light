@@ -4,7 +4,6 @@
       <h2>Carte et Exploration</h2>
       <div class="map-controls">
         <button class="btn-explore" :disabled="!canExplore" @click="explore">🧭 Explorer</button>
-        <button class="btn-scout" @click="scout">🔎 Reconnaître</button>
       </div>
     </header>
 
@@ -222,13 +221,6 @@ const explore = () => {
   }
 }
 
-const scout = () => {
-  toastStore.showInfo('Reconnaissance en cours... Informations tactiques mises à jour.', {
-    duration: 2000,
-  })
-}
-
-// Actions village-based
 const manageVillage = () => {
   if (selectedTile.value?.type === 'village_player') {
     toastStore.showInfo('🏠 Vous gérez maintenant votre village !', { duration: 2000 })
@@ -297,8 +289,7 @@ onMounted(() => {
   gap: 1rem;
 }
 
-.btn-explore,
-.btn-scout {
+.btn-explore {
   background: rgba(34, 197, 94, 0.2);
   border: 1px solid #22c55e;
   color: #22c55e;
@@ -309,8 +300,7 @@ onMounted(() => {
   font-size: 0.9rem;
 }
 
-.btn-explore:hover:not(:disabled),
-.btn-scout:hover {
+.btn-explore:hover:not(:disabled) {
   background: rgba(34, 197, 94, 0.3);
 }
 

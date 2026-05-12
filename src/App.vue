@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 import SideNavBar from '@/components/globals/SideNavBar.vue'
 import ToastContainer from '@/components/globals/ToastContainer.vue'
+import PerformanceMonitor from '@/components/globals/PerformanceMonitor.vue'
 
 const gameStore = useGameStore()
 const route = useRoute()
@@ -52,6 +53,7 @@ onUnmounted(() => {
     <div class="app-content">
       <RouterView />
       <ToastContainer />
+      <PerformanceMonitor />
     </div>
   </div>
 </template>

@@ -2,6 +2,18 @@
   <div class="large-map-exploration-view">
     <!-- VUE CARTE -->
     <template v-if="!selectedTile">
+      <!-- Fragments de carte -->
+      <div class="map-fragments-bar" v-if="gameStore.gameState.inventory.mapFragments > 0">
+        <span class="fragments-icon">🗺️</span>
+        <span class="fragments-label">
+          {{ gameStore.gameState.inventory.mapFragments }} fragment{{
+            gameStore.gameState.inventory.mapFragments > 1 ? 's' : ''
+          }}
+          de carte
+        </span>
+        <span class="fragments-hint">Cliquez sur un cadran 🔒 pour le révéler</span>
+      </div>
+
       <!-- Instructions -->
       <div class="controls-help-wrap">
         <span class="controls-help-trigger">⌨️</span>
@@ -19,6 +31,7 @@
           :tiles="mapTiles"
           :selected-tile-id="selectedTileId"
           @select-tile="handleTileSelect"
+          @unlock-chunk="handleUnlockChunk"
         />
       </section>
 
@@ -37,8 +50,6 @@
           :tile="selectedTile"
           @attack-tile="handleAttackTile"
           @trade-tile="handleTradeTile"
-          @explore-tile="handleExploreTile"
-          @scout-tile="handleScoutTile"
         />
       </div>
     </template>
@@ -126,41 +137,10 @@ const handleTileSelect = (tileId: string) => {
   // Les plaines sont des cases neutres non interactives
   if (tile.type === 'plains') return
 
-  // Si la case n'est pas explorée, proposer une mission d'éclaireur
-  if (!tile.explored) {
-    const target = { x: tile.position.x, y: tile.position.y }
+  // Les cases non explorées sont ignorées (cadran bloqué ou brouillard)
+  if (!tile.explored && !gameSettings.disableFogOfWar) return
 
-    // Vérifier si on peut lancer une mission
-    if (!missionStore.canStartScoutMission(target)) {
-      if (missionStore.scoutsAvailable.value <= 0) {
-        showNotification('Aucun éclaireur disponible', 'warning')
-      } else {
-        showNotification("Cette case est déjà en cours d'exploration", 'warning')
-      }
-      return
-    }
-
-    // Calculer les bonus d'éclaireur issus des artefacts actifs
-    const scouts = gameStore.getEquippedArtifacts.value
-    const scoutRangeBonus = scouts
-      .filter((a) => a.specialPower?.type === 'scout_range_bonus')
-      .reduce((sum, a) => sum + (a.specialPower?.value ?? 0), 0)
-    const hasDoubleSpeed = scouts.some((a) => a.specialPower?.type === 'double_scout_speed')
-
-    // Lancer la mission d'éclaireur
-    const success = missionStore.startScoutMission(target, {
-      extraRevealRadius: scoutRangeBonus > 0 ? scoutRangeBonus : undefined,
-      speedMultiplier: hasDoubleSpeed ? 2 : undefined,
-    })
-    if (success) {
-      showNotification(`🔭 Éclaireur envoyé vers (${target.x}, ${target.y})`, 'success')
-    } else {
-      showNotification("Impossible de lancer la mission d'éclaireur", 'error')
-    }
-    return
-  }
-
-  // Si la case est explorée, la sélectionner normalement
+  // Sélectionner la case
   const success = mapStore.selectTile(tileId)
   if (success) {
     selectedTileId.value = tileId
@@ -348,6 +328,14 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
       gameStore.addVictoryPoints('combat', 1, `Victoire en combat contre ${defenderArmy.label}`)
       if (isStronghold) {
         gameStore.addVictoryPoints('combat', 4, 'Forteresse ennemie détruite')
+        // Déverrouiller les cadrans adjacents à la forteresse détruite
+        const newChunks = mapStore.unlockAdjacentChunks(tile.id)
+        if (newChunks.length > 0) {
+          showNotification(
+            `🗺️ ${newChunks.length} nouveau cadran${newChunks.length > 1 ? 's' : ''} découvert${newChunks.length > 1 ? 's' : ''} !`,
+            'success',
+          )
+        }
       } else {
         gameStore.addVictoryPoints('combat', 2, 'Village ennemi détruit')
       }
@@ -496,110 +484,57 @@ function applyPlayerLosses(report: CombatReport) {
   missionStore.missionState.town.units = townUnits.filter((u) => u.count > 0)
 }
 
+/** Débloque un cadran via un fragment de carte */
+const handleUnlockChunk = (chunkId: string) => {
+  if (gameStore.gameState.inventory.mapFragments <= 0) {
+    showNotification('Aucun fragment de carte disponible', 'warning')
+    return
+  }
+  const success = gameStore.useMapFragment(chunkId)
+  if (success) {
+    showNotification('🗺️ Nouveau territoire révélé !', 'success')
+  }
+}
+
 const handleTradeTile = (_tileId: string) => {
   showNotification('Système de commerce en développement', 'info')
 }
 
-const handleExploreTile = (_tileId: string) => {
-  showNotification('Exploration des ruines en développement', 'info')
-}
-
-const handleScoutTile = (tileId: string) => {
-  const result = mapStore.scout(tileId)
-  if (result.success) {
-    showNotification(result.message, 'success')
-  } else {
-    showNotification(result.message, 'error')
-  }
-}
-
-// Timer pour la régénération automatique des points
-let regenerationTimer: number | null = null
+// Timer pour forcer le rafraîchissement de l'affichage
 let displayRefreshTimer: number | null = null
 /** Timer de régénération du stock ennemi (Phase 2 — toutes les ENEMY_REGEN_INTERVAL_MS ms) */
 let lootRegenTimer: number | null = null
 
 // Lifecycle
 onMounted(() => {
-  // Charger l'état de la carte (doit être fait AVANT tout le reste)
-  const hasLoadedMap = mapStore.loadMapState()
+  // Charger l'état de la carte
+  mapStore.loadMapState()
 
-  // Charger l'état du mission store
+  // Charger et démarrer les services du mission store
   missionStore.loadMissionState()
-
-  // Démarrer les services du mission store
   missionStore.startAllServices()
 
-  // Synchroniser immédiatement les cases découvertes au chargement
-  const discoveredTiles = missionStore.getDiscoveredTiles.value
-  let hasChanges = false
-  discoveredTiles.forEach((tileKey: string) => {
-    const [x, y] = tileKey.split(',').map(Number)
-    const tile = mapStore.getTileAt(x, y)
-    if (tile && !tile.explored) {
-      tile.explored = true
-      hasChanges = true
-    }
-  })
-  if (hasChanges) {
-    mapStore.saveMapState()
-  }
-
-  // Démarrer le timer de régénération automatique
-  regenerationTimer = window.setInterval(() => {
-    mapStore.regenerateExplorationPoints()
-  }, 60000) // Vérifier toutes les minutes
-
-  // Timer Phase 2 — régénérer stock ennemi et garnisons progressivement
+  // Timer Phase 2 — régénérer stock ennemi et garnisons
   lootRegenTimer = window.setInterval(() => {
     mapStore.tickLootRegen()
     mapStore.tickGarrisonRegen()
   }, ENEMY_REGEN_INTERVAL_MS)
 
-  // Timer pour forcer le rafraîchissement de l'affichage des timers
-  // Les computed vérifieront automatiquement l'état des missions
+  // Timer de résolution des mouvements de troupes
   displayRefreshTimer = window.setInterval(() => {
-    // Résoudre les mouvements de troupes arrivés à destination
     const arrivals = mapStore.getArrivedMovements()
     for (const movement of arrivals) {
       const tile = mapStore.getTileById(movement.targetTileId)
       if (tile) executeCombat(movement, tile)
       mapStore.resolveMovement(movement.id)
     }
-
-    // Synchroniser les cases découvertes avec le mapStore
-    const discoveredTiles = missionStore.getDiscoveredTiles.value
-    let hasChanges = false
-    discoveredTiles.forEach((tileKey: string) => {
-      const [x, y] = tileKey.split(',').map(Number)
-      const tile = mapStore.getTileAt(x, y)
-      if (tile && !tile.explored) {
-        tile.explored = true
-        hasChanges = true
-      }
-    })
-    if (hasChanges) {
-      mapStore.saveMapState()
-    }
   }, 1000)
 })
 
 onUnmounted(() => {
-  // Nettoyer les timers
-  if (regenerationTimer) {
-    clearInterval(regenerationTimer)
-  }
-  if (displayRefreshTimer) {
-    clearInterval(displayRefreshTimer)
-  }
-  if (lootRegenTimer) {
-    clearInterval(lootRegenTimer)
-  }
-
-  // Arrêter les services du mission store
+  if (displayRefreshTimer) clearInterval(displayRefreshTimer)
+  if (lootRegenTimer) clearInterval(lootRegenTimer)
   missionStore.stopAllServices()
-
-  // Sauvegarder l'état
   mapStore.saveMapState()
 })
 </script>
@@ -609,6 +544,35 @@ onUnmounted(() => {
   padding: 20px;
   max-width: 1400px;
   margin: 0 auto;
+}
+
+.map-fragments-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #1a1040, #2d1f6e);
+  border: 1px solid #5b4aaa;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  color: #c0b8ff;
+  font-size: 0.9em;
+}
+
+.fragments-icon {
+  font-size: 1.2em;
+}
+
+.fragments-label {
+  font-weight: bold;
+  color: #e0d8ff;
+}
+
+.fragments-hint {
+  font-size: 0.8em;
+  color: #8878cc;
+  margin-left: auto;
+  font-style: italic;
 }
 
 .map-header {
