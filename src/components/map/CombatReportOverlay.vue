@@ -115,7 +115,7 @@
 
         <!-- Section butin (uniquement si victoire avec pillage) -->
         <div v-if="report.pillage && lootTotal > 0" class="report-loot">
-          <h4 class="loot-title">💰 Butin récupéré</h4>
+          <h4 class="loot-title">🪙 Butin récupéré</h4>
           <div class="loot-resources">
             <span v-if="report.pillage.loot.gold > 0" class="loot-item">
               🪙 <strong>{{ report.pillage.loot.gold }}</strong>
@@ -124,7 +124,7 @@
               🪵 <strong>{{ report.pillage.loot.wood }}</strong>
             </span>
             <span v-if="report.pillage.loot.iron > 0" class="loot-item">
-              ⚙️ <strong>{{ report.pillage.loot.iron }}</strong>
+              ⚒️ <strong>{{ report.pillage.loot.iron }}</strong>
             </span>
             <span v-if="report.pillage.loot.crop > 0" class="loot-item">
               🌾 <strong>{{ report.pillage.loot.crop }}</strong>

@@ -51,7 +51,7 @@
     <div class="nav-stats" v-if="isInGame">
       <!-- Or -->
       <div class="stat-item stat-gold" :title="isCollapsed ? `${formatNumber(gold)} Or` : ''">
-        <span class="stat-icon" ref="goldIconRef">💰</span>
+        <span class="stat-icon" ref="goldIconRef">🪙</span>
         <Transition name="fade-text">
           <span v-if="!isCollapsed" class="stat-value">{{ formatNumber(gold) }}</span>
         </Transition>
@@ -95,7 +95,7 @@
         :class="[floating.isPositive ? 'floating-number--positive' : 'floating-number--negative']"
       >
         {{ floating.isPositive ? '+' : '-' }}{{ floating.amount }}
-        {{ floating.type === 'gold' ? '💰' : '👑' }}
+        {{ floating.type === 'gold' ? '🪙' : '👑' }}
       </div>
     </div>
   </nav>

@@ -12,7 +12,7 @@
       <div class="inventory-display" v-if="gameStore.gameState.currentStatus === 'in-progress'">
         <!-- Or du joueur -->
         <div class="inventory-item gold">
-          <span class="inventory-icon">💰</span>
+          <span class="inventory-icon">🪙</span>
           <span class="inventory-amount">{{
             formatNumber(gameStore.gameState.inventory.gold)
           }}</span>
@@ -178,7 +178,7 @@ const getArtifactTooltip = (artifact: Artifact): string => {
       if (resourceBonus.wood) tooltip += `\n• Bois: +${resourceBonus.wood}%`
       if (resourceBonus.stone) tooltip += `\n• Pierre: +${resourceBonus.stone}%`
       if (resourceBonus.iron) tooltip += `\n• Fer: +${resourceBonus.iron}%`
-      if (resourceBonus.food) tooltip += `\n• Nourriture: +${resourceBonus.food}%`
+      if (resourceBonus.crop) tooltip += `\n• Céréales: +${resourceBonus.crop}%`
     }
   }
 

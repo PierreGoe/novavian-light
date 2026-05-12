@@ -65,10 +65,10 @@
       v-if="tile.lootStock && (tile.type === 'village_enemy' || tile.type === 'stronghold')"
       class="tile-loot-stock"
     >
-      <div class="section-label">💰 Butin estimé avec votre armée actuelle</div>
+      <div class="section-label">🪙 Butin estimé avec votre armée actuelle</div>
       <div class="resource-grid">
         <div class="resource-card" v-if="estimatedLoot.gold > 0">
-          <div class="resource-icon">💰</div>
+          <div class="resource-icon">🪙</div>
           <div class="resource-name">Or</div>
           <div class="resource-amount">~{{ estimatedLoot.gold }}</div>
         </div>
@@ -78,7 +78,7 @@
           <div class="resource-amount">~{{ estimatedLoot.wood }}</div>
         </div>
         <div class="resource-card" v-if="estimatedLoot.iron > 0">
-          <div class="resource-icon">⚙️</div>
+          <div class="resource-icon">⚒️</div>
           <div class="resource-name">Fer</div>
           <div class="resource-amount">~{{ estimatedLoot.iron }}</div>
         </div>
@@ -353,7 +353,7 @@ const resourceBonusPct = (resource: string): number => {
     case 'iron':
       return effects.resourceBonus.iron ?? 0
     case 'crop':
-      return effects.resourceBonus.food ?? 0
+      return effects.resourceBonus.crop ?? 0
     case 'stone':
       return effects.resourceBonus.stone ?? 0
     case 'gold':
@@ -389,9 +389,9 @@ const getResourceIcon = (resource: string) => {
   const icons: Record<string, string> = {
     wood: '🪵',
     clay: '🧱',
-    iron: '⚙️',
+    iron: '⚒️',
     crop: '🌾',
-    gold: '💰',
+    gold: '🪙',
   }
   return icons[resource] || '📦'
 }

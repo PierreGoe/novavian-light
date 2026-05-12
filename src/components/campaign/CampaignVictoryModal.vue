@@ -34,7 +34,7 @@
 
               <!-- Or du nœud -->
               <div v-if="nodeRewardGold > 0" class="gain-row gain-gold">
-                <span class="gain-icon">💰</span>
+                <span class="gain-icon">🪙</span>
                 <span class="gain-name">Récompense du nœud</span>
                 <span class="gain-value">+{{ nodeRewardGold }} or</span>
               </div>

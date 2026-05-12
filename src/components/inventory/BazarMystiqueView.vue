@@ -68,8 +68,8 @@
               <span v-if="artifact.effects.resourceBonus?.iron" class="fx resource"
                 >+{{ artifact.effects.resourceBonus.iron }}% Fer</span
               >
-              <span v-if="artifact.effects.resourceBonus?.food" class="fx resource"
-                >+{{ artifact.effects.resourceBonus.food }}% Nourriture</span
+              <span v-if="artifact.effects.resourceBonus?.crop" class="fx resource">
+                +{{ artifact.effects.resourceBonus.crop }}% Céréales</span
               >
             </div>
 
@@ -94,7 +94,7 @@
               @click="buy(artifact)"
               :title="buyBtnTitle(artifact)"
             >
-              Acheter — {{ BAZAR_BUY_PRICES[artifact.rarity] }} 💰
+              Acheter — {{ BAZAR_BUY_PRICES[artifact.rarity] }} 🪙
             </button>
           </div>
         </div>

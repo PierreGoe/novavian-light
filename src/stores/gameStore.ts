@@ -24,13 +24,6 @@ export interface Race {
   }
 }
 
-export interface Resources {
-  wood: number
-  stone: number
-  iron: number
-  food: number
-}
-
 /** Type de durabilité d'un artefact */
 export type ArtifactDurability = 'single-use' | 'uses-limited' | 'permanent'
 
@@ -63,7 +56,7 @@ export interface Artifact {
       wood?: number
       stone?: number
       iron?: number
-      food?: number
+      crop?: number
     }
   }
   specialPower?: SpecialPower // pouvoir unique non-statistique
@@ -714,7 +707,7 @@ export const useGameStore = () => {
         wood: 0,
         stone: 0,
         iron: 0,
-        food: 0,
+        crop: 0,
       },
     }
 
@@ -727,7 +720,7 @@ export const useGameStore = () => {
         effects.resourceBonus.wood += artifact.effects.resourceBonus.wood || 0
         effects.resourceBonus.stone += artifact.effects.resourceBonus.stone || 0
         effects.resourceBonus.iron += artifact.effects.resourceBonus.iron || 0
-        effects.resourceBonus.food += artifact.effects.resourceBonus.food || 0
+        effects.resourceBonus.crop += artifact.effects.resourceBonus.crop || 0
       }
     })
 

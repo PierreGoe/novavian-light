@@ -91,10 +91,10 @@
               🪨 Pierre +{{ totalEffects.resourceBonus.stone }}%
             </div>
             <div v-if="totalEffects.resourceBonus.iron > 0" class="effect-chip resource">
-              ⚙️ Fer +{{ totalEffects.resourceBonus.iron }}%
+              ⚒️ Fer +{{ totalEffects.resourceBonus.iron }}%
             </div>
-            <div v-if="totalEffects.resourceBonus.food > 0" class="effect-chip resource">
-              🌾 Nourriture +{{ totalEffects.resourceBonus.food }}%
+            <div v-if="totalEffects.resourceBonus.crop > 0" class="effect-chip resource">
+              🌾 Céréales +{{ totalEffects.resourceBonus.crop }}%
             </div>
             <div
               v-for="power in activeSpecialPowers"
@@ -137,7 +137,7 @@
       <section class="forge-section">
         <div class="section-title">
           <h2>🔨 Forge</h2>
-          <span class="gold-display">💰 {{ currentGold }} or disponible</span>
+          <span class="gold-display">🪙 {{ currentGold }} or disponible</span>
         </div>
         <p class="forge-subtitle">Forger une relique détruit définitivement l'or dépensé.</p>
 
@@ -222,8 +222,8 @@
               <span v-if="artifact.effects.resourceBonus?.iron" class="fx-badge resource"
                 >+{{ artifact.effects.resourceBonus.iron }}% Fer</span
               >
-              <span v-if="artifact.effects.resourceBonus?.food" class="fx-badge resource"
-                >+{{ artifact.effects.resourceBonus.food }}% Nourriture</span
+              <span v-if="artifact.effects.resourceBonus?.crop" class="fx-badge resource"
+                >+{{ artifact.effects.resourceBonus.crop }}% Céréales</span
               >
             </div>
 
@@ -307,10 +307,10 @@
                 🪨 Pierre : +{{ selectedArtifact.effects.resourceBonus.stone }}%
               </li>
               <li v-if="selectedArtifact.effects.resourceBonus?.iron">
-                ⚙️ Fer : +{{ selectedArtifact.effects.resourceBonus.iron }}%
+                ⚒️ Fer : +{{ selectedArtifact.effects.resourceBonus.iron }}%
               </li>
-              <li v-if="selectedArtifact.effects.resourceBonus?.food">
-                🌾 Nourriture : +{{ selectedArtifact.effects.resourceBonus.food }}%
+              <li v-if="selectedArtifact.effects.resourceBonus?.crop">
+                🌾 Céréales : +{{ selectedArtifact.effects.resourceBonus.crop }}%
               </li>
             </ul>
           </div>
@@ -524,7 +524,7 @@ const hasEffects = (artifact: Artifact): boolean => {
     e.resourceBonus?.wood ||
     e.resourceBonus?.stone ||
     e.resourceBonus?.iron ||
-    e.resourceBonus?.food
+    e.resourceBonus?.crop
   )
 }
 

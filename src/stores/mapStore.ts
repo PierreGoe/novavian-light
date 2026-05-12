@@ -6,6 +6,7 @@ import { TERRAIN_CONFIG } from '@/utils/map/TerrainTypes'
 import { GARRISON_REGEN_DURATION_MS, RECENT_PILLAGE_THRESHOLD_MS } from '@/config'
 import { gameSettings } from '@/stores/gameSettingsStore'
 import { computePillage } from '@/combat/loot'
+import { TERRAIN_BONUS } from '@/data/resources'
 export type { EnemyLootStock, PillageResult } from '@/combat/loot'
 
 // Types pour la carte et l'exploration
@@ -175,10 +176,6 @@ const generateInitialMap = (): MapTile[] => {
   const CENTER = Math.floor(mapSize / 2)
   const revealRange = gameSettings.rankRevealRange
 
-  console.log(
-    `🗺️ [generateInitialMap] DISABLE_FOG_OF_WAR=${gameSettings.disableFogOfWar}, revealRange=${revealRange}`,
-  )
-
   // Pipeline CA — grille brute puis lissage en 5 itérations
   const rawGrid = createRawGrid(mapSize, mapSize)
   const smoothGrid = smoothTerrain(rawGrid, 5)
@@ -220,14 +217,7 @@ const generateInitialMap = (): MapTile[] => {
         explored,
         current: isCenter,
         position: { x, y },
-        bonus:
-          type === 'forest'
-            ? '+50% Bois'
-            : type === 'mountain'
-              ? '+50% Pierre'
-              : type === 'water'
-                ? '+50% Poisson'
-                : undefined,
+        bonus: TERRAIN_BONUS[type],
         // Générer un stock de ressources initial pour les villages ennemis et forteresses
         lootStock:
           type === 'village_enemy' || type === 'stronghold'
@@ -237,9 +227,6 @@ const generateInitialMap = (): MapTile[] => {
     }
   }
 
-  console.log(
-    `🗺️ [generateInitialMap] Tuiles générées: ${tiles.length}, explorées: ${tiles.filter((t) => t.explored).length}/${tiles.length}`,
-  )
   return tiles
 }
 
@@ -740,7 +727,6 @@ export const useMapStore = () => {
   }
 
   const loadMapState = (): boolean => {
-    console.log(`🔍 [loadMapState] DISABLE_FOG_OF_WAR=${gameSettings.disableFogOfWar}`)
     try {
       const saved = localStorage.getItem('novavian-map')
       if (saved) {
@@ -750,9 +736,7 @@ export const useMapStore = () => {
         const expectedTileCount = MAP_CONFIG.size * MAP_CONFIG.size
         if (data.mapTiles && data.mapTiles.length === expectedTileCount) {
           const exploredBefore = data.mapTiles.filter((t: MapTile) => t.explored).length
-          console.log(
-            `📂 [loadMapState] Tuiles en localStorage: ${data.mapTiles.length}, explorées avant reset: ${exploredBefore}`,
-          )
+          void exploredBefore // utilisé uniquement en debug
           Object.assign(mapState, {
             ...initialMapState,
             ...data,
@@ -797,24 +781,19 @@ export const useMapStore = () => {
             mapState.mapTiles.forEach((tile) => {
               tile.explored = exploredIds.has(tile.id) || tile.current
             })
-            console.log(
-              `🌫️ [loadMapState] Fog réappliqué — explorées après reset: ${mapState.mapTiles.filter((t) => t.explored).length}`,
-            )
           } else {
-            console.log(`☀️ [loadMapState] Fog désactivé — toutes les tuiles restent visibles`)
+            // Fog désactivé — toutes les tuiles restent visibles
           }
 
           return true
         }
 
         // Sinon, charger les autres données mais générer une nouvelle carte
-        console.log('⚠️ Saved map has no tiles, generating new map')
         Object.assign(mapState, {
           ...initialMapState,
           ...data,
           mapTiles: generateInitialMap(),
         })
-        console.log('Generated tiles:', mapState.mapTiles.length)
         saveMapState()
         return true
       }
@@ -822,8 +801,7 @@ export const useMapStore = () => {
       console.error('❌ Error loading map:', error)
     }
 
-    // Si aucune carte sauvegardée, générer une nouvelle carte et la sauvegarder
-    console.log('📂 No saved map found, generating new map')
+    // Aucune carte sauvegardée — générer une nouvelle carte
     mapState.mapTiles = generateInitialMap()
     saveMapState()
 
