@@ -9,6 +9,56 @@ import { computePillage } from '@/combat/loot'
 import { TERRAIN_BONUS } from '@/data/resources'
 export type { EnemyLootStock, PillageResult } from '@/combat/loot'
 
+// ====================================================================
+// TYPES — Zones d’influence & Hostilité
+// ====================================================================
+
+/** Niveau d’hostilité d’une forteresse envers le joueur */
+export type HostilityState = 'neutral' | 'warned' | 'hostile'
+
+/** Zone d’influence d’une forteresse — regroupe les villages qu’elle contrôle */
+export interface FortressZone {
+  /** ID de la tuile forteresse (clé dans fortressZones) */
+  fortressTileId: string
+  /** IDs des villages ennemis dans le rayon d’influence */
+  villageIds: string[]
+  /** Rayon de Chebyshev de la zone */
+  influenceRadius: number
+  /** Puissance calculée = nombre de villages dans la zone */
+  power: number
+  /** Niveau d’hostilité 0–100 */
+  hostilityLevel: number
+  /** Catégorie d’hostilité dérivée de hostilityLevel */
+  hostilityState: HostilityState
+  /** Timestamp (Date.now) de la prochaine attaque hostile (si hostile) */
+  nextAttackAt?: number
+}
+
+// ====================================================================
+// CONSTANTES — Hostilité
+// ====================================================================
+
+/** Rayon de Chebyshev de l’influence d’une forteresse (en cases) */
+const FORTRESS_INFLUENCE_RADIUS = 4
+
+/** Seuils de passage d’état */
+const HOSTILITY_THRESHOLD_WARNED = 40
+const HOSTILITY_THRESHOLD_HOSTILE = 70
+
+/** Gain d’hostilité lors d’une attaque sur un village de la zone */
+export const HOSTILITY_GAIN_VILLAGE_ATTACK = 20
+/** Gain d’hostilité lors d’une attaque directe sur la forteresse */
+export const HOSTILITY_GAIN_FORTRESS_ATTACK = 50
+
+/** Intervalle entre deux attaques hostiles (en ms) */
+const HOSTILE_ATTACK_INTERVAL_MS = 3 * 60 * 1000 // 3 minutes
+
+/** Décroissance d’hostilité par tick du timer (toutes les 30s) */
+const HOSTILITY_DECAY_PER_TICK = 2
+
+/** Ressources pillées par attaque hostile, par village contrôlé */
+const HOSTILE_LOOT_PER_POWER = 4
+
 // Types pour la carte et l'exploration
 export type TerrainType =
   | 'plains'
@@ -108,6 +158,11 @@ export interface MapTile {
   lootStock?: EnemyLootStock
   /** Timestamp réel du dernier pillage (pour réduire le butin si récent) */
   lastPillagedAt?: number
+  /**
+   * Niveau de la forteresse (1 = forteresse simple, +1 par forteresse absorbée lors de la fusion).
+   * Affecte la puissance de base dans computeFortressZones.
+   */
+  level?: number
 }
 
 export interface ExplorationState {
@@ -119,6 +174,8 @@ export interface ExplorationState {
   zoomLevel: number
   activeMovements: TroopMovement[]
   unlockedChunks: string[]
+  /** Zones d’influence des forteresses — clé = tileId de la forteresse */
+  fortressZones: Record<string, FortressZone>
 }
 
 // Configuration de la carte
@@ -148,6 +205,7 @@ const initialMapState: ExplorationState = {
   zoomLevel: MAP_CONFIG.defaultViewportSize,
   activeMovements: [],
   unlockedChunks: [STARTING_CHUNK_ID], // Seul le cadran de départ est débloqué initialement
+  fortressZones: {},
 }
 
 // Correspondance biome CA → terrain mapStore
@@ -168,6 +226,100 @@ const generateLootStock = (isStronghold: boolean): EnemyLootStock => {
     iron: Math.floor((base + jitter()) * 0.7),
     crop: base + jitter(),
   }
+}
+
+/**
+ * Post-traitement en deux passes :
+ *
+ * Passe 1 — Fusion par chunk :
+ *   - 1 forteresse survivante par cadran (10×10), la plus proche du centre.
+ *   - Les autres deviennent des plaines.
+ *
+ * Passe 2 — Normalisation des niveaux 1–5 :
+ *   - Pour chaque survivante, on compte ses villages dans le rayon d'influence.
+ *   - Min village count → niveau 1, max → niveau 5 (distribution linéaire).
+ *   - Si toutes ont le même compte → niveau 3 par défaut.
+ *   - Le lootStock est multiplié par le niveau final.
+ */
+const MAX_FORTRESS_LEVEL = 5
+
+const mergeFortresses = (tiles: MapTile[]): void => {
+  const chunkSize = MAP_CONFIG.chunkSize
+
+  // ── Passe 1 : 1 forteresse par chunk ──────────────────────────────
+  const fortresses = tiles.filter((t) => t.type === 'stronghold')
+  const byChunk = new Map<string, MapTile[]>()
+  for (const f of fortresses) {
+    const cx = Math.floor(f.position.x / chunkSize)
+    const cy = Math.floor(f.position.y / chunkSize)
+    const key = `${cx}-${cy}`
+    if (!byChunk.has(key)) byChunk.set(key, [])
+    byChunk.get(key)!.push(f)
+  }
+
+  const tileById = new Map(tiles.map((t) => [t.id, t]))
+
+  byChunk.forEach((members, chunkKey) => {
+    const [cxStr, cyStr] = chunkKey.split('-')
+    const centerX = parseInt(cxStr) * chunkSize + chunkSize / 2
+    const centerY = parseInt(cyStr) * chunkSize + chunkSize / 2
+
+    // Survivant = forteresse la plus proche du centre du chunk
+    members.sort(
+      (a, b) =>
+        Math.hypot(a.position.x - centerX, a.position.y - centerY) -
+        Math.hypot(b.position.x - centerX, b.position.y - centerY),
+    )
+
+    // Absorber les autres → plaines (niveau 1 provisoire sur le survivant)
+    members[0].level = 1
+    for (let i = 1; i < members.length; i++) {
+      const absorbed = tileById.get(members[i].id)!
+      absorbed.type = 'plains'
+      absorbed.lootStock = undefined
+      absorbed.bonus = undefined
+    }
+  })
+
+  // ── Passe 2 : normalisation des niveaux selon densité de villages ──
+  const survivors = tiles.filter((t) => t.type === 'stronghold')
+  const villages = tiles.filter((t) => t.type === 'village_enemy')
+
+  // Compter les villages dans le rayon de chaque survivante
+  const counts = survivors.map((f) => {
+    const n = villages.filter((v) => {
+      const dx = Math.abs(v.position.x - f.position.x)
+      const dy = Math.abs(v.position.y - f.position.y)
+      return Math.max(dx, dy) <= FORTRESS_INFLUENCE_RADIUS
+    }).length
+    return { fortress: f, count: n }
+  })
+
+  if (counts.length === 0) return
+
+  const minCount = Math.min(...counts.map((e) => e.count))
+  const maxCount = Math.max(...counts.map((e) => e.count))
+  const range = maxCount - minCount
+
+  counts.forEach(({ fortress, count }) => {
+    // Normalisation linéaire min→1, max→5 ; si tout identique → niveau 3
+    const level =
+      range === 0
+        ? 3
+        : Math.max(
+            1,
+            Math.min(MAX_FORTRESS_LEVEL, Math.round(1 + ((count - minCount) / range) * 4)),
+          )
+
+    fortress.level = level
+    // Regénérer le lootStock de base et le multiplier par le niveau final
+    fortress.lootStock = {
+      gold: generateLootStock(true).gold * level,
+      wood: generateLootStock(true).wood * level,
+      iron: generateLootStock(true).iron * level,
+      crop: generateLootStock(true).crop * level,
+    }
+  })
 }
 
 // Générer la carte initiale via automate cellulaire (clusters naturels)
@@ -226,6 +378,9 @@ const generateInitialMap = (): MapTile[] => {
       })
     }
   }
+
+  // Fusionner les forteresses trop proches et assigner les niveaux
+  mergeFortresses(tiles)
 
   return tiles
 }
@@ -785,6 +940,9 @@ export const useMapStore = () => {
             // Fog désactivé — toutes les tuiles restent visibles
           }
 
+          // Recalcule les zones après chargement (migration des anciennes saves sans fortressZones)
+          computeFortressZones()
+
           return true
         }
 
@@ -794,6 +952,7 @@ export const useMapStore = () => {
           ...data,
           mapTiles: generateInitialMap(),
         })
+        computeFortressZones()
         saveMapState()
         return true
       }
@@ -803,6 +962,7 @@ export const useMapStore = () => {
 
     // Aucune carte sauvegardée — générer une nouvelle carte
     mapState.mapTiles = generateInitialMap()
+    computeFortressZones()
     saveMapState()
 
     return false
@@ -813,15 +973,171 @@ export const useMapStore = () => {
       ...initialMapState,
       mapTiles: generateInitialMap(),
     })
-    // Sauvegarder immédiatement pour écraser toute ancienne carte en localStorage
+    computeFortressZones()
     saveMapState()
+  }
+
+  // ====================================================================
+  // ZONES D'INFLUENCE DES FORTERESSES
+  // ====================================================================
+
+  /** Dérive l'état d'hostilité à partir du niveau (0–100) */
+  const getHostilityStateFromLevel = (level: number): HostilityState => {
+    if (level >= HOSTILITY_THRESHOLD_HOSTILE) return 'hostile'
+    if (level >= HOSTILITY_THRESHOLD_WARNED) return 'warned'
+    return 'neutral'
+  }
+
+  /**
+   * (Re)calcule toutes les zones d'influence depuis les tuiles actuelles.
+   * Préserve les niveaux d'hostilité existants.
+   * À appeler après génération/chargement de la carte.
+   */
+  const computeFortressZones = (): void => {
+    const fortresses = mapState.mapTiles.filter((t) => t.type === 'stronghold')
+    const villages = mapState.mapTiles.filter((t) => t.type === 'village_enemy')
+    const newZones: Record<string, FortressZone> = {}
+
+    for (const fortress of fortresses) {
+      const { x: fx, y: fy } = fortress.position
+      const villageIds = villages
+        .filter((v) => {
+          const dx = Math.abs(v.position.x - fx)
+          const dy = Math.abs(v.position.y - fy)
+          return Math.max(dx, dy) <= FORTRESS_INFLUENCE_RADIUS
+        })
+        .map((v) => v.id)
+
+      // Préserver l'état d'hostilité existant si la zone était déjà connue
+      const existing = mapState.fortressZones[fortress.id]
+      // Puissance = villages dans la zone + bonus par niveau de forteresse (level - 1 forteresses absorbées)
+      const fortressLevel = fortress.level ?? 1
+      newZones[fortress.id] = {
+        fortressTileId: fortress.id,
+        villageIds,
+        influenceRadius: FORTRESS_INFLUENCE_RADIUS,
+        power: villageIds.length + (fortressLevel - 1),
+        hostilityLevel: existing?.hostilityLevel ?? 0,
+        hostilityState: existing?.hostilityState ?? 'neutral',
+        nextAttackAt: existing?.nextAttackAt,
+      }
+    }
+
+    mapState.fortressZones = newZones
+  }
+
+  /** Retourne la zone d'influence d'une forteresse */
+  const getFortressZone = (fortressTileId: string): FortressZone | undefined =>
+    mapState.fortressZones[fortressTileId]
+
+  /** Retourne le tileId de la forteresse qui contrôle ce village */
+  const getControllingFortress = (villageTileId: string): string | undefined =>
+    Object.values(mapState.fortressZones).find((z) => z.villageIds.includes(villageTileId))
+      ?.fortressTileId
+
+  /**
+   * Retourne tous les IDs de tuiles d'une zone d'influence (forteresse incluse).
+   * Utile pour le rendu de l'overlay UI.
+   */
+  const getInfluenceZoneTileIds = (fortressTileId: string): Set<string> => {
+    const zone = mapState.fortressZones[fortressTileId]
+    if (!zone) return new Set()
+    const set = new Set(zone.villageIds)
+    set.add(fortressTileId)
+    return set
+  }
+
+  /**
+   * Augmente l'hostilité d'une forteresse suite à une attaque.
+   * Planifie la première attaque si on franchit le seuil hostile.
+   */
+  const increaseHostility = (fortressTileId: string, amount: number): void => {
+    const zone = mapState.fortressZones[fortressTileId]
+    if (!zone) return
+
+    const prevState = zone.hostilityState
+    zone.hostilityLevel = Math.min(100, zone.hostilityLevel + amount)
+    zone.hostilityState = getHostilityStateFromLevel(zone.hostilityLevel)
+
+    if (prevState !== 'hostile' && zone.hostilityState === 'hostile') {
+      zone.nextAttackAt = Date.now() + HOSTILE_ATTACK_INTERVAL_MS
+    }
+
+    saveMapState()
+  }
+
+  /**
+   * À appeler quand le joueur attaque une tuile ennemie.
+   * Augmente l'hostilité de la forteresse responsable.
+   */
+  const onEnemyTileAttacked = (tileId: string): void => {
+    const tile = getTileById(tileId)
+    if (!tile) return
+
+    if (tile.type === 'stronghold') {
+      increaseHostility(tileId, HOSTILITY_GAIN_FORTRESS_ATTACK)
+    } else if (tile.type === 'village_enemy') {
+      const fortressId = getControllingFortress(tileId)
+      if (fortressId) increaseHostility(fortressId, HOSTILITY_GAIN_VILLAGE_ATTACK)
+    }
+  }
+
+  /**
+   * Traite toutes les attaques hostiles dont l'heure est passée.
+   * Retourne la liste des zones déclenchées (pour notification UI).
+   */
+  const processHostileAttacks = (): FortressZone[] => {
+    const now = Date.now()
+    const triggered: FortressZone[] = []
+
+    for (const zone of Object.values(mapState.fortressZones)) {
+      if (zone.hostilityState !== 'hostile') continue
+      if (!zone.nextAttackAt || zone.nextAttackAt > now) continue
+      triggered.push(zone)
+      zone.nextAttackAt = now + HOSTILE_ATTACK_INTERVAL_MS
+    }
+
+    if (triggered.length > 0) saveMapState()
+    return triggered
+  }
+
+  /**
+   * Décroissance naturelle de l'hostilité — appelé toutes les 30s par le timer.
+   */
+  const tickHostilityDecay = (): void => {
+    let changed = false
+    for (const zone of Object.values(mapState.fortressZones)) {
+      if (zone.hostilityLevel <= 0) continue
+      zone.hostilityLevel = Math.max(0, zone.hostilityLevel - HOSTILITY_DECAY_PER_TICK)
+      const newState = getHostilityStateFromLevel(zone.hostilityLevel)
+      if (newState !== zone.hostilityState) {
+        zone.hostilityState = newState
+        if (newState !== 'hostile') zone.nextAttackAt = undefined
+      }
+      changed = true
+    }
+    if (changed) saveMapState()
+  }
+
+  /**
+   * Calcule le montant des ressources pillées par une attaque hostile.
+   * Proportionnel au nombre de villages contrôlés.
+   */
+  const computeHostileRaid = (
+    zone: FortressZone,
+  ): { wood: number; clay: number; iron: number; crop: number } => {
+    const base = Math.max(5, zone.power * HOSTILE_LOOT_PER_POWER)
+    return {
+      wood: base,
+      clay: base,
+      iron: Math.floor(base / 2),
+      crop: base,
+    }
   }
 
   return {
     // État
     mapState,
-
-    // Getters
     currentPosition,
     mapTiles,
     selectedTile,
@@ -863,6 +1179,17 @@ export const useMapStore = () => {
     isChunkUnlocked,
     unlockChunk,
     unlockAdjacentChunks,
+
+    // Zones d'influence & Hostilité
+    computeFortressZones,
+    getFortressZone,
+    getControllingFortress,
+    getInfluenceZoneTileIds,
+    increaseHostility,
+    onEnemyTileAttacked,
+    processHostileAttacks,
+    tickHostilityDecay,
+    computeHostileRaid,
 
     // Persistance
     saveMapState,

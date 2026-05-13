@@ -209,7 +209,18 @@ const initialState: MissionState = {
         position: { x: 3, y: 1 },
       },
     ],
-    units: [],
+    units: [
+      {
+        id: 'infantry-start',
+        type: 'infantry',
+        count: 100,
+        attack: UNIT_DEFINITIONS.infantry.stats.attack,
+        defense: UNIT_DEFINITIONS.infantry.stats.defense,
+        health: UNIT_DEFINITIONS.infantry.stats.health,
+        cost: UNIT_DEFINITIONS.infantry.cost,
+        trainingTime: UNIT_DEFINITIONS.infantry.baseTrainingTime,
+      },
+    ],
     trainingQueue: [],
     population: 10,
   },
@@ -697,6 +708,21 @@ export const useMissionStore = () => {
           if (!missionState.town.trainingQueue) {
             missionState.town.trainingQueue = []
           }
+          // Migration : s'assurer que les 100 fantassins de départ sont présents
+          if (!missionState.town.units || missionState.town.units.length === 0) {
+            missionState.town.units = [
+              {
+                id: 'infantry-start',
+                type: 'infantry',
+                count: 100,
+                attack: UNIT_DEFINITIONS.infantry.stats.attack,
+                defense: UNIT_DEFINITIONS.infantry.stats.defense,
+                health: UNIT_DEFINITIONS.infantry.stats.health,
+                cost: UNIT_DEFINITIONS.infantry.cost,
+                trainingTime: UNIT_DEFINITIONS.infantry.baseTrainingTime,
+              },
+            ]
+          }
         }
 
         if (data.gameElapsedMs !== undefined) {
@@ -761,7 +787,18 @@ export const useMissionStore = () => {
             position: { x: 3, y: 1 },
           },
         ],
-        units: [],
+        units: [
+          {
+            id: 'infantry-start',
+            type: 'infantry',
+            count: 100,
+            attack: UNIT_DEFINITIONS.infantry.stats.attack,
+            defense: UNIT_DEFINITIONS.infantry.stats.defense,
+            health: UNIT_DEFINITIONS.infantry.stats.health,
+            cost: UNIT_DEFINITIONS.infantry.cost,
+            trainingTime: UNIT_DEFINITIONS.infantry.baseTrainingTime,
+          },
+        ],
         trainingQueue: [],
         population: 10,
       },

@@ -75,25 +75,25 @@ export const CHEAT_VICTORY_POINTS = import.meta.env.VITE_CHEAT_VICTORY_POINTS ==
 // ------------------------------------// Phase 2 — Pillage & économie de guerre
 // ------------------------------------
 
-/** Durée en ms pour qu'une garnison vaincue se reconstitue complètement (défaut : 5 min) */
+/** Durée en ms pour qu'une garnison vaincue se reconstitue complètement (défaut : 1 min) */
 export const GARRISON_REGEN_DURATION_MS = parseNumber(
   import.meta.env.VITE_GARRISON_REGEN_DURATION_MS,
-  5 * 60 * 1000,
+  1 * 60 * 1000,
 )
 
-/** Intervalle en ms entre deux ticks de régénération du stock ennemi (défaut : 2 min) */
+/** Intervalle en ms entre deux ticks de régénération du stock ennemi (défaut : 1 min) */
 export const ENEMY_REGEN_INTERVAL_MS = parseNumber(
   import.meta.env.VITE_ENEMY_REGEN_INTERVAL_MS,
-  2 * 60 * 1000,
+  1 * 60 * 1000,
 )
 
 /** Fraction du stock pillée par attaque victorieuse (défaut : 0.4 = 40%) */
 export const LOOT_FRACTION = parseNumber(import.meta.env.VITE_LOOT_FRACTION, 0.4)
 
-/** Durée en ms sous laquelle un village est considéré « récemment pillé » (défaut : 10 min) */
+/** Durée en ms sous laquelle un village est considéré « récemment pillé » (défaut : 1 min) */
 export const RECENT_PILLAGE_THRESHOLD_MS = parseNumber(
   import.meta.env.VITE_RECENT_PILLAGE_THRESHOLD_MS,
-  10 * 60 * 1000,
+  1 * 60 * 1000,
 )
 
 // ------------------------------------// Meta

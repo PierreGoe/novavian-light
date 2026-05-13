@@ -33,11 +33,13 @@ const onSidebarToggle = (e: Event) => {
 onMounted(() => {
   gameStore.loadGame()
   gameStore.startAutoSave()
+  gameStore.startHostilityTimer()
   window.addEventListener('sidebar-toggle', onSidebarToggle)
 })
 
 onUnmounted(() => {
   gameStore.stopAutoSave()
+  gameStore.stopHostilityTimer()
   window.removeEventListener('sidebar-toggle', onSidebarToggle)
 })
 </script>

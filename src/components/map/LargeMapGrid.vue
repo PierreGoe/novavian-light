@@ -56,6 +56,13 @@
             <div class="current-marker" v-if="tile.current">📍</div>
             <!-- Indicateur : troupes en route vers cette tuile -->
             <div class="troops-en-route" v-if="hasTroopsEnRoute(tile.id)">🪖</div>
+            <!-- Indicateur : garnison en reconstitution -->
+            <div
+              class="garrison-regen-badge"
+              v-if="isGarrisonRegenerating(tile) && (gameSettings.disableFogOfWar || tile.explored)"
+            >
+              ↺
+            </div>
           </div>
         </div>
 
@@ -80,6 +87,41 @@
             </div>
           </div>
         </div>
+
+        <!-- Overlay zones d’influence des forteresses -->
+        <div
+          v-if="visibleInfluenceOverlay.length > 0"
+          class="map-grid-large map-influence-overlay"
+          :key="`influence-${gridRenderKey}`"
+          :style="gridStyle"
+        >
+          <div
+            v-for="cell in visibleInfluenceOverlay"
+            :key="cell.tileId"
+            class="influence-cell"
+            :class="`influence-cell--${cell.hostilityState}`"
+            :style="{ gridColumn: cell.col, gridRow: cell.row }"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Panneau debug forteresses -->
+    <div
+      class="debug-fortress-panel"
+      v-if="Object.keys(mapStore.mapState.fortressZones).length > 0"
+    >
+      <div class="debug-title">🔍 Debug forteresses</div>
+      <div
+        v-for="zone in mapStore.mapState.fortressZones"
+        :key="zone.fortressTileId"
+        class="debug-zone"
+        :class="`debug-zone--${zone.hostilityState}`"
+      >
+        <span class="debug-id">{{ zone.fortressTileId }}</span>
+        <span class="debug-power">⚔️ {{ zone.power }}</span>
+        <span class="debug-level">📊 {{ zone.hostilityLevel }}%</span>
+        <span class="debug-state">{{ zone.hostilityState }}</span>
       </div>
     </div>
 
@@ -90,9 +132,10 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useMapStore, type MapTile, MAP_CONFIG } from '../../stores/mapStore'
+import { useMapStore, type MapTile, MAP_CONFIG, type HostilityState } from '../../stores/mapStore'
 import { useMapViewport } from '../../composables/useMapViewport'
 import { gameSettings } from '../../stores/gameSettingsStore'
+import { GARRISON_REGEN_DURATION_MS } from '../../config'
 
 // Props
 interface Props {
@@ -204,6 +247,13 @@ const isChunkLocked = (tile: MapTile): boolean => !mapStore.isChunkUnlocked(getC
 /** Retourne true si des troupes du joueur sont en route vers cette tuile */
 const hasTroopsEnRoute = (tileId: string): boolean => mapStore.getMovementsToTile(tileId).length > 0
 
+/** Vrai si la garnison est en cours de reconstitution (< 100%) */
+const isGarrisonRegenerating = (tile: MapTile): boolean => {
+  if (!tile.garrison?.regenStartedAt) return false
+  const elapsed = Date.now() - tile.garrison.regenStartedAt
+  return elapsed < GARRISON_REGEN_DURATION_MS
+}
+
 /** Calcule le style de bordure et border-radius d'une bulle selon ses bords visibles */
 const getChunkBubbleStyle = (chunk: {
   id: string
@@ -292,6 +342,36 @@ const visibleLockedChunks = computed(() => {
         borderRight,
         borderBottom,
         borderLeft,
+      })
+    }
+  }
+
+  return result
+})
+
+/**
+ * Computed — cellules de l'overlay zone d'influence visible dans le viewport.
+ * Affiche TOUTES les zones de forteresses (neutral inclus).
+ */
+const visibleInfluenceOverlay = computed(() => {
+  const { startX, startY, endX, endY } = viewportDimensions.value
+  const zones = Object.values(mapStore.mapState.fortressZones)
+  if (zones.length === 0) return []
+
+  const result: { tileId: string; col: string; row: string; hostilityState: HostilityState }[] = []
+
+  for (const zone of zones) {
+    const allIds = mapStore.getInfluenceZoneTileIds(zone.fortressTileId)
+    for (const tileId of allIds) {
+      const tile = mapStore.getTileById(tileId)
+      if (!tile) continue
+      const { x, y } = tile.position
+      if (x < startX || x >= endX || y < startY || y >= endY) continue
+      result.push({
+        tileId,
+        col: `${x - startX + 1}`,
+        row: `${y - startY + 1}`,
+        hostilityState: zone.hostilityState,
       })
     }
   }
@@ -496,6 +576,35 @@ const visibleLockedChunks = computed(() => {
   animation: pulse-troop 1s ease-in-out infinite;
 }
 
+/* Badge "en reconstitution" — garnison vaincue en train de régénérer */
+.garrison-regen-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: clamp(8px, 1.2vw, 11px);
+  color: #fbbf24;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 3px;
+  padding: 0 2px;
+  z-index: 5;
+  animation: regen-spin 2s linear infinite;
+  line-height: 1;
+}
+
+@keyframes regen-spin {
+  0% {
+    opacity: 1;
+    transform: rotate(0deg);
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes pulse-troop {
   0%,
   100% {
@@ -514,6 +623,109 @@ const visibleLockedChunks = computed(() => {
   width: 100%;
   height: 100%;
   pointer-events: none; /* laisse passer les clics vers les tuiles */
+}
+
+/* Overlay zones d'influence des forteresses */
+.map-influence-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.influence-cell {
+  position: relative;
+}
+
+/* Zone neutre — contour rouge très subtil */
+.influence-cell--neutral {
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  box-sizing: border-box;
+}
+
+/* Zone avertie — teinte orange légère */
+.influence-cell--warned {
+  background: rgba(251, 146, 60, 0.18);
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  box-sizing: border-box;
+}
+
+/* Zone hostile — teinte rouge intense */
+.influence-cell--hostile {
+  background: rgba(239, 68, 68, 0.22);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  box-sizing: border-box;
+  animation: hostile-pulse 2s ease-in-out infinite;
+}
+
+@keyframes hostile-pulse {
+  0%,
+  100% {
+    background: rgba(239, 68, 68, 0.18);
+  }
+  50% {
+    background: rgba(239, 68, 68, 0.34);
+  }
+}
+
+/* ── Panneau debug forteresses ── */
+.debug-fortress-panel {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 200;
+  background: rgba(5, 5, 20, 0.9);
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: monospace;
+  font-size: 11px;
+  color: #ccc;
+  backdrop-filter: blur(4px);
+  max-height: 180px;
+  overflow-y: auto;
+  min-width: 220px;
+}
+
+.debug-title {
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 4px;
+}
+
+.debug-zone {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.debug-id {
+  color: #888;
+  min-width: 50px;
+}
+.debug-power {
+  color: #f87171;
+}
+.debug-level {
+  color: #94a3b8;
+}
+
+.debug-zone--neutral .debug-state {
+  color: #4ade80;
+}
+.debug-zone--warned .debug-state {
+  color: #fb923c;
+}
+.debug-zone--hostile .debug-state {
+  color: #f87171;
+  font-weight: bold;
 }
 
 /* Bulle d'un cadran verrouillé */

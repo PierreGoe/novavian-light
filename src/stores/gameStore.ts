@@ -4,6 +4,7 @@ import { generateMap } from '@/utils'
 import router from '@/router'
 import { useMissionStore } from '@/stores/missionStore'
 import { useMapStore } from '@/stores/mapStore'
+import { useToastStore } from '@/stores/toastStore'
 import {
   STARTING_ARTIFACTS,
   SELL_PRICES,
@@ -160,7 +161,7 @@ const createInitialState = (): GameState => ({
     leadership: 100,
     artifacts: [], // ← Nouveau tableau à chaque appel
     activeArtifacts: [], // ← IDs des artefacts actifs
-    mapFragments: 1, // Le joueur commence avec 1 fragment de carte
+    mapFragments: 50, // Le joueur commence avec 5 fragments de carte
   },
   createdAt: null,
   currentGameSection: undefined,
@@ -256,7 +257,7 @@ export const useGameStore = () => {
           gameState.inventory.gold = gameData.inventory.gold || 0
           gameState.inventory.leadership = gameData.inventory.leadership ?? 100
           gameState.inventory.artifacts = gameData.inventory.artifacts || []
-          gameState.inventory.mapFragments = gameData.inventory.mapFragments ?? 1 // Migration anciens saves
+          gameState.inventory.mapFragments = gameData.inventory.mapFragments ?? 0 // Migration anciens saves
           // Migration : si l'ancien save utilisait equippedArtifacts, on convertit
           if (gameData.inventory.activeArtifacts) {
             gameState.inventory.activeArtifacts = gameData.inventory.activeArtifacts
@@ -292,6 +293,12 @@ export const useGameStore = () => {
         }
         if (gameData.victoryHistory) {
           gameState.victoryHistory = gameData.victoryHistory
+        }
+
+        // Calculer les zones d'influence des forteresses après chargement de la carte
+        const mapStore = useMapStore()
+        if (mapStore.mapState.mapTiles.length > 0) {
+          mapStore.computeFortressZones()
         }
 
         return true
@@ -436,6 +443,50 @@ export const useGameStore = () => {
     if (autoSaveInterval) {
       clearInterval(autoSaveInterval)
       autoSaveInterval = null
+    }
+  }
+
+  // ====================================================================
+  // TIMER D'HOSTILITÉ — attaques périodiques des forteresses hostiles
+  // ====================================================================
+
+  let hostilityInterval: number | null = null
+
+  /** Démarre le timer d'hostilité (tick toutes les 30s). */
+  const startHostilityTimer = () => {
+    if (hostilityInterval) return
+    hostilityInterval = window.setInterval(() => {
+      if (gameState.currentStatus !== 'in-progress') return
+      const mapStore = useMapStore()
+      const missionStore = useMissionStore()
+      const toastStore = useToastStore()
+
+      // 1. Décroissance naturelle de l'hostilité
+      mapStore.tickHostilityDecay()
+
+      // 2. Attaques des forteresses hostiles dont l'heure est passée
+      const triggered = mapStore.processHostileAttacks()
+      for (const zone of triggered) {
+        const raid = mapStore.computeHostileRaid(zone)
+        // Appliquer le pillage sur les ressources de la ville
+        missionStore.spendResources(raid)
+
+        const fortress = mapStore.getTileById(zone.fortressTileId)
+        const loc = fortress ? `(${fortress.position.x},${fortress.position.y})` : ''
+        const total = raid.wood + raid.clay + raid.iron + raid.crop
+        toastStore.showError(
+          `⚔️ Raid ennemi ! La forteresse ${loc} a pillé ${total} ressources de votre ville.`,
+          { duration: 10000 },
+        )
+      }
+    }, 30_000) // Tick toutes les 30 secondes
+  }
+
+  /** Arrête le timer d'hostilité. */
+  const stopHostilityTimer = () => {
+    if (hostilityInterval) {
+      clearInterval(hostilityInterval)
+      hostilityInterval = null
     }
   }
 
@@ -1024,6 +1075,8 @@ export const useGameStore = () => {
     resetMapOnly,
     startAutoSave,
     stopAutoSave,
+    startHostilityTimer,
+    stopHostilityTimer,
 
     // Actions de carte
     setMapLayers,

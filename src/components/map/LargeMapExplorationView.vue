@@ -261,10 +261,50 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
 
   // Si la garnison est vide (déjà vaincue)
   if (tile.garrison.units.length === 0 || tile.garrison.units.every((u) => u.count <= 0)) {
-    tile.type = 'ruins'
-    tile.garrison = undefined
+    const hasSiegeUnit = movement.units.some((u) => u.type === 'siege')
+    const tileName = mapStore.getTileName(tile.type)
+
+    if (hasSiegeUnit) {
+      tile.type = 'ruins'
+      tile.garrison = undefined
+      tile.lootStock = undefined
+      mapStore.saveMapState()
+      showNotification('Village sans défenses détruit par vos machines de siège.', 'success')
+    } else {
+      showNotification(
+        '⚠️ Ce village est sans défenses — équipez des armes de siège pour le détruire.',
+        'info',
+      )
+    }
+
+    // Rapport spécial "village vide"
+    const emptyReport: SavedBattleReport = {
+      id: `battle-${Date.now()}`,
+      gameTimestamp: missionStore.getGameTimestamp(),
+      tileId: tile.id,
+      tileName,
+      date: new Date().toISOString(),
+      read: false,
+      attackerVictory: false,
+      summary: hasSiegeUnit
+        ? `🏚️ Village ${tileName} démoli — aucune résistance, rasé par vos machines de siège.`
+        : `🏚️ Village ${tileName} sans défenses — aucun combat. Revenez avec des armes de siège pour le détruire.`,
+      attacker: {
+        army: { label: 'Vos troupes', units: [...movement.units], modifiers: [] },
+        losses: { killed: {}, survivors: [...movement.units] },
+        totalPowerUsed: 0,
+      },
+      defender: {
+        army: { label: 'Garnison du village', units: [], modifiers: [] },
+        losses: { killed: {}, survivors: [] },
+        totalPowerUsed: 0,
+      },
+      extra: { emptyGarrison: true, siegeUsed: hasSiegeUnit },
+    }
+    combatReport.value = emptyReport
+    missionStore.addBattleReport(emptyReport)
     mapStore.saveMapState()
-    showNotification('Ce village est déjà sans défenses — converti en ruines.', 'info')
+    missionStore.saveMissionState()
     return
   }
 
@@ -357,6 +397,21 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
       tile.garrison.regenStartedAt = undefined // Arrêter la régén en cours
     }
     showNotification(report.summary, 'error')
+  }
+
+  // Augmenter l'hostilité de la forteresse responsable après tout combat
+  mapStore.onEnemyTileAttacked(tile.id)
+
+  // Notifier le joueur si la forteresse passe en mode averti ou hostile
+  const fortress =
+    mapStore.getControllingFortress(tile.id) ?? (tile.type === 'stronghold' ? tile.id : null)
+  if (fortress) {
+    const zone = mapStore.getFortressZone(fortress)
+    if (zone?.hostilityState === 'warned') {
+      showNotification('⚠️ Une forteresse ennemie surveille vos agissements (Avertie)', 'warning')
+    } else if (zone?.hostilityState === 'hostile') {
+      showNotification('🔴 Forteresse ennemie HOSTILE — des raids vont commencer !', 'error')
+    }
   }
 
   // Sauvegarder le rapport

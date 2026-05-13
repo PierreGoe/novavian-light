@@ -7,6 +7,9 @@
         <h2 class="hero-title">{{ getTileName(tile.type) }}</h2>
         <div class="hero-badges">
           <span class="badge badge-coords">📍 {{ tile.position.x }}, {{ tile.position.y }}</span>
+          <span v-if="tile.type === 'stronghold' && tile.level" class="badge badge-level">
+            Niv. {{ tile.level }}
+          </span>
           <span class="badge" :class="statusBadgeClass(tile.type)">{{
             statusLabel(tile.type)
           }}</span>
@@ -39,6 +42,104 @@
     <div v-if="tile.bonus" class="tile-bonus">
       <span class="bonus-icon">💫</span>
       <span>{{ tile.bonus }}</span>
+    </div>
+
+    <!-- Zone d'influence de forteresse (village ennemi ou forteresse) -->
+    <div v-if="tileZone" class="fortress-zone-info" :class="`zone-${tileZone.hostilityState}`">
+      <div class="zone-header">
+        <span class="zone-icon">{{ HOSTILITY_ICONS[tileZone.hostilityState] }}</span>
+        <span class="zone-title">
+          {{ tile.type === 'stronghold' ? "Zone d'influence" : 'Sous contrôle ennemi' }}
+        </span>
+        <span class="zone-hostility-badge" :class="`badge-${tileZone.hostilityState}`">
+          {{ HOSTILITY_LABELS[tileZone.hostilityState] }}
+        </span>
+      </div>
+      <div class="zone-stats">
+        <span class="zone-stat"
+          >⚔️ Puissance : <strong>{{ tileZone.power }}</strong> villages</span
+        >
+        <span class="zone-stat">
+          📊 Hostilité :
+          <span class="zone-bar">
+            <span
+              class="zone-bar-fill"
+              :class="`bar-${tileZone.hostilityState}`"
+              :style="{ width: tileZone.hostilityLevel + '%' }"
+            />
+          </span>
+          {{ tileZone.hostilityLevel }}%
+        </span>
+        <span
+          v-if="tileZone.hostilityState === 'hostile' && tileZone.nextAttackAt"
+          class="zone-stat zone-next-attack"
+        >
+          ⏰ Prochain raid dans :
+          <strong>{{ formatRemaining((tileZone.nextAttackAt ?? 0) - Date.now()) }}</strong>
+        </span>
+      </div>
+      <p v-if="tileZone.hostilityState === 'neutral'" class="zone-hint">
+        Attaquer ce territoire augmentera l'hostilité de la forteresse qui le contrôle.
+      </p>
+      <p v-else-if="tileZone.hostilityState === 'warned'" class="zone-hint zone-hint--warning">
+        ⚠️ La forteresse surveille vos agissements. Continuez à attaquer et elle deviendra hostile.
+      </p>
+      <p v-else class="zone-hint zone-hint--danger">
+        🔴 La forteresse envoie des raids périodiques sur votre ville. Détruisez-la pour l'arrêter.
+      </p>
+    </div>
+
+    <!-- Debug : détails de la forteresse (affiché uniquement pour une forteresse) -->
+    <div v-if="tile.type === 'stronghold' && tileZone" class="fortress-debug-panel">
+      <div class="fortress-debug-title">🔍 Debug — Données de la zone</div>
+      <div class="fortress-debug-grid">
+        <div class="fdbg-row">
+          <span class="fdbg-label">ID forteresse</span>
+          <span class="fdbg-value fdbg-mono">{{ tileZone.fortressTileId }}</span>
+        </div>
+        <div class="fdbg-row">
+          <span class="fdbg-label">Niveau</span>
+          <span class="fdbg-value fdbg-level">⭐ {{ tile.level ?? 1 }}</span>
+        </div>
+        <div class="fdbg-row">
+          <span class="fdbg-label">Colonies dans la zone</span>
+          <span class="fdbg-value">{{ tileZone.villageIds.length }} village(s)</span>
+        </div>
+        <div class="fdbg-row">
+          <span class="fdbg-label">Puissance brute</span>
+          <span class="fdbg-value">{{ tileZone.power }} pts</span>
+        </div>
+        <div class="fdbg-row">
+          <span class="fdbg-label">Puissance relative</span>
+          <span class="fdbg-value">{{ fortressDebugInfo.relativePowerPct }}% du total</span>
+        </div>
+        <div class="fdbg-row">
+          <span class="fdbg-label">Rayon d'influence</span>
+          <span class="fdbg-value">{{ tileZone.influenceRadius }} cases (Chebyshev)</span>
+        </div>
+        <div class="fdbg-row">
+          <span class="fdbg-label">Butin estimé / raid</span>
+          <span class="fdbg-value">{{ fortressDebugInfo.raidEstimate }}</span>
+        </div>
+        <div class="fdbg-row">
+          <span class="fdbg-label">Hostilité</span>
+          <span class="fdbg-value"
+            >{{ tileZone.hostilityLevel }}% — {{ tileZone.hostilityState }}</span
+          >
+        </div>
+        <div class="fdbg-row" v-if="tileZone.nextAttackAt">
+          <span class="fdbg-label">Prochain raid</span>
+          <span class="fdbg-value fdbg-danger">{{
+            formatRemaining((tileZone.nextAttackAt ?? 0) - now)
+          }}</span>
+        </div>
+      </div>
+      <div v-if="tileZone.villageIds.length > 0" class="fdbg-villages">
+        <span class="fdbg-label">Colonies contrôlées :</span>
+        <span v-for="vid in tileZone.villageIds" :key="vid" class="fdbg-village-chip">{{
+          vid
+        }}</span>
+      </div>
     </div>
 
     <!-- Ressources -->
@@ -115,7 +216,7 @@
     </div>
 
     <!-- État de la garnison ennemie (Phase 2) -->
-    <div v-if="tile.garrison?.regenStartedAt" class="garrison-regen">
+    <div v-if="tile.garrison?.regenStartedAt && garrisonRegenPct < 100" class="garrison-regen">
       <div class="section-label">🛡️ Garnison en reconstruction</div>
       <div class="regen-bar-track">
         <div class="regen-bar-fill" :style="{ width: garrisonRegenPct + '%' }"></div>
@@ -171,7 +272,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useMapStore, type MapTile, type MovementUnit } from '../../stores/mapStore'
+import {
+  useMapStore,
+  type MapTile,
+  type MovementUnit,
+  type FortressZone,
+} from '../../stores/mapStore'
 import { useGameStore } from '../../stores/gameStore'
 import { useMissionStore } from '../../stores/missionStore'
 import AttackPanel from './AttackPanel.vue'
@@ -190,6 +296,42 @@ const props = defineProps<Props>()
 const mapStore = useMapStore()
 const gameStore = useGameStore()
 const missionStore = useMissionStore()
+
+/** Zone d’influence liée à la tuile actuelle (si village ou forteresse ennemie) */
+const tileZone = computed((): FortressZone | null => {
+  if (!props.tile) return null
+  const { type, id } = props.tile
+  if (type === 'stronghold') return mapStore.getFortressZone(id) ?? null
+  if (type === 'village_enemy') {
+    const fortressId = mapStore.getControllingFortress(id)
+    return fortressId ? (mapStore.getFortressZone(fortressId) ?? null) : null
+  }
+  return null
+})
+
+/** Infos de debug calculées pour la forteresse sélectionnée */
+const fortressDebugInfo = computed(() => {
+  if (!tileZone.value) return { relativePowerPct: 0, raidEstimate: '—' }
+  const allZones = Object.values(mapStore.mapState.fortressZones)
+  const totalPower = allZones.reduce((sum, z) => sum + z.power, 0)
+  const relativePowerPct =
+    totalPower > 0 ? Math.round((tileZone.value.power / totalPower) * 100) : 0
+  // Estimation du raid = power * HOSTILE_LOOT_PER_POWER (constante = 4)
+  const lootPerRes = tileZone.value.power * 4
+  const raidEstimate = `🪵${lootPerRes} 🧱${lootPerRes} ⚒️${lootPerRes} 🌾${lootPerRes}`
+  return { relativePowerPct, raidEstimate }
+})
+
+const HOSTILITY_LABELS: Record<string, string> = {
+  neutral: 'Neutre',
+  warned: 'Avertie',
+  hostile: 'Hostile',
+}
+const HOSTILITY_ICONS: Record<string, string> = {
+  neutral: '🟢',
+  warned: '🟠',
+  hostile: '🔴',
+}
 
 // ------------------------------------
 // Panneau d'attaque
@@ -551,6 +693,206 @@ const getResourceIcon = (resource: string) => {
 .bonus-icon {
   font-size: 1.2em;
   flex-shrink: 0;
+}
+
+/* ── Zone d'influence & Hostilité ── */
+.fortress-zone-info {
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(150, 150, 150, 0.3);
+  background: rgba(30, 30, 50, 0.5);
+}
+
+.zone-neutral {
+  border-color: rgba(100, 200, 100, 0.3);
+}
+.zone-warned {
+  border-color: rgba(251, 146, 60, 0.5);
+  background: rgba(120, 60, 10, 0.25);
+}
+.zone-hostile {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(120, 10, 10, 0.3);
+}
+
+.zone-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zone-title {
+  font-weight: 700;
+  font-size: 0.88em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #ccc;
+  flex: 1;
+}
+
+.zone-hostility-badge {
+  font-size: 0.75em;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+}
+
+.badge-neutral {
+  background: rgba(100, 200, 100, 0.2);
+  color: #86efac;
+}
+.badge-warned {
+  background: rgba(251, 146, 60, 0.2);
+  color: #fdba74;
+}
+.badge-hostile {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+.badge-level {
+  background: rgba(250, 204, 21, 0.2);
+  color: #fde047;
+  border-color: rgba(250, 204, 21, 0.4);
+}
+
+.zone-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.zone-stat {
+  font-size: 0.83em;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zone-next-attack {
+  color: #fca5a5;
+}
+
+.zone-bar {
+  display: inline-block;
+  width: 80px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.zone-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.bar-neutral {
+  background: #4ade80;
+}
+.bar-warned {
+  background: #fb923c;
+}
+.bar-hostile {
+  background: #ef4444;
+}
+
+.zone-hint {
+  font-size: 0.78em;
+  color: #888;
+  margin: 0;
+  font-style: italic;
+}
+.zone-hint--warning {
+  color: #fdba74;
+}
+.zone-hint--danger {
+  color: #fca5a5;
+}
+
+/* ── Debug forteresse ── */
+.fortress-debug-panel {
+  margin: 10px 0;
+  background: rgba(5, 5, 20, 0.85);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: monospace;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.fortress-debug-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a78bfa;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+  padding-bottom: 4px;
+}
+
+.fortress-debug-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fdbg-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.fdbg-label {
+  color: #64748b;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fdbg-value {
+  color: #e2e8f0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.fdbg-mono {
+  font-family: monospace;
+  color: #7dd3fc;
+}
+.fdbg-danger {
+  color: #f87171;
+}
+.fdbg-level {
+  color: #fde047;
+}
+
+.fdbg-villages {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.fdbg-village-chip {
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  color: #c4b5fd;
+  font-family: monospace;
 }
 
 /* ── Ressources ── */
