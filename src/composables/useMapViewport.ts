@@ -1,7 +1,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMapStore, MAP_CONFIG } from '../stores/mapStore'
 
-const zoomSteps = [11, 13, 15, 17, 20]
+/** Les 3 niveaux de zoom disponibles */
+export const ZOOM_PRESETS = [
+  { label: 'Proche', icon: '🔍', value: 11 },
+  { label: 'Normal', icon: '🗺️', value: 15 },
+  { label: 'Loin', icon: '🌍', value: 20 },
+] as const
 
 export function useMapViewport() {
   const mapStore = useMapStore()
@@ -22,20 +27,33 @@ export function useMapViewport() {
   const panOffset = ref({ x: 0, y: 0 })
 
   function zoomIn() {
-    const idx = zoomSteps.indexOf(viewportSize.value)
-    if (idx < zoomSteps.length - 1) {
-      mapStore.setZoomLevel(zoomSteps[idx + 1])
+    const presetValues = ZOOM_PRESETS.map((p) => p.value)
+    const idx = presetValues.indexOf(viewportSize.value as (typeof presetValues)[number])
+    if (idx < presetValues.length - 1) {
+      mapStore.setZoomLevel(presetValues[idx + 1])
       viewportOffset.value = { ...mapStore.mapState.viewportOffset }
     }
   }
 
   function zoomOut() {
-    const idx = zoomSteps.indexOf(viewportSize.value)
+    const presetValues = ZOOM_PRESETS.map((p) => p.value)
+    const idx = presetValues.indexOf(viewportSize.value as (typeof presetValues)[number])
     if (idx > 0) {
-      mapStore.setZoomLevel(zoomSteps[idx - 1])
+      mapStore.setZoomLevel(presetValues[idx - 1])
       viewportOffset.value = { ...mapStore.mapState.viewportOffset }
     }
   }
+
+  /** Applique directement un preset de zoom par sa valeur */
+  function setZoomPreset(value: number) {
+    mapStore.setZoomLevel(value)
+    viewportOffset.value = { ...mapStore.mapState.viewportOffset }
+  }
+
+  /** Preset actuellement actif (null si valeur intermédiaire) */
+  const currentPreset = computed(
+    () => ZOOM_PRESETS.find((p) => p.value === viewportSize.value) ?? null,
+  )
 
   const moveViewport = (deltaX: number, deltaY: number) => {
     const newX = Math.max(
@@ -120,7 +138,6 @@ export function useMapViewport() {
   }
 
   onMounted(() => {
-    mapStore.setZoomLevel(11)
     viewportOffset.value = { ...mapStore.mapState.viewportOffset }
     window.addEventListener('keydown', handleKeyboard)
     centerOnPlayer()
@@ -137,6 +154,8 @@ export function useMapViewport() {
     isPanning,
     zoomIn,
     zoomOut,
+    setZoomPreset,
+    currentPreset,
     moveViewport,
     centerOnPlayer,
     startPan,

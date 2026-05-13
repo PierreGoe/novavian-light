@@ -1,23 +1,18 @@
 <template>
   <div class="large-map-container">
-    <!-- Contrôles de zoom -->
+    <!-- Contrôles de zoom — en dehors du viewport -->
     <div class="map-controls">
+      <span class="controls-label">Vue :</span>
       <button
-        @click="zoomOut"
-        :disabled="viewportSize >= MAP_CONFIG.maxViewportSize"
-        class="control-btn"
+        v-for="preset in ZOOM_PRESETS"
+        :key="preset.value"
+        @click="setZoomPreset(preset.value)"
+        :class="['control-btn', { 'control-btn--active': viewportSize === preset.value }]"
       >
-        -
+        {{ preset.icon }} {{ preset.label }}
       </button>
-      <span class="zoom-level">{{ viewportSize }}x{{ viewportSize }}</span>
-      <button
-        @click="zoomIn"
-        :disabled="viewportSize <= MAP_CONFIG.minViewportSize"
-        class="control-btn"
-      >
-        +
-      </button>
-      <button @click="centerOnPlayer" class="control-btn">🎯 Centre</button>
+      <div class="controls-divider" />
+      <button @click="centerOnPlayer" class="control-btn">🎯 Centrer</button>
     </div>
 
     <!-- Coordonnées actuelles -->
@@ -48,14 +43,23 @@
             <!-- Icône du terrain visible uniquement si exploré (pas affiché pour les plaines) -->
             <div
               class="tile-icon"
+              :style="{ fontSize: tileIconFontSize }"
               v-if="(gameSettings.disableFogOfWar || tile.explored) && tile.type !== 'plains'"
             >
               {{ getTileIcon(tile.type) }}
             </div>
 
-            <div class="current-marker" v-if="tile.current">📍</div>
+            <div class="current-marker" :style="{ fontSize: tileIconFontSize }" v-if="tile.current">
+              📍
+            </div>
             <!-- Indicateur : troupes en route vers cette tuile -->
-            <div class="troops-en-route" v-if="hasTroopsEnRoute(tile.id)">🪖</div>
+            <div
+              class="troops-en-route"
+              :style="{ fontSize: tileIconFontSize }"
+              v-if="hasTroopsEnRoute(tile.id)"
+            >
+              🪖
+            </div>
             <!-- Indicateur : garnison en reconstitution -->
             <div
               class="garrison-regen-badge"
@@ -133,7 +137,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useMapStore, type MapTile, MAP_CONFIG, type HostilityState } from '../../stores/mapStore'
-import { useMapViewport } from '../../composables/useMapViewport'
+import { useMapViewport, ZOOM_PRESETS } from '../../composables/useMapViewport'
 import { gameSettings } from '../../stores/gameSettingsStore'
 import { GARRISON_REGEN_DURATION_MS } from '../../config'
 
@@ -160,8 +164,7 @@ const {
   viewportSize,
   viewportCenter,
   isPanning,
-  zoomIn,
-  zoomOut,
+  setZoomPreset,
   centerOnPlayer,
   startPan,
   handlePan,
@@ -199,17 +202,28 @@ const visibleTiles = computed(() => {
 })
 
 // Style CSS Grid — computed pour garantir la synchronisation avec viewportDimensions
-const gridStyle = computed(() => {
+const tileSizeAdaptive = computed(() => {
   const { cols } = viewportDimensions.value
   const containerSize = 600 - 40
-  const tileSizeAdaptive = Math.floor((containerSize - cols * 2) / cols)
-  const style = {
+  return Math.floor((containerSize - cols * 2) / cols)
+})
+
+const gridStyle = computed(() => {
+  const size = tileSizeAdaptive.value
+  const { cols } = viewportDimensions.value
+  return {
     display: 'grid',
-    gridTemplateColumns: `repeat(${cols}, ${tileSizeAdaptive}px)`,
-    gridAutoRows: `${tileSizeAdaptive}px`,
+    gridTemplateColumns: `repeat(${cols}, ${size}px)`,
+    gridAutoRows: `${size}px`,
     gap: '2px',
   }
-  return style
+})
+
+/** Taille des emojis adaptée à la taille des tuiles */
+const tileIconFontSize = computed(() => {
+  const size = tileSizeAdaptive.value
+  // ~40% de la tuile, clampé entre 10 et 22px
+  return `${Math.max(10, Math.min(22, Math.floor(size * 0.4)))}px`
 })
 
 // Clé de re-render : change quand le viewport (taille OU offset) change
@@ -384,15 +398,14 @@ const visibleInfluenceOverlay = computed(() => {
 .large-map-container {
   position: relative;
   width: 100%;
-  height: 600px;
   background: #1a1a1a;
   border-radius: 12px;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .map-viewport {
-  width: 100%;
-  height: 100%;
+  height: 600px;
   overflow: hidden;
   position: relative;
   user-select: none;
@@ -483,8 +496,8 @@ const visibleInfluenceOverlay = computed(() => {
 }
 
 .tile-icon {
-  font-size: clamp(12px, 2vw, 24px);
   z-index: 2;
+  line-height: 1;
 }
 
 .tile-overlay {
@@ -814,45 +827,56 @@ const visibleInfluenceOverlay = computed(() => {
 
 /* Contrôles */
 .map-controls {
-  position: absolute;
-  top: 10px;
-  left: 10px;
   display: flex;
   gap: 8px;
   align-items: center;
-  background: rgba(0, 0, 0, 0.8);
-  padding: 8px 12px;
-  border-radius: 8px;
-  z-index: 4;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px 12px 0 0;
+  flex-shrink: 0;
+}
+
+.controls-label {
+  color: #7a9abf;
+  font-size: 0.8em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 4px;
+}
+
+.controls-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 0 4px;
 }
 
 .control-btn {
-  background: rgba(74, 158, 255, 0.3);
-  color: white;
-  border: 1px solid #4a9eff;
-  padding: 6px 12px;
+  background: rgba(74, 158, 255, 0.15);
+  color: #b0c8e8;
+  border: 1px solid rgba(74, 158, 255, 0.3);
+  padding: 5px 12px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: 0.82em;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
-.control-btn:hover:not(:disabled) {
-  background: rgba(74, 158, 255, 0.5);
+.control-btn:hover {
+  background: rgba(74, 158, 255, 0.4);
+  color: #fff;
+  border-color: #4a9eff;
   transform: translateY(-1px);
 }
 
-.control-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.zoom-level {
-  color: #4a9eff;
-  font-size: 0.9em;
-  font-weight: 600;
-  min-width: 50px;
-  text-align: center;
+.control-btn--active {
+  background: rgba(74, 158, 255, 0.55);
+  color: #fff;
+  border-color: #4a9eff;
+  box-shadow: 0 0 8px rgba(74, 158, 255, 0.4);
 }
 
 /* Coordonnées */
@@ -895,18 +919,8 @@ const visibleInfluenceOverlay = computed(() => {
 
 /* Responsive */
 @media (max-width: 768px) {
-  .large-map-container {
+  .map-viewport {
     height: 400px;
-  }
-
-  .minimap {
-    width: 120px;
-    height: 120px;
-  }
-
-  .minimap-content {
-    width: 100px;
-    height: 100px;
   }
 
   .map-controls {

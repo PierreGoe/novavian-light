@@ -20,7 +20,7 @@
         <div class="controls-help-tooltip">
           <div class="help-item">🖱️ <strong>Clic & Glisser</strong> : Déplacer la carte</div>
           <div class="help-item">⌨️ <strong>Flèches / WASD</strong> : Navigation</div>
-          <div class="help-item">🔍 <strong>Boutons +/-</strong> : Zoom</div>
+          <div class="help-item">🔍 <strong>Proche / Normal / Loin</strong> : Zoom</div>
           <div class="help-item">⌨️ <strong>Espace</strong> : Centrer sur position</div>
         </div>
       </div>

@@ -876,6 +876,7 @@ export const useMapStore = () => {
       discoveredLocations: mapState.discoveredLocations,
       activeMovements: mapState.activeMovements,
       unlockedChunks: mapState.unlockedChunks,
+      zoomLevel: mapState.zoomLevel,
     }
 
     localStorage.setItem('novavian-map', JSON.stringify(data))
