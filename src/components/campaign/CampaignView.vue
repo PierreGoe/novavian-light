@@ -130,9 +130,8 @@ function formatDuration(ms: number): string {
   return `${s}s`
 }
 
-// Rerender every second for resources production update
+// Horloge réactive pour les timers affichés (le store gère déjà la production)
 const resourceIntervalId = setInterval(() => {
-  missionStore.updateResourceProduction()
   now.value = Date.now()
 }, 1000)
 

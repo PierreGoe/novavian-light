@@ -8,6 +8,8 @@ import SideNavBar from '@/components/globals/SideNavBar.vue'
 import ToastContainer from '@/components/globals/ToastContainer.vue'
 import PerformanceMonitor from '@/components/globals/PerformanceMonitor.vue'
 
+const isDev = import.meta.env.DEV
+
 const gameStore = useGameStore()
 const missionStore = useMissionStore()
 const mapStore = useMapStore()
@@ -76,7 +78,7 @@ onUnmounted(() => {
     <div class="app-content">
       <RouterView />
       <ToastContainer />
-      <PerformanceMonitor />
+      <PerformanceMonitor v-if="isDev" />
     </div>
   </div>
 </template>
