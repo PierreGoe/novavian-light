@@ -473,6 +473,8 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
 
   // Augmenter l'hostilité de la forteresse responsable après tout combat
   mapStore.onEnemyTileAttacked(tile.id)
+  // Replanifier le prochain raid (l'hostilité a pu atteindre le seuil hostile)
+  gameStore.scheduleNextRaid()
 
   // Notifier le joueur si la forteresse passe en mode averti ou hostile
   const fortress =

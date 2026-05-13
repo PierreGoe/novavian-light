@@ -32,6 +32,8 @@ export interface FortressZone {
   hostilityState: HostilityState
   /** Timestamp (Date.now) de la prochaine attaque hostile (si hostile) */
   nextAttackAt?: number
+  /** Timestamp de la dernière application du decay (pour calcul lazy) */
+  lastDecayAt?: number
 }
 
 // ====================================================================
@@ -55,6 +57,12 @@ export const HOSTILE_ATTACK_INTERVAL_MS = 10_000 // 10 secondes (ajustable)
 
 /** Décroissance d’hostilité par tick du timer (toutes les 30s) */
 const HOSTILITY_DECAY_PER_TICK = 2
+
+/** Intervalle de decay en ms (30s par tick de decay) */
+const HOSTILITY_DECAY_INTERVAL_MS = 30_000
+
+/** Réduction d’hostilité quand le joueur repousse un raid ennemi */
+export const HOSTILITY_REDUCE_RAID_REPELLED = 15
 
 /** Ressources pillées par attaque hostile, par village contrôlé */
 const HOSTILE_LOOT_PER_POWER = 4
@@ -1059,6 +1067,7 @@ export const useMapStore = () => {
 
     const prevState = zone.hostilityState
     zone.hostilityLevel = Math.min(100, zone.hostilityLevel + amount)
+    zone.lastDecayAt = Date.now()
     zone.hostilityState = getHostilityStateFromLevel(zone.hostilityLevel)
 
     if (prevState !== 'hostile' && zone.hostilityState === 'hostile') {
@@ -1123,22 +1132,67 @@ export const useMapStore = () => {
   }
 
   /**
-   * Décroissance naturelle de l'hostilité — appelé toutes les 30s par le timer.
+   * Applique le lazy decay : calcule combien de ticks de decay se sont écoulés
+   * depuis lastDecayAt et les applique d'un coup. Aucun timer périodique nécessaire.
+   * Retourne true si au moins une zone a changé d'état.
    */
-  const tickHostilityDecay = (): void => {
+  const applyLazyDecay = (): boolean => {
+    const now = Date.now()
     let stateChanged = false
+
     for (const zone of Object.values(mapState.fortressZones)) {
       if (zone.hostilityLevel <= 0) continue
-      zone.hostilityLevel = Math.max(0, zone.hostilityLevel - HOSTILITY_DECAY_PER_TICK)
+      const lastDecay = zone.lastDecayAt ?? now
+      const elapsed = now - lastDecay
+      const ticks = Math.floor(elapsed / HOSTILITY_DECAY_INTERVAL_MS)
+      if (ticks <= 0) continue
+
+      zone.lastDecayAt = now
+      const reduction = ticks * HOSTILITY_DECAY_PER_TICK
+      zone.hostilityLevel = Math.max(0, zone.hostilityLevel - reduction)
       const newState = getHostilityStateFromLevel(zone.hostilityLevel)
       if (newState !== zone.hostilityState) {
         zone.hostilityState = newState
         if (newState !== 'hostile') zone.nextAttackAt = undefined
-        // Sauvegarder uniquement lors d'un changement d'état (pas à chaque décrémentation)
         stateChanged = true
       }
     }
+
     if (stateChanged) saveMapState()
+    return stateChanged
+  }
+
+  /**
+   * Retourne le niveau d'hostilité effectif d'une zone (avec lazy decay appliqué).
+   * Utile pour l'affichage UI sans effet de bord lourd.
+   */
+  const getEffectiveHostility = (fortressTileId: string): number => {
+    const zone = mapState.fortressZones[fortressTileId]
+    if (!zone || zone.hostilityLevel <= 0) return zone?.hostilityLevel ?? 0
+    const lastDecay = zone.lastDecayAt ?? Date.now()
+    const elapsed = Date.now() - lastDecay
+    const ticks = Math.floor(elapsed / HOSTILITY_DECAY_INTERVAL_MS)
+    return Math.max(0, zone.hostilityLevel - ticks * HOSTILITY_DECAY_PER_TICK)
+  }
+
+  /**
+   * Retourne le timestamp de la prochaine attaque hostile (min de toutes les zones).
+   * Retourne undefined si aucune zone n'est hostile.
+   */
+  const getNextRaidTimestamp = (): number | undefined => {
+    let earliest: number | undefined
+    for (const zone of Object.values(mapState.fortressZones)) {
+      if (zone.hostilityState !== 'hostile' || !zone.nextAttackAt) continue
+      if (earliest === undefined || zone.nextAttackAt < earliest) {
+        earliest = zone.nextAttackAt
+      }
+    }
+    return earliest
+  }
+
+  /** @deprecated Conservé pour rétrocompatibilité, appelle applyLazyDecay */
+  const tickHostilityDecay = (): void => {
+    applyLazyDecay()
   }
 
   /**
@@ -1212,6 +1266,9 @@ export const useMapStore = () => {
     onEnemyTileAttacked,
     processHostileAttacks,
     tickHostilityDecay,
+    applyLazyDecay,
+    getEffectiveHostility,
+    getNextRaidTimestamp,
     computeHostileRaid,
 
     // Persistance

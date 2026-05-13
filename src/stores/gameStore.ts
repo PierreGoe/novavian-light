@@ -6,8 +6,8 @@ import { useMissionStore } from '@/stores/missionStore'
 import { useMapStore } from '@/stores/mapStore'
 import { HOSTILITY_REDUCE_RAID_REPELLED } from '@/stores/mapStore'
 import { useToastStore } from '@/stores/toastStore'
-import { defaultResolver } from '@/combat/combatResolver'
-import type { Army, CombatUnit, SavedBattleReport } from '@/combat/types'
+import type { CombatUnit, SavedBattleReport } from '@/combat/types'
+import { resolveRaidFast, buildRaidReport } from '@/combat/raidResolver'
 import {
   STARTING_ARTIFACTS,
   SELL_PRICES,
@@ -431,20 +431,17 @@ export const useGameStore = () => {
   }
 
   // ====================================================================
-  // TIMER UNIFIÉ — auto-save + décroissance + attaques hostiles
-  // Fréquence de tick : 5s (vérification d'attaques)
-  // La décroissance d'hostilité se fait toutes les 30s (6 ticks)
+  // RAIDS EVENT-DRIVEN — setTimeout unique au lieu d'un setInterval
+  // Le decay d'hostilité est calculé en lazy (pas de timer).
+  // Un unique setTimeout est calé sur la prochaine attaque hostile.
+  // Auto-save toutes les 60s via un setInterval léger séparé.
   // ====================================================================
 
-  let gameTickInterval: number | null = null
-  let decayTickCount = 0
-  const DECAY_EVERY_N_TICKS = 6 // 6 × 5s = 30s entre chaque décroissance
-
-  /** @deprecated Utiliser startGameTick à la place */
-  const autoSaveInterval: number | null = null
+  let raidTimeout: number | null = null
+  let autoSaveInterval: number | null = null
+  const AUTO_SAVE_INTERVAL_MS = 60_000 // Auto-save toutes les 60s
 
   const startAutoSave = () => {
-    // Redirige vers le timer unifié pour rétrocompatibilité
     startGameTick()
   }
 
@@ -452,153 +449,172 @@ export const useGameStore = () => {
     stopGameTick()
   }
 
-  // ====================================================================
-  // TIMER D'HOSTILITÉ — attaques périodiques des forteresses hostiles
-  // ====================================================================
+  /** Planifie le prochain raid via un unique setTimeout. */
+  const scheduleNextRaid = (): void => {
+    if (raidTimeout) {
+      clearTimeout(raidTimeout)
+      raidTimeout = null
+    }
+    if (gameState.currentStatus !== 'in-progress') return
 
-  /** @deprecated Utiliser startGameTick à la place */
-  const hostilityInterval: number | null = null
+    const mapStore = useMapStore()
+    // Appliquer le lazy decay avant de calculer le prochain raid
+    mapStore.applyLazyDecay()
 
-  /** Démarre le timer unifié (auto-save + décroissance + attaques). */
-  const startGameTick = () => {
-    if (gameTickInterval) return
-    decayTickCount = 0
-    gameTickInterval = window.setInterval(() => {
-      if (gameState.currentStatus !== 'in-progress') return
-      const mapStore = useMapStore()
-      const missionStore = useMissionStore()
-      const toastStore = useToastStore()
+    const nextTs = mapStore.getNextRaidTimestamp()
+    if (!nextTs) return // Aucune zone hostile
 
-      // Auto-save périodique (à chaque tick, peu coûteux)
-      saveGame()
-
-      // Décroissance de l'hostilité toutes les 30s (DECAY_EVERY_N_TICKS ticks)
-      decayTickCount++
-      if (decayTickCount >= DECAY_EVERY_N_TICKS) {
-        decayTickCount = 0
-        mapStore.tickHostilityDecay()
-      }
-
-      // 2. Attaques des forteresses hostiles dont l'heure est passée
-      const triggered = mapStore.processHostileAttacks()
-      for (const zone of triggered) {
-        const fortress = mapStore.getTileById(zone.fortressTileId)
-        const loc = fortress ? `(${fortress.position.x},${fortress.position.y})` : ''
-
-        // Armée de raid ennemie — proportionnelle à la puissance de la zone
-        const raidPower = Math.max(3, zone.power * 4)
-        const enemyArmy: Army = {
-          label: `Raid — Forteresse ${loc}`,
-          units: [
-            { type: 'infantry', count: raidPower, attack: 35, defense: 30, health: 90 },
-            {
-              type: 'cavalry',
-              count: Math.floor(raidPower / 3),
-              attack: 80,
-              defense: 40,
-              health: 120,
-            },
-          ],
-          modifiers: [],
-        }
-
-        // Troupes en ville = total town.units minus celles en mouvement actif
-        const townUnits = missionStore.missionState.town.units
-        const activeMovements = mapStore.mapState.activeMovements
-
-        // Calculer le nombre d'unités par type actuellement en mission
-        const unitsOnMission: Record<string, number> = {}
-        for (const movement of activeMovements) {
-          for (const u of movement.units) {
-            unitsOnMission[u.type] = (unitsOnMission[u.type] ?? 0) + u.count
-          }
-        }
-
-        // Unités disponibles pour défendre (en ville, pas en mission)
-        const availableUnits: CombatUnit[] = townUnits
-          .map((u) => ({
-            type: u.type,
-            count: Math.max(0, u.count - (unitsOnMission[u.type] ?? 0)),
-            attack: u.attack,
-            defense: u.defense,
-            health: u.health,
-          }))
-          .filter((u) => u.count > 0)
-
-        const totalDefenders = availableUnits.reduce((s, u) => s + u.count, 0)
-
-        if (totalDefenders === 0) {
-          // Aucune troupe en ville — pillage automatique
-          const loot = mapStore.computeHostileRaid(zone)
-          missionStore.spendResources(loot)
-          const total = loot.wood + loot.clay + loot.iron + loot.crop
-          toastStore.showError(
-            `⚔️ Raid ennemi ! La forteresse ${loc} a pillé ${total} ressources — aucune troupe pour défendre !`,
-            { duration: 12000 },
-          )
-          continue
-        }
-
-        // Résolution du combat défensif
-        const defenderArmy: Army = {
-          label: 'Défense de la ville',
-          units: availableUnits,
-          modifiers: [],
-        }
-
-        const report = defaultResolver.resolve(enemyArmy, defenderArmy)
-
-        // Appliquer les pertes aux troupes en ville
-        for (const [unitType, killed] of Object.entries(report.defender.losses.killed)) {
-          const unit = missionStore.missionState.town.units.find((u) => u.type === unitType)
-          if (unit) unit.count = Math.max(0, unit.count - killed)
-        }
-        missionStore.missionState.town.units = missionStore.missionState.town.units.filter(
-          (u) => u.count > 0,
-        )
-
-        // Construire et sauvegarder le rapport (pour les deux issues)
-        const savedReport: SavedBattleReport = {
-          ...report,
-          id: `raid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          gameTimestamp: Date.now(),
-          tileId: zone.fortressTileId,
-          tileName: `Forteresse ${loc}`,
-          date: new Date().toISOString(),
-          read: false,
-          playerIsDefender: true,
-        }
-        missionStore.addBattleReport(savedReport)
-
-        if (report.attackerVictory) {
-          // Défense échouée — l'attaquant a gagné, ressources pillées
-          const loot = mapStore.computeHostileRaid(zone)
-          missionStore.spendResources(loot)
-          const total = loot.wood + loot.clay + loot.iron + loot.crop
-          const defLost = Object.values(report.defender.losses.killed).reduce((s, v) => s + v, 0)
-          toastStore.showError(
-            `⚔️ Défense échouée ! La forteresse ${loc} a pillé ${total} ressources (−${defLost} troupes perdues).`,
-            { duration: 12000 },
-          )
-        } else {
-          // Défense réussie — aucune ressource perdue, réduction de l'hostilité
-          mapStore.reduceHostility(zone.fortressTileId, HOSTILITY_REDUCE_RAID_REPELLED)
-          const atkLost = Object.values(report.attacker.losses.killed).reduce((s, v) => s + v, 0)
-          const defLost = Object.values(report.defender.losses.killed).reduce((s, v) => s + v, 0)
-          toastStore.showSuccess(
-            `🛡️ Raid repoussé ! La forteresse ${loc} a été repoussée (${atkLost} ennemis tués, −${defLost} défenseurs perdus).`,
-            { duration: 10000 },
-          )
-        }
-      }
-    }, 5_000) // Tick toutes les 5 secondes
+    const delay = Math.max(100, nextTs - Date.now())
+    raidTimeout = window.setTimeout(() => {
+      raidTimeout = null
+      executeRaids()
+      // Replanifier pour la prochaine attaque
+      scheduleNextRaid()
+    }, delay)
   }
 
-  /** Arrête le timer unifié. */
+  /** Exécute tous les raids dont l'heure est passée. */
+  const executeRaids = (): void => {
+    if (gameState.currentStatus !== 'in-progress') return
+    const mapStore = useMapStore()
+    const missionStore = useMissionStore()
+    const toastStore = useToastStore()
+
+    // Appliquer le lazy decay
+    mapStore.applyLazyDecay()
+
+    const triggered = mapStore.processHostileAttacks()
+    for (const zone of triggered) {
+      const fortress = mapStore.getTileById(zone.fortressTileId)
+      const loc = fortress ? `(${fortress.position.x},${fortress.position.y})` : ''
+
+      // Puissance du raid proportionnelle à la zone
+      const raidPower = Math.max(3, zone.power * 4)
+      const raidUnits: CombatUnit[] = [
+        { type: 'infantry', count: raidPower, attack: 35, defense: 30, health: 90 },
+        { type: 'cavalry', count: Math.floor(raidPower / 3), attack: 80, defense: 40, health: 120 },
+      ]
+      const raidAttack = raidUnits.reduce((s, u) => s + u.attack * u.count, 0)
+      const raidDefense = raidUnits.reduce((s, u) => s + u.defense * u.count, 0)
+
+      // Troupes disponibles en ville (pas en mission)
+      const townUnits = missionStore.missionState.town.units
+      const activeMovements = mapStore.mapState.activeMovements
+      const unitsOnMission: Record<string, number> = {}
+      for (const movement of activeMovements) {
+        for (const u of movement.units) {
+          unitsOnMission[u.type] = (unitsOnMission[u.type] ?? 0) + u.count
+        }
+      }
+
+      const availableUnits: CombatUnit[] = townUnits
+        .map((u) => ({
+          type: u.type,
+          count: Math.max(0, u.count - (unitsOnMission[u.type] ?? 0)),
+          attack: u.attack,
+          defense: u.defense,
+          health: u.health,
+        }))
+        .filter((u) => u.count > 0)
+
+      const totalDefenders = availableUnits.reduce((s, u) => s + u.count, 0)
+
+      if (totalDefenders === 0) {
+        // Aucune troupe — pillage direct
+        const loot = mapStore.computeHostileRaid(zone)
+        missionStore.spendResources(loot)
+        const total = loot.wood + loot.clay + loot.iron + loot.crop
+        toastStore.showError(
+          `\u2694\uFE0F Raid ennemi ! La forteresse ${loc} a pill\u00e9 ${total} ressources \u2014 aucune troupe pour d\u00e9fendre !`,
+          { duration: 12000 },
+        )
+        continue
+      }
+
+      // Résolution rapide via raidResolver
+      const result = resolveRaidFast(raidAttack, raidDefense, availableUnits)
+
+      // Construire le rapport (une seule allocation, seulement au moment du raid)
+      const report = buildRaidReport(
+        result,
+        `Raid \u2014 Forteresse ${loc}`,
+        raidUnits,
+        availableUnits,
+      )
+
+      // Appliquer les pertes aux troupes en ville
+      for (const [unitType, killed] of Object.entries(report.defender.losses.killed)) {
+        const unit = missionStore.missionState.town.units.find((u) => u.type === unitType)
+        if (unit) unit.count = Math.max(0, unit.count - killed)
+      }
+      missionStore.missionState.town.units = missionStore.missionState.town.units.filter(
+        (u) => u.count > 0,
+      )
+
+      // Sauvegarder le rapport
+      const savedReport: SavedBattleReport = {
+        ...report,
+        id: `raid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        gameTimestamp: Date.now(),
+        tileId: zone.fortressTileId,
+        tileName: `Forteresse ${loc}`,
+        date: new Date().toISOString(),
+        read: false,
+        playerIsDefender: true,
+      }
+      missionStore.addBattleReport(savedReport)
+
+      if (report.attackerVictory) {
+        // D\u00e9fense \u00e9chou\u00e9e
+        const loot = mapStore.computeHostileRaid(zone)
+        missionStore.spendResources(loot)
+        const total = loot.wood + loot.clay + loot.iron + loot.crop
+        const defLost = Object.values(report.defender.losses.killed).reduce((s, v) => s + v, 0)
+        toastStore.showError(
+          `\u2694\uFE0F D\u00e9fense \u00e9chou\u00e9e ! La forteresse ${loc} a pill\u00e9 ${total} ressources (\u2212${defLost} troupes perdues).`,
+          { duration: 12000 },
+        )
+      } else {
+        // D\u00e9fense r\u00e9ussie \u2014 r\u00e9duction de l'hostilit\u00e9
+        mapStore.reduceHostility(zone.fortressTileId, HOSTILITY_REDUCE_RAID_REPELLED)
+        const atkLost = Object.values(report.attacker.losses.killed).reduce((s, v) => s + v, 0)
+        const defLost = Object.values(report.defender.losses.killed).reduce((s, v) => s + v, 0)
+        toastStore.showSuccess(
+          `\uD83D\uDEE1\uFE0F Raid repouss\u00e9 ! La forteresse ${loc} a \u00e9t\u00e9 repouss\u00e9e (${atkLost} ennemis tu\u00e9s, \u2212${defLost} d\u00e9fenseurs perdus).`,
+          { duration: 10000 },
+        )
+      }
+    }
+
+    // Sauvegarder après tous les raids
+    if (triggered.length > 0) {
+      saveGame()
+      mapStore.saveMapState()
+      missionStore.saveMissionState()
+    }
+  }
+
+  /** D\u00e9marre les timers (auto-save + planification raids). */
+  const startGameTick = () => {
+    // Auto-save l\u00e9ger toutes les 60s
+    if (!autoSaveInterval) {
+      autoSaveInterval = window.setInterval(() => {
+        if (gameState.currentStatus === 'in-progress') saveGame()
+      }, AUTO_SAVE_INTERVAL_MS)
+    }
+    // Planifier le prochain raid
+    scheduleNextRaid()
+  }
+
+  /** Arr\u00eate tous les timers. */
   const stopGameTick = () => {
-    if (gameTickInterval) {
-      clearInterval(gameTickInterval)
-      gameTickInterval = null
+    if (raidTimeout) {
+      clearTimeout(raidTimeout)
+      raidTimeout = null
+    }
+    if (autoSaveInterval) {
+      clearInterval(autoSaveInterval)
+      autoSaveInterval = null
     }
   }
 
@@ -1194,6 +1210,7 @@ export const useGameStore = () => {
     stopAutoSave,
     startHostilityTimer,
     stopHostilityTimer,
+    scheduleNextRaid,
 
     // Actions de carte
     setMapLayers,
