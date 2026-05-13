@@ -75,4 +75,6 @@ export interface SavedBattleReport extends CombatReport {
   tileName: string
   date: string // date lisible (ISO)
   read: boolean
+  /** Vrai si le joueur était le défenseur (ex. raid ennemi repoussé) */
+  playerIsDefender?: boolean
 }

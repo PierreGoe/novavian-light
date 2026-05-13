@@ -42,16 +42,16 @@ export interface FortressZone {
 const FORTRESS_INFLUENCE_RADIUS = 4
 
 /** Seuils de passage d’état */
-const HOSTILITY_THRESHOLD_WARNED = 40
-const HOSTILITY_THRESHOLD_HOSTILE = 70
+const HOSTILITY_THRESHOLD_WARNED = 30
+const HOSTILITY_THRESHOLD_HOSTILE = 55
 
 /** Gain d’hostilité lors d’une attaque sur un village de la zone */
-export const HOSTILITY_GAIN_VILLAGE_ATTACK = 20
+export const HOSTILITY_GAIN_VILLAGE_ATTACK = 25
 /** Gain d’hostilité lors d’une attaque directe sur la forteresse */
-export const HOSTILITY_GAIN_FORTRESS_ATTACK = 50
+export const HOSTILITY_GAIN_FORTRESS_ATTACK = 55
 
 /** Intervalle entre deux attaques hostiles (en ms) */
-const HOSTILE_ATTACK_INTERVAL_MS = 3 * 60 * 1000 // 3 minutes
+export const HOSTILE_ATTACK_INTERVAL_MS = 10_000 // 10 secondes (ajustable)
 
 /** Décroissance d’hostilité par tick du timer (toutes les 30s) */
 const HOSTILITY_DECAY_PER_TICK = 2
@@ -877,6 +877,7 @@ export const useMapStore = () => {
       activeMovements: mapState.activeMovements,
       unlockedChunks: mapState.unlockedChunks,
       zoomLevel: mapState.zoomLevel,
+      fortressZones: mapState.fortressZones,
     }
 
     localStorage.setItem('novavian-map', JSON.stringify(data))
@@ -1068,6 +1069,25 @@ export const useMapStore = () => {
   }
 
   /**
+   * Réduit l'hostilité d'une forteresse quand le joueur repousse un raid.
+   * Passe l'état à 'warned' si on descend sous le seuil hostile,
+   * ou à 'neutral' si on descend sous le seuil warned.
+   */
+  const reduceHostility = (fortressTileId: string, amount: number): void => {
+    const zone = mapState.fortressZones[fortressTileId]
+    if (!zone) return
+
+    zone.hostilityLevel = Math.max(0, zone.hostilityLevel - amount)
+    const newState = getHostilityStateFromLevel(zone.hostilityLevel)
+    if (newState !== zone.hostilityState) {
+      zone.hostilityState = newState
+      if (newState !== 'hostile') zone.nextAttackAt = undefined
+    }
+
+    saveMapState()
+  }
+
+  /**
    * À appeler quand le joueur attaque une tuile ennemie.
    * Augmente l'hostilité de la forteresse responsable.
    */
@@ -1095,10 +1115,10 @@ export const useMapStore = () => {
       if (zone.hostilityState !== 'hostile') continue
       if (!zone.nextAttackAt || zone.nextAttackAt > now) continue
       triggered.push(zone)
+      // Planifier la prochaine attaque sans déclencher de sauvegarde immédiate
       zone.nextAttackAt = now + HOSTILE_ATTACK_INTERVAL_MS
     }
 
-    if (triggered.length > 0) saveMapState()
     return triggered
   }
 
@@ -1106,7 +1126,7 @@ export const useMapStore = () => {
    * Décroissance naturelle de l'hostilité — appelé toutes les 30s par le timer.
    */
   const tickHostilityDecay = (): void => {
-    let changed = false
+    let stateChanged = false
     for (const zone of Object.values(mapState.fortressZones)) {
       if (zone.hostilityLevel <= 0) continue
       zone.hostilityLevel = Math.max(0, zone.hostilityLevel - HOSTILITY_DECAY_PER_TICK)
@@ -1114,10 +1134,11 @@ export const useMapStore = () => {
       if (newState !== zone.hostilityState) {
         zone.hostilityState = newState
         if (newState !== 'hostile') zone.nextAttackAt = undefined
+        // Sauvegarder uniquement lors d'un changement d'état (pas à chaque décrémentation)
+        stateChanged = true
       }
-      changed = true
     }
-    if (changed) saveMapState()
+    if (stateChanged) saveMapState()
   }
 
   /**
@@ -1187,6 +1208,7 @@ export const useMapStore = () => {
     getControllingFortress,
     getInfluenceZoneTileIds,
     increaseHostility,
+    reduceHostility,
     onEnemyTileAttacked,
     processHostileAttacks,
     tickHostilityDecay,

@@ -5,27 +5,38 @@
       <span class="header-label">Mouvements</span>
     </div>
 
-    <!-- Liste unifiée (éclaireurs + troupes mélangés) -->
-    <div v-if="allItems.length > 0" class="movements-list">
-      <div v-for="item in allItems" :key="item.id" class="movement-row" :class="item.kind">
-        <span class="row-icon">{{ item.icon }}</span>
-        <div class="row-body">
-          <div class="row-top">
-            <span class="row-label">{{ item.label }}</span>
-            <span class="row-eta">{{ item.eta }}</span>
+    <!-- Rangée de chronomètres circulaires (un par mouvement) -->
+    <div v-if="allItems.length > 0" class="movements-clocks">
+      <div
+        v-for="item in allItems"
+        :key="item.id"
+        class="clock-item"
+        :class="item.kind === 'done' ? 'clock-item--done' : 'clock-item--active'"
+      >
+        <!-- Anneau SVG -->
+        <div class="clock-ring">
+          <svg viewBox="0 0 60 60" class="clock-svg">
+            <circle class="clock-track" cx="30" cy="30" r="26" />
+            <circle
+              v-if="item.kind !== 'done'"
+              class="clock-progress"
+              cx="30"
+              cy="30"
+              r="26"
+              :stroke-dasharray="163.36"
+              :stroke-dashoffset="163.36 * (1 - item.progress / 100)"
+            />
+          </svg>
+          <div class="clock-inner">
+            <span class="clock-icon">{{ item.icon }}</span>
+            <span class="clock-time">{{ item.eta }}</span>
           </div>
-          <template v-if="item.kind !== 'done'">
-            <div class="progress-bar">
-              <div
-                class="progress-fill"
-                :class="item.kind + '-fill'"
-                :style="{ width: item.progress + '%' }"
-              ></div>
-            </div>
-          </template>
-          <div v-if="item.units" class="unit-row">
-            <span v-for="(u, i) in item.units" :key="i" class="unit-badge">{{ u }}</span>
-          </div>
+        </div>
+        <!-- Destination -->
+        <div class="clock-label">{{ item.label }}</div>
+        <!-- Badges unités -->
+        <div v-if="item.units" class="clock-units">
+          <span v-for="(u, i) in item.units" :key="i" class="unit-badge">{{ u }}</span>
         </div>
       </div>
     </div>
@@ -143,101 +154,118 @@ const allItems = computed((): MovementItem[] => {
   letter-spacing: 0.06em;
 }
 
-/* Liste */
-.movements-list {
+/* Rangée de chronomètres */
+.movements-clocks {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-/* Ligne individuelle */
-.movement-row {
-  display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.02);
+  gap: 0.75rem;
 }
 
-.done {
-  border-color: rgba(34, 197, 94, 0.2);
-  background: rgba(34, 197, 94, 0.03);
-  opacity: 0.7;
-}
-
-.row-icon {
-  font-size: 0.85rem;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.row-body {
-  flex: 1;
+/* Conteneur d'un chronomètre */
+.clock-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 0;
+  align-items: center;
+  gap: 0.3rem;
+  position: relative;
 }
 
-.row-top {
+/* Anneau SVG + contenu superposé */
+.clock-ring {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  justify-content: center;
 }
 
-.row-label {
-  font-size: 0.78rem;
-  color: #cbd5e1;
+.clock-svg {
+  display: block;
+  width: 64px;
+  height: 64px;
+}
+
+/* Piste de fond */
+.clock-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 3;
+}
+
+/* Arc de progression */
+.clock-progress {
+  fill: none;
+  stroke: #ef4444;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 1s linear;
+}
+
+/* Mouvement terminé : piste en pointillés, opacité réduite */
+.clock-item--done {
+  opacity: 0.55;
+}
+
+.clock-item--done .clock-track {
+  stroke: rgba(34, 197, 94, 0.25);
+  stroke-dasharray: 4 4;
+}
+
+/* Contenu au centre du cercle */
+.clock-inner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  pointer-events: none;
+}
+
+.clock-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.clock-time {
+  font-size: 0.6rem;
+  color: #fca5a5;
+  font-weight: bold;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.clock-item--done .clock-time {
+  color: #86efac;
+}
+
+/* Label destination */
+.clock-label {
+  font-size: 0.68rem;
+  color: #93c5fd;
+  text-align: center;
+  max-width: 72px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.row-eta {
-  font-size: 0.75rem;
-  font-weight: 600;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.troop .row-eta {
-  color: #fca5a5;
-}
-
-/* Barre de progression */
-.progress-bar {
-  height: 3px;
-  background: rgba(255, 255, 255, 0.07);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.9s linear;
-}
-
-.troop-fill {
-  background: linear-gradient(90deg, #ef4444, #f97316);
-}
-
-/* Badges d'unités */
-.unit-row {
+/* Badges unités */
+.clock-units {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  justify-content: center;
+  gap: 3px;
+  max-width: 80px;
 }
 
 .unit-badge {
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 999px;
-  padding: 1px 6px;
+  padding: 1px 5px;
   color: #94a3b8;
 }
 

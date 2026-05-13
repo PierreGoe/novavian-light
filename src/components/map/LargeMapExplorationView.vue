@@ -1,5 +1,36 @@
 <template>
   <div class="large-map-exploration-view">
+    <!-- BANDEAU D'ALERTE RAID — affiché dès qu'une forteresse est hostile -->
+    <Transition name="raid-banner">
+      <div v-if="nextHostileRaid" class="raid-alert-banner">
+        <!-- Timer circulaire style training queue -->
+        <div class="raid-clock-ring">
+          <svg viewBox="0 0 60 60" class="raid-clock-svg">
+            <circle class="raid-clock-track" cx="30" cy="30" r="26" />
+            <circle
+              class="raid-clock-progress"
+              cx="30"
+              cy="30"
+              r="26"
+              :stroke-dasharray="163.36"
+              :stroke-dashoffset="163.36 * raidProgressRatio"
+            />
+          </svg>
+          <div class="raid-clock-inner">
+            <span class="raid-clock-icon">⚔️</span>
+            <span class="raid-clock-time" v-if="raidCountdownSeconds !== null">{{
+              formatCountdown(raidCountdownSeconds)
+            }}</span>
+          </div>
+        </div>
+        <!-- Infos texte -->
+        <div class="raid-alert-text">
+          <strong>RAID ENNEMI IMMINENT</strong>
+          <span class="raid-alert-sub">{{ nextHostileRaidLocation }}</span>
+        </div>
+      </div>
+    </Transition>
+
     <!-- VUE CARTE -->
     <template v-if="!selectedTile">
       <!-- Fragments de carte -->
@@ -70,6 +101,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   useMapStore,
+  HOSTILE_ATTACK_INTERVAL_MS,
   type MapTile,
   type MovementUnit,
   type TroopMovement,
@@ -104,6 +136,7 @@ const { notification, showNotification } = useNotifications()
 // État local
 const selectedTileId = ref<string | null>(null)
 const combatReport = ref<CombatReport | null>(null)
+const now = ref(Date.now())
 
 // Computed
 const mapTiles = computed(() => mapStore.mapTiles.value)
@@ -111,6 +144,45 @@ const selectedTile = computed(() => {
   if (!selectedTileId.value) return null
   return mapStore.getTileById(selectedTileId.value)
 })
+
+/** Zone hostile avec le raid le plus imminent */
+const nextHostileRaid = computed(() => {
+  const zones = Object.values(mapStore.mapState.fortressZones).filter(
+    (z) => z.hostilityState === 'hostile' && z.nextAttackAt,
+  )
+  if (zones.length === 0) return null
+  return zones.reduce((a, b) =>
+    (a.nextAttackAt ?? Infinity) < (b.nextAttackAt ?? Infinity) ? a : b,
+  )
+})
+
+/** Secondes restantes avant le prochain raid (réactif via now) */
+const raidCountdownSeconds = computed(() => {
+  if (!nextHostileRaid.value?.nextAttackAt) return null
+  const remaining = nextHostileRaid.value.nextAttackAt - now.value
+  return Math.max(0, Math.ceil(remaining / 1000))
+})
+
+/** Ratio de progression du cercle (1 = plein, 0 = vide) */
+const raidProgressRatio = computed(() => {
+  if (!nextHostileRaid.value?.nextAttackAt) return 1
+  const remaining = Math.max(0, nextHostileRaid.value.nextAttackAt - now.value)
+  return remaining / HOSTILE_ATTACK_INTERVAL_MS
+})
+
+/** Coordonnées de la forteresse hostile la plus imminente */
+const nextHostileRaidLocation = computed(() => {
+  if (!nextHostileRaid.value) return ''
+  const tile = mapStore.getTileById(nextHostileRaid.value.fortressTileId)
+  return tile ? `Forteresse (${tile.position.x}, ${tile.position.y})` : 'Forteresse hostile'
+})
+
+/** Formate un nombre de secondes en MM:SS */
+const formatCountdown = (seconds: number): string => {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return m > 0 ? `${m}m ${s.toString().padStart(2, '0')}s` : `${s}s`
+}
 
 const openCombatReport = (report: SavedBattleReport) => {
   combatReport.value = null
@@ -575,8 +647,9 @@ onMounted(() => {
     mapStore.tickGarrisonRegen()
   }, ENEMY_REGEN_INTERVAL_MS)
 
-  // Timer de résolution des mouvements de troupes
+  // Timer de résolution des mouvements de troupes + mise à jour horloge réactive
   displayRefreshTimer = window.setInterval(() => {
+    now.value = Date.now()
     const arrivals = mapStore.getArrivedMovements()
     for (const movement of arrivals) {
       const tile = mapStore.getTileById(movement.targetTileId)
@@ -599,6 +672,105 @@ onUnmounted(() => {
   padding: 20px;
   max-width: 1400px;
   margin: 0 auto;
+}
+
+/* ── Bandeau alerte raid ── */
+.raid-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  margin-bottom: 14px;
+  background: linear-gradient(135deg, rgba(140, 15, 15, 0.92), rgba(80, 8, 8, 0.95));
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  border-radius: 10px;
+  color: #fff;
+}
+
+/* Cercle SVG */
+.raid-clock-ring {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.raid-clock-svg {
+  width: 64px;
+  height: 64px;
+  display: block;
+}
+
+.raid-clock-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 3;
+}
+
+.raid-clock-progress {
+  fill: none;
+  stroke: #ef4444;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 1s linear;
+}
+
+.raid-clock-inner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  pointer-events: none;
+}
+
+.raid-clock-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.raid-clock-time {
+  font-size: 0.6rem;
+  color: #fca5a5;
+  font-weight: bold;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.raid-alert-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.raid-alert-text strong {
+  font-size: 0.95em;
+  letter-spacing: 0.06em;
+}
+
+.raid-alert-sub {
+  font-size: 0.8em;
+  color: #fca5a5;
+}
+
+/* Transition entrée/sortie du bandeau */
+.raid-banner-enter-active {
+  transition: all 0.4s ease;
+}
+.raid-banner-leave-active {
+  transition: all 0.3s ease;
+}
+.raid-banner-enter-from {
+  opacity: 0;
+  transform: translateY(-12px);
+}
+.raid-banner-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 .map-fragments-bar {

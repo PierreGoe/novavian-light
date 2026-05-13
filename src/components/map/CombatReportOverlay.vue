@@ -2,24 +2,18 @@
   <Transition name="slide-fade">
     <section v-if="report" class="combat-report-panel">
       <!-- Bannière hero victoire / défaite -->
-      <div class="hero-banner" :class="report.attackerVictory ? 'banner-victory' : 'banner-defeat'">
+      <div class="hero-banner" :class="playerVictory ? 'banner-victory' : 'banner-defeat'">
         <div class="banner-particles">
           <span v-for="i in 8" :key="i" class="particle" :style="{ '--i': i }"></span>
         </div>
         <div class="banner-content">
           <div class="banner-emblem">
-            <span class="banner-emblem-icon">{{ report.attackerVictory ? '🏆' : '💔' }}</span>
+            <span class="banner-emblem-icon">{{ bannerIcon }}</span>
             <div class="banner-emblem-ring"></div>
           </div>
           <div class="banner-text">
-            <h2 class="banner-title">{{ report.attackerVictory ? 'Victoire !' : 'Défaite' }}</h2>
-            <p class="banner-subtitle">
-              {{
-                report.attackerVictory
-                  ? 'Vos armées triomphent !'
-                  : 'Vos troupes ont battu en retraite'
-              }}
-            </p>
+            <h2 class="banner-title">{{ bannerTitle }}</h2>
+            <p class="banner-subtitle">{{ bannerSubtitle }}</p>
           </div>
         </div>
         <div class="banner-fade-bottom"></div>
@@ -140,10 +134,7 @@
             >
           </div>
         </div>
-        <div
-          v-else-if="report.attackerVictory && report.pillage"
-          class="report-loot report-loot--empty"
-        >
+        <div v-else-if="playerVictory && report.pillage" class="report-loot report-loot--empty">
           <span>🏜️ Village vide — aucune ressource à piller</span>
         </div>
 
@@ -155,10 +146,50 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { CombatReport } from '../../combat/types'
+import type { CombatReport, SavedBattleReport } from '../../combat/types'
 
-const props = defineProps<{ report: CombatReport | null }>()
+const props = defineProps<{ report: CombatReport | SavedBattleReport | null }>()
 const emit = defineEmits<{ close: [] }>()
+
+/** Vrai si le joueur est le défenseur dans ce rapport */
+const playerIsDefender = computed(
+  () => !!(props.report && 'playerIsDefender' in props.report && props.report.playerIsDefender),
+)
+
+/** Le joueur a-t-il gagné ce combat (quel que soit son rôle) ? */
+const playerVictory = computed(() => {
+  if (!props.report) return false
+  return playerIsDefender.value ? !props.report.attackerVictory : props.report.attackerVictory
+})
+
+/** Icône de la bannière */
+const bannerIcon = computed(() => {
+  if (!props.report) return ''
+  if (playerIsDefender.value) {
+    return playerVictory.value ? '🛡️' : '💔'
+  }
+  return playerVictory.value ? '🏆' : '💔'
+})
+
+/** Titre de la bannière */
+const bannerTitle = computed(() => {
+  if (!props.report) return ''
+  if (playerIsDefender.value) {
+    return playerVictory.value ? 'Défense réussie !' : 'Défense échouée'
+  }
+  return playerVictory.value ? 'Victoire !' : 'Défaite'
+})
+
+/** Sous-titre de la bannière */
+const bannerSubtitle = computed(() => {
+  if (!props.report) return ''
+  if (playerIsDefender.value) {
+    return playerVictory.value
+      ? "Votre village a repoussé l'attaque !"
+      : 'Votre défense a été submergée'
+  }
+  return playerVictory.value ? 'Vos armées triomphent !' : 'Vos troupes ont battu en retraite'
+})
 
 /** % de bonus d'attaque apporté par les modificateurs artefacts */
 const attackerBonusPct = computed(() => {
