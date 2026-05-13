@@ -2,7 +2,7 @@ import { reactive, computed } from 'vue'
 import { useGameStore } from './gameStore'
 import { useMapStore, TERRAIN_MOVE_COST } from './mapStore'
 import type { SavedBattleReport } from '../combat/types'
-import { BUILDING_DEFINITIONS, getHQLevel } from '../data/buildings'
+import { BUILDING_DEFINITIONS, getBuildingUpgrade, getHQLevel } from '../data/buildings'
 import type { BuildingType } from '../data/buildings'
 import { MAX_OFFLINE_MS, AUTOSAVE_INTERVAL_MS, PRODUCTION_INTERVAL_MS } from '../config'
 import { gameSettings } from './gameSettingsStore'
@@ -512,7 +512,7 @@ export const useMissionStore = () => {
     const hqLevel = getHQLevel(missionState.town.buildings)
     if (hqLevel < def.hqLevelRequired) return false
 
-    const upgradeCost = def.upgradeCost(building.level)
+    const upgradeCost = getBuildingUpgrade(building.type as BuildingType, building.level)
 
     if (spendResources(upgradeCost)) {
       building.level += 1

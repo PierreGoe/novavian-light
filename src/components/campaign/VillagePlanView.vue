@@ -240,6 +240,7 @@ import { useMissionStore } from '@/stores/missionStore'
 import { useToastStore } from '@/stores/toastStore'
 import {
   BUILDING_DEFINITIONS,
+  getBuildingUpgrade,
   getHQLevel,
   canBuildingBeUpgraded,
   isBuildingUnlocked,
@@ -281,7 +282,7 @@ const getBuildingState = (type: BuildingType): BuildingState => {
   // Le bâtiment est construit et peut encore monter de niveau
   if (!canBuildingBeUpgraded(type, building.level, hqLevel.value)) return 'maxed'
 
-  const cost = def.upgradeCost(building.level)
+  const cost = getBuildingUpgrade(def.type, building.level)
   const res = town.value?.resources
   if (
     res &&
@@ -308,7 +309,9 @@ const selectedState = computed(() =>
 
 // Coût de construction (niveau 0 → 1)
 const selectedBuildCost = computed(() =>
-  selectedDef.value ? selectedDef.value.upgradeCost(0) : { wood: 0, clay: 0, iron: 0, crop: 0 },
+  selectedDef.value
+    ? getBuildingUpgrade(selectedDef.value.type, 0)
+    : { wood: 0, clay: 0, iron: 0, crop: 0 },
 )
 
 // --- Helpers de production ---
@@ -321,8 +324,7 @@ const getProductionIcon = (type: BuildingType): string => {
   return resource ? (icons[resource] ?? '') : ''
 }
 
-const getUpgradeCost = (type: BuildingType, level: number) =>
-  BUILDING_DEFINITIONS[type]?.upgradeCost(level) ?? { wood: 0, clay: 0, iron: 0, crop: 0 }
+const getUpgradeCost = (type: BuildingType, level: number) => getBuildingUpgrade(type, level)
 
 // Calcule le temps avant d'avoir les ressources pour améliorer le bâtiment sélectionné
 const getTimeUntilUpgrade = (): string | null => {
