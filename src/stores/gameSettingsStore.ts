@@ -25,6 +25,10 @@ export interface GameSettings {
   /** Nombre de base d'infanterie dans une forteresse ennemie */
   enemyStrongholdInfantry: number
 
+  // --- Carte & affichage ---
+  /** Affiche les zones d'influence des forteresses ennemies (halo rouge) */
+  showInfluenceZones: boolean
+
   // --- Triches / debug ---
   /** Démarre chaque mission avec 10 000 de chaque ressource */
   cheatResources: boolean
@@ -47,6 +51,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   rankRevealRange: 10,
   enemyBaseInfantry: 3,
   enemyStrongholdInfantry: 8,
+  showInfluenceZones: true,
   cheatResources: false,
   cheatVictoryPoints: false,
   initialResources: { wood: 200, clay: 200, iron: 100, crop: 150 },

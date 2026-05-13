@@ -233,11 +233,7 @@
     </div>
 
     <!-- Panneau d'attaque inline -->
-    <div v-if="canAttackTile(tile) && showAttackPanel" class="attack-panel-wrapper">
-      <div class="attack-panel-header">
-        <span>Planification d'attaque</span>
-        <button class="close-panel-btn" @click="showAttackPanel = false">✕</button>
-      </div>
+    <div v-if="canAttackTile(tile)" class="attack-panel-wrapper">
       <AttackPanel
         :available-units="playerAvailableUnits"
         :compute-travel-ms="(units) => mapStore.calculateTravelTimeMs(tile!.id, units)"
@@ -247,16 +243,6 @@
 
     <!-- Actions -->
     <div class="tile-actions">
-      <button
-        v-if="canAttackTile(tile) && !showAttackPanel"
-        class="action-btn attack-btn"
-        @click="showAttackPanel = true"
-      >
-        <span class="action-icon">⚔️</span>
-        <span class="action-label">Attaquer</span>
-        <span class="action-sub">Choisir les troupes à envoyer</span>
-      </button>
-
       <button
         v-if="canTradeTile(tile)"
         class="action-btn trade-btn"
@@ -338,7 +324,6 @@ const HOSTILITY_ICONS: Record<string, string> = {
 // ------------------------------------
 
 /** Contrôle l'affichage inline du panneau d'attaque */
-const showAttackPanel = ref(false)
 const emit = defineEmits<{
   attackTile: [tileId: string, units: MovementUnit[]]
   tradeTile: [tileId: string]
@@ -360,7 +345,6 @@ const playerAvailableUnits = computed<AvailableUnit[]>(() =>
 /** Appelé quand le joueur confirme son choix dans AttackPanel */
 const onAttackConfirm = (units: MovementUnit[]) => {
   if (!props.tile) return
-  showAttackPanel.value = false
   emit('attackTile', props.tile.id, units)
 }
 
@@ -1058,31 +1042,6 @@ const getResourceIcon = (resource: string) => {
   gap: 12px;
 }
 
-.attack-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.85em;
-  font-weight: 700;
-  color: #ef9a9a;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.close-panel-btn {
-  background: none;
-  border: none;
-  color: #888;
-  font-size: 1em;
-  cursor: pointer;
-  padding: 0 4px;
-  transition: color 0.12s;
-}
-
-.close-panel-btn:hover {
-  color: #fff;
-}
-
 /* ── Actions ── */
 .tile-actions {
   display: grid;
@@ -1133,9 +1092,6 @@ const getResourceIcon = (resource: string) => {
   text-align: center;
 }
 
-.attack-btn {
-  background: linear-gradient(135deg, #c62828, #b71c1c);
-}
 .trade-btn {
   background: linear-gradient(135deg, #e65100, #ef6c00);
 }

@@ -1,141 +1,151 @@
 <template>
-  <div class="attack-panel">
-    <!-- Onglets mode -->
-    <div class="mode-tabs">
-      <button
-        class="tab-btn"
-        :class="{ active: activeTab === 'quick' }"
-        @click="activeTab = 'quick'"
-      >
-        ⚡ Rapide
-      </button>
-      <button
-        class="tab-btn"
-        :class="{ active: activeTab === 'custom' }"
-        @click="activeTab = 'custom'"
-      >
-        ⚙️ Personnalisé
-      </button>
-    </div>
-
-    <!-- ── Mode Rapide : clic = envoi immédiat ── -->
-    <div v-if="activeTab === 'quick'" class="tab-content">
-      <p class="mode-hint">Cliquez sur une stratégie pour envoyer immédiatement</p>
-      <div class="quick-strategies">
+  <div class="ap">
+    <!-- En-tête : titre + onglets -->
+    <div class="ap-header">
+      <span class="ap-title">⚔️ Attaque</span>
+      <div class="ap-tabs">
         <button
-          v-for="(strategy, mode) in QUICK_ATTACK_STRATEGIES"
-          :key="mode"
-          class="strategy-card"
-          :class="{ disabled: !canUseMode(mode) }"
-          :disabled="!canUseMode(mode)"
-          @click="launchQuick(mode)"
+          class="ap-tab"
+          :class="{ active: activeTab === 'quick' }"
+          @click="activeTab = 'quick'"
         >
-          <div class="strategy-top">
-            <span class="strategy-icon">{{ strategy.icon }}</span>
-            <span class="strategy-label">{{ strategy.label }}</span>
-          </div>
-
-          <!-- Vue icônes des unités envoyées -->
-          <div class="strategy-unit-chips" v-if="canUseMode(mode) && quickPlanFor(mode)">
-            <span
-              v-for="u in quickPlanFor(mode)!.units"
-              :key="u.type"
-              class="unit-chip"
-              :title="unitLabel(u.type)"
-            >
-              {{ unitIcon(u.type) }}<strong>×{{ u.count }}</strong>
-            </span>
-          </div>
-          <span v-else-if="!canUseMode(mode)" class="strategy-reason">
-            {{ disabledReason(mode) }}
-          </span>
-
-          <!-- Stats compactes : trajet + transport -->
-          <div class="strategy-meta" v-if="canUseMode(mode) && quickPlanFor(mode)">
-            <span>⏱️ {{ travelLabel(quickPlanFor(mode)!.units) }}</span>
-            <span>🎒 {{ quickPlanFor(mode)!.carryCapacity }}</span>
-          </div>
+          ⚡ Rapide
+        </button>
+        <button
+          class="ap-tab"
+          :class="{ active: activeTab === 'custom' }"
+          @click="activeTab = 'custom'"
+        >
+          ⚙️ Custom
         </button>
       </div>
     </div>
 
+    <div class="ap-sep" />
+
+    <!-- ── Mode Rapide ── -->
+    <div v-if="activeTab === 'quick'" class="ap-quick">
+      <button
+        v-for="(strategy, mode) in QUICK_ATTACK_STRATEGIES"
+        :key="mode"
+        class="ap-strat"
+        :class="{ 'ap-strat--disabled': !canUseMode(mode) }"
+        :disabled="!canUseMode(mode)"
+        @click="launchQuick(mode)"
+      >
+        <!-- Ligne titre -->
+        <div class="ap-strat-head">
+          <span class="ap-strat-icon">{{ strategy.icon }}</span>
+          <span class="ap-strat-label">{{ strategy.label }}</span>
+          <span v-if="canUseMode(mode) && quickPlanFor(mode)" class="ap-strat-meta">
+            ⏱ {{ travelLabel(quickPlanFor(mode)!.units) }}
+          </span>
+        </div>
+        <!-- add margin up and down -->
+        <Separator class="ap-sep" />
+        <!-- Avatars unités (max 3 + count) -->
+        <div v-if="canUseMode(mode) && quickPlanFor(mode)" class="ap-avatars">
+          <span
+            v-for="u in quickPlanFor(mode)!.units.slice(0, 3)"
+            :key="u.type"
+            class="ap-avatar"
+            :title="unitLabel(u.type)"
+          >
+            <span class="ap-avatar-icon">{{ unitIcon(u.type) }}</span>
+            <span class="ap-badge">{{ u.count }}</span>
+          </span>
+          <span
+            v-if="quickPlanFor(mode)!.units.length > 3"
+            class="ap-avatar ap-avatar--more"
+            :title="
+              quickPlanFor(mode)!
+                .units.slice(3)
+                .map((u) => unitLabel(u.type))
+                .join(', ')
+            "
+          >
+            <span class="ap-avatar-icon ap-avatar-more-count"
+              >+{{ quickPlanFor(mode)!.units.length - 3 }}</span
+            >
+          </span>
+        </div>
+        <span v-else-if="!canUseMode(mode)" class="ap-strat-reason">{{
+          disabledReason(mode)
+        }}</span>
+      </button>
+    </div>
+
     <!-- ── Mode Personnalisé ── -->
-    <div v-if="activeTab === 'custom'" class="tab-content">
-      <div class="custom-units">
+    <div v-if="activeTab === 'custom'" class="ap-custom">
+      <!-- Avatars cliquables avec +/- -->
+      <div class="ap-unit-grid">
         <div
           v-for="unit in availableUnits"
           :key="unit.type"
-          class="unit-row"
-          :class="{ exhausted: unit.count === 0 }"
+          class="ap-unit"
+          :class="{ 'ap-unit--empty': unit.count === 0 }"
         >
-          <span class="unit-icon">{{ unitIcon(unit.type) }}</span>
-          <span class="unit-type-label">{{ unitLabel(unit.type) }}</span>
-          <div class="unit-controls">
+          <div
+            class="ap-avatar ap-avatar--lg"
+            :class="{ 'ap-avatar--active': (composition[unit.type] ?? 0) > 0 }"
+          >
+            <span class="ap-avatar-icon">{{ unitIcon(unit.type) }}</span>
+            <span v-if="(composition[unit.type] ?? 0) > 0" class="ap-badge ap-badge--active">
+              {{ composition[unit.type] }}
+            </span>
+          </div>
+          <span class="ap-unit-label">{{ unitLabel(unit.type) }}</span>
+          <span class="ap-unit-max">/ {{ unit.count }}</span>
+          <div class="ap-unit-controls">
             <button
-              class="qty-btn"
+              class="ap-qty-btn"
               @click="decrement(unit.type)"
               :disabled="(composition[unit.type] ?? 0) <= 0"
             >
               −
             </button>
-            <input
-              class="qty-input"
-              type="number"
-              min="0"
-              :max="unit.count"
-              :value="composition[unit.type] ?? 0"
-              @change="setCount(unit.type, +($event.target as HTMLInputElement).value)"
-            />
             <button
-              class="qty-btn"
+              class="ap-qty-btn"
               @click="increment(unit.type)"
               :disabled="(composition[unit.type] ?? 0) >= unit.count"
             >
               +
             </button>
             <button
-              class="qty-all-btn"
+              class="ap-qty-max"
               @click="setCount(unit.type, unit.count)"
-              title="Tout envoyer"
+              :disabled="unit.count === 0"
             >
               max
             </button>
           </div>
-          <span class="unit-max">/ {{ unit.count }}</span>
-          <span
-            class="unit-carry"
-            :title="`${UNIT_CARRY_CAPACITY[unit.type] ?? 10} ressources par unité`"
-          >
-            🎒×{{ UNIT_CARRY_CAPACITY[unit.type] ?? 10 }}
-          </span>
         </div>
       </div>
 
-      <!-- Erreurs de validation -->
-      <div v-if="validationErrors.length" class="validation-errors">
-        <p v-for="e in validationErrors" :key="e.field" class="validation-error">{{ e.message }}</p>
+      <!-- Erreurs -->
+      <div v-if="validationErrors.length" class="ap-errors">
+        <span v-for="e in validationErrors" :key="e.field" class="ap-error">{{ e.message }}</span>
       </div>
 
-      <!-- Récapitulatif icônes + stats -->
-      <div v-if="customPlan" class="custom-summary">
-        <div class="summary-chips">
+      <!-- Récap + bouton envoi -->
+      <div v-if="customPlan" class="ap-confirm-row">
+        <div class="ap-avatars ap-avatars--sm">
           <span
             v-for="u in customPlan.units"
             :key="u.type"
-            class="unit-chip unit-chip--lg"
+            class="ap-avatar"
             :title="unitLabel(u.type)"
           >
-            {{ unitIcon(u.type) }}<strong>×{{ u.count }}</strong>
+            <span class="ap-avatar-icon">{{ unitIcon(u.type) }}</span>
+            <span class="ap-badge ap-badge--active">{{ u.count }}</span>
           </span>
         </div>
-        <div class="summary-meta">
-          <span>⏱️ {{ travelLabel(customPlan.units) }}</span>
+        <div class="ap-confirm-meta">
+          <span>⏱ {{ travelLabel(customPlan.units) }}</span>
           <span>🎒 {{ customPlan.carryCapacity }}</span>
-          <span v-if="customPlan.hasSiege" class="has-siege">🏰 Siège</span>
+          <span v-if="customPlan.hasSiege" class="ap-siege">🏰</span>
         </div>
-
-        <!-- Bouton confirm uniquement en mode custom -->
-        <button class="confirm-btn" @click="confirm">⚔️ Envoyer ces troupes</button>
+        <button class="ap-send-btn" @click="confirm">⚔️ Envoyer</button>
       </div>
     </div>
   </div>
@@ -154,7 +164,7 @@ import {
   type AttackPlan,
   type QuickAttackMode,
 } from '../../combat/attackPlanner'
-import { UNIT_CARRY_CAPACITY } from '../../combat/loot'
+import { Separator } from '@/components/ui/separator'
 
 // ------------------------------------
 // Props / Emits
@@ -314,302 +324,347 @@ const confirm = () => {
 </script>
 
 <style scoped>
-.attack-panel {
+/* ── Conteneur principal ── */
+.ap {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-/* ── Onglets ── */
-.mode-tabs {
-  display: flex;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 10px;
-  padding: 4px;
-}
-
-.tab-btn {
-  flex: 1;
-  padding: 8px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: #aaa;
-  font-size: 0.88em;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-
-.tab-btn.active {
-  background: rgba(198, 40, 40, 0.25);
-  color: #ef9a9a;
-}
-
-.mode-hint {
-  margin: 0;
-  font-size: 0.75em;
-  color: #666;
-  text-align: center;
-}
-
-/* ── Cartes de stratégie rapide ── */
-.quick-strategies {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
-.strategy-card {
+/* ── En-tête ── */
+.ap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ap-title {
+  font-size: 0.8em;
+  font-weight: 700;
+  color: #ef9a9a;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.ap-tabs {
+  display: flex;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 7px;
+  padding: 3px;
+}
+
+.ap-tab {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #888;
+  font-size: 0.72em;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+  white-space: nowrap;
+}
+
+.ap-tab.active {
+  background: rgba(198, 40, 40, 0.3);
+  color: #ef9a9a;
+}
+
+/* ── Mode Rapide : 4 boutons sur une ligne ── */
+.ap-quick {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.ap-strat {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  gap: 5px;
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
   text-align: left;
   transition:
-    border-color 0.15s,
-    background 0.15s,
+    border-color 0.13s,
+    background 0.13s,
     transform 0.1s;
 }
 
-.strategy-card:hover:not(.disabled) {
-  background: rgba(239, 83, 80, 0.1);
-  border-color: rgba(239, 83, 80, 0.4);
+.ap-strat:hover:not(.ap-strat--disabled) {
+  border-color: rgba(239, 83, 80, 0.45);
+  background: rgba(239, 83, 80, 0.08);
   transform: translateY(-1px);
 }
 
-.strategy-card:active:not(.disabled) {
-  transform: translateY(0);
-}
-
-.strategy-card.disabled {
-  opacity: 0.38;
+.ap-strat--disabled {
+  opacity: 0.35;
   cursor: default;
 }
 
-.strategy-top {
+.ap-strat-head {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
 }
 
-.strategy-icon {
-  font-size: 1.2em;
+.ap-strat-icon {
+  font-size: 0.95em;
   line-height: 1;
 }
 
-.strategy-label {
-  font-size: 0.85em;
+.ap-strat-label {
+  flex: 1;
+  font-size: 0.76em;
   font-weight: 700;
   color: #eee;
 }
 
-.strategy-reason {
-  font-size: 0.7em;
+.ap-strat-meta {
+  font-size: 0.65em;
+  color: #90caf9;
+}
+
+.ap-strat-reason {
+  font-size: 0.65em;
   color: #f59e0b;
   font-style: italic;
 }
 
-/* ── Chips d'unités ── */
-.strategy-unit-chips,
-.summary-chips {
+/* ── Avatars (ShadCN-style) ── */
+.ap-avatars {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
 }
 
-.unit-chip {
+.ap-avatar {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  font-size: 0.82em;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  flex-shrink: 0;
+}
+
+.ap-avatar--lg {
+  width: 38px;
+  height: 38px;
+}
+
+.ap-avatar--active {
+  border-color: rgba(239, 83, 80, 0.5);
+  background: rgba(239, 83, 80, 0.12);
+}
+
+.ap-avatar-icon {
+  font-size: 0.9em;
+  line-height: 1;
+  user-select: none;
+}
+
+/* Badge ShadCN */
+.ap-badge {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
   border-radius: 999px;
-  padding: 2px 8px;
-  color: #ddd;
-  white-space: nowrap;
+  background: rgba(60, 60, 80, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ccc;
+  font-size: 0.6em;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
-.unit-chip strong {
+.ap-badge--active {
+  background: #c62828;
+  border-color: rgba(255, 255, 255, 0.25);
   color: #fff;
-  font-size: 1em;
 }
 
-.unit-chip--lg {
-  font-size: 0.92em;
-  padding: 4px 10px;
+/* AvatarGroupCount */
+.ap-avatar--more {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
-/* ── Stats compactes sous les cartes ── */
-.strategy-meta,
-.summary-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 0.72em;
-  color: #90caf9;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding-top: 6px;
+.ap-avatar-more-count {
+  font-size: 0.62em !important;
+  font-weight: 700;
+  color: #ccc;
 }
 
-.has-siege {
-  color: #ce93d8;
-}
-
-/* ── Récapitulatif mode custom ── */
-.custom-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 12px;
-}
-
-/* ── Mode personnalisé ── */
-.custom-units {
+/* ── Mode Custom ── */
+.ap-custom {
   display: flex;
   flex-direction: column;
   gap: 7px;
 }
 
-.unit-row {
+.ap-unit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: 6px;
+}
+
+.ap-unit {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
+  gap: 3px;
 }
 
-.unit-row.exhausted {
-  opacity: 0.4;
+.ap-unit--empty .ap-avatar {
+  opacity: 0.35;
 }
 
-.unit-icon {
-  font-size: 1.1em;
-  width: 24px;
+.ap-unit-label {
+  font-size: 0.63em;
+  color: #aaa;
   text-align: center;
+  line-height: 1.2;
 }
 
-.unit-type-label {
-  flex: 1;
-  font-size: 0.83em;
-  color: #ccc;
+.ap-unit-max {
+  font-size: 0.6em;
+  color: #555;
 }
 
-.unit-controls {
+.ap-unit-controls {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
-.qty-btn {
-  width: 26px;
-  height: 26px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #eee;
-  font-size: 1em;
+.ap-qty-btn {
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #ddd;
+  font-size: 0.85em;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.12s;
+  transition: background 0.1s;
 }
 
-.qty-btn:hover:not(:disabled) {
+.ap-qty-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.12);
 }
 
-.qty-btn:disabled {
-  opacity: 0.3;
+.ap-qty-btn:disabled {
+  opacity: 0.25;
   cursor: default;
 }
 
-.qty-input {
-  width: 48px;
-  text-align: center;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 5px;
-  color: #fff;
-  font-size: 0.88em;
-  padding: 3px 4px;
-}
-
-.qty-all-btn {
-  font-size: 0.68em;
-  padding: 3px 7px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 5px;
+.ap-qty-max {
+  padding: 0 5px;
+  height: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.04);
   color: #90caf9;
+  font-size: 0.6em;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background 0.1s;
 }
 
-.qty-all-btn:hover {
+.ap-qty-max:hover:not(:disabled) {
   background: rgba(100, 181, 246, 0.15);
 }
 
-.unit-max {
-  font-size: 0.75em;
-  color: #666;
-  min-width: 32px;
-}
-
-.unit-carry {
-  font-size: 0.72em;
-  color: #888;
+.ap-qty-max:disabled {
+  opacity: 0.25;
   cursor: default;
 }
 
-/* ── Validation ── */
-.validation-errors {
+/* ── Erreurs ── */
+.ap-errors {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
-.validation-error {
-  font-size: 0.78em;
+.ap-error {
+  font-size: 0.7em;
   color: #ef5350;
   background: rgba(239, 83, 80, 0.1);
   border: 1px solid rgba(239, 83, 80, 0.2);
-  border-radius: 6px;
-  padding: 5px 9px;
-  margin: 0;
+  border-radius: 5px;
+  padding: 3px 7px;
 }
 
-/* ── Bouton confirmation (mode custom uniquement) ── */
-.confirm-btn {
-  padding: 11px;
-  border: none;
+/* ── Ligne confirmation ── */
+.ap-confirm-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid rgba(239, 83, 80, 0.2);
   border-radius: 8px;
+  background: rgba(239, 83, 80, 0.05);
+  flex-wrap: wrap;
+}
+
+.ap-confirm-meta {
+  display: flex;
+  gap: 7px;
+  font-size: 0.67em;
+  color: #90caf9;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.ap-siege {
+  color: #ce93d8;
+}
+
+.ap-send-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
   background: linear-gradient(135deg, #c62828, #e53935);
   color: #fff;
-  font-size: 0.9em;
+  font-size: 0.76em;
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
   transition:
-    opacity 0.15s,
+    opacity 0.13s,
     transform 0.1s;
 }
 
-.confirm-btn:hover {
-  opacity: 0.9;
+.ap-send-btn:hover {
+  opacity: 0.88;
   transform: translateY(-1px);
+}
+
+/* ── Séparateur ── */
+.ap-sep {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  margin: 4px 0;
 }
 </style>

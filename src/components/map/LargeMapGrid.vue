@@ -91,22 +91,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Overlay zones d’influence des forteresses -->
-        <div
-          v-if="visibleInfluenceOverlay.length > 0"
-          class="map-grid-large map-influence-overlay"
-          :key="`influence-${gridRenderKey}`"
-          :style="gridStyle"
-        >
-          <div
-            v-for="cell in visibleInfluenceOverlay"
-            :key="cell.tileId"
-            class="influence-cell"
-            :class="`influence-cell--${cell.hostilityState}`"
-            :style="{ gridColumn: cell.col, gridRow: cell.row }"
-          />
-        </div>
       </div>
     </div>
 
@@ -242,6 +226,7 @@ const getTileClasses = (tile: MapTile) => {
   const chunkLocked = isChunkLocked(tile)
   // Une tuile dans un cadran débloqué est toujours visible (explored)
   const explored = gameSettings.disableFogOfWar || tile.explored || !chunkLocked
+  const influenceState = influenceZoneMap.value.get(tile.id)
   return [
     `terrain-${tile.type}`,
     {
@@ -250,6 +235,7 @@ const getTileClasses = (tile: MapTile) => {
       'tile-selected': props.selectedTileId === tile.id,
       'tile-chunk-locked': chunkLocked,
       'tile-neutral': tile.type === 'plains',
+      [`tile-influence--${influenceState}`]: !!influenceState,
     },
   ]
 }
@@ -371,33 +357,37 @@ const visibleLockedChunks = computed(() => {
 })
 
 /**
- * Computed — cellules de l'overlay zone d'influence visible dans le viewport.
- * Affiche TOUTES les zones de forteresses (neutral inclus).
+ * Computed — map tileId → hostilityState pour toutes les tuiles situées
+ * dans le carré Chebyshev d'une forteresse. Utilisé dans getTileClasses.
  */
-const visibleInfluenceOverlay = computed(() => {
-  const { startX, startY, endX, endY } = viewportDimensions.value
+const influenceZoneMap = computed(() => {
   const zones = Object.values(mapStore.mapState.fortressZones)
-  if (zones.length === 0) return []
+  const map = new Map<string, HostilityState>()
+  if (zones.length === 0 || !gameSettings.showInfluenceZones) return map
 
-  const result: { tileId: string; col: string; row: string; hostilityState: HostilityState }[] = []
+  const index = tileIndex.value
 
   for (const zone of zones) {
-    const allIds = mapStore.getInfluenceZoneTileIds(zone.fortressTileId)
-    for (const tileId of allIds) {
-      const tile = mapStore.getTileById(tileId)
-      if (!tile) continue
-      const { x, y } = tile.position
-      if (x < startX || x >= endX || y < startY || y >= endY) continue
-      result.push({
-        tileId,
-        col: `${x - startX + 1}`,
-        row: `${y - startY + 1}`,
-        hostilityState: zone.hostilityState,
-      })
+    const fortress = mapStore.getTileById(zone.fortressTileId)
+    if (!fortress) continue
+    const { x: fx, y: fy } = fortress.position
+    const r = zone.influenceRadius
+
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        // Distance de Manhattan : losange (4 cases en cardinal, 2 en diagonal)
+        if (Math.abs(dx) + Math.abs(dy) > r) continue
+        const x = fx + dx
+        const y = fy + dy
+        if (x < 0 || x >= MAP_CONFIG.size || y < 0 || y >= MAP_CONFIG.size) continue
+        const tile = index.get(`${x},${y}`)
+        if (!tile || map.has(tile.id)) continue
+        map.set(tile.id, zone.hostilityState)
+      }
     }
   }
 
-  return result
+  return map
 })
 </script>
 
@@ -645,49 +635,44 @@ const visibleInfluenceOverlay = computed(() => {
   pointer-events: none; /* laisse passer les clics vers les tuiles */
 }
 
-/* Overlay zones d'influence des forteresses */
-.map-influence-overlay {
+/* Couche rouge transparente sur les tuiles en zone d'influence */
+.map-tile.tile-influence--neutral::after,
+.map-tile.tile-influence--warned::after,
+.map-tile.tile-influence--hostile::after {
+  content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   pointer-events: none;
-}
-
-.influence-cell {
-  position: relative;
-}
-
-/* Zone neutre — contour rouge très subtil */
-.influence-cell--neutral {
-  background: rgba(239, 68, 68, 0.06);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 3px;
   box-sizing: border-box;
 }
 
-/* Zone avertie — teinte orange légère */
-.influence-cell--warned {
-  background: rgba(251, 146, 60, 0.18);
-  border: 1px solid rgba(251, 146, 60, 0.35);
-  box-sizing: border-box;
+/* Zone neutre — rouge visible */
+.map-tile.tile-influence--neutral::after {
+  background: rgba(239, 68, 68, 0.25);
+  border: 1px solid rgba(239, 68, 68, 0.5);
 }
 
-/* Zone hostile — teinte rouge intense */
-.influence-cell--hostile {
-  background: rgba(239, 68, 68, 0.22);
-  border: 1px solid rgba(239, 68, 68, 0.45);
-  box-sizing: border-box;
+/* Zone avertie — orange marqué */
+.map-tile.tile-influence--warned::after {
+  background: rgba(251, 146, 60, 0.38);
+  border: 1px solid rgba(251, 146, 60, 0.65);
+}
+
+/* Zone hostile — rouge intense avec pulse */
+.map-tile.tile-influence--hostile::after {
+  background: rgba(239, 68, 68, 0.45);
+  border: 1px solid rgba(239, 68, 68, 0.8);
   animation: hostile-pulse 2s ease-in-out infinite;
 }
 
 @keyframes hostile-pulse {
   0%,
   100% {
-    background: rgba(239, 68, 68, 0.18);
+    background: rgba(239, 68, 68, 0.35);
   }
   50% {
-    background: rgba(239, 68, 68, 0.34);
+    background: rgba(239, 68, 68, 0.6);
   }
 }
 

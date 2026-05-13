@@ -49,6 +49,17 @@
 
         <div class="setting-row">
           <div class="setting-info">
+            <span class="setting-label">Zones d'influence ennemies</span>
+            <span class="setting-desc">Affiche le halo rouge autour des forteresses ennemies</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" v-model="settings.showInfluenceZones" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
             <span class="setting-label">Rayon de révélation initial</span>
             <span class="setting-desc">Zone visible au démarrage (distance de Chebyshev)</span>
           </div>
