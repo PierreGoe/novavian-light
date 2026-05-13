@@ -30,28 +30,28 @@
       <div class="resources-display">
         <div class="resource-item wood">
           <span class="resource-icon">🪵</span>
-          <span class="resource-amount">{{ Math.floor(town?.resources?.wood || 0) }}</span>
+          <ResourceCounter class="resource-amount" :value="town?.resources?.wood || 0" />
           <span class="resource-production"
             >+{{ Math.floor(town?.production?.wood || 0) }}/min</span
           >
         </div>
         <div class="resource-item clay">
           <span class="resource-icon">🧱</span>
-          <span class="resource-amount">{{ Math.floor(town?.resources?.clay || 0) }}</span>
+          <ResourceCounter class="resource-amount" :value="town?.resources?.clay || 0" />
           <span class="resource-production"
             >+{{ Math.floor(town?.production?.clay || 0) }}/min</span
           >
         </div>
         <div class="resource-item iron">
           <span class="resource-icon">⚒️</span>
-          <span class="resource-amount">{{ Math.floor(town?.resources?.iron || 0) }}</span>
+          <ResourceCounter class="resource-amount" :value="town?.resources?.iron || 0" />
           <span class="resource-production"
             >+{{ Math.floor(town?.production?.iron || 0) }}/min</span
           >
         </div>
         <div class="resource-item crop">
           <span class="resource-icon">🌾</span>
-          <span class="resource-amount">{{ Math.floor(town?.resources?.crop || 0) }}</span>
+          <ResourceCounter class="resource-amount" :value="town?.resources?.crop || 0" />
           <span class="resource-production"
             >+{{ Math.floor(town?.production?.crop || 0) }}/min</span
           >
@@ -94,6 +94,7 @@ import { useToastStore } from '@/stores/toastStore'
 import TownView from './TownView.vue'
 import VictoryPointsDisplay from './VictoryPointsDisplay.vue'
 import LargeMapExplorationView from '../map/LargeMapExplorationView.vue'
+import ResourceCounter from '@/components/globals/ResourceCounter.vue'
 
 const router = useRouter()
 const missionStore = useMissionStore()

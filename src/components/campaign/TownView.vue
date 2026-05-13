@@ -36,7 +36,7 @@
           <div class="res-row" v-for="r in RESOURCES" :key="r.key">
             <span class="res-icon">{{ r.icon }}</span>
             <span class="res-name">{{ r.label }}</span>
-            <span class="res-amount">{{ Math.floor(town?.resources?.[r.key] || 0) }}</span>
+            <ResourceCounter class="res-amount" :value="town?.resources?.[r.key] || 0" />
             <span class="res-rate">+{{ Math.floor(town?.production?.[r.key] || 0) }}/min</span>
           </div>
         </div>
@@ -71,6 +71,7 @@ import { BUILDING_DEFINITIONS } from '@/data/buildings'
 import type { BuildingType } from '@/data/buildings'
 import VillagePlanView from './VillagePlanView.vue'
 import UnitsTrainingSection from './UnitsTrainingSection.vue'
+import ResourceCounter from '@/components/globals/ResourceCounter.vue'
 
 const missionStore = useMissionStore()
 const town = computed(() => missionStore.town.value)

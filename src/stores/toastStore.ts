@@ -6,6 +6,7 @@ export interface Toast {
   type: 'success' | 'warning' | 'error' | 'info'
   duration?: number
   persistent?: boolean
+  onClick?: () => void
 }
 
 // État réactif des toasts
@@ -23,7 +24,7 @@ export const useToastStore = () => {
   const addToast = (
     message: string,
     type: Toast['type'] = 'info',
-    options: { duration?: number; persistent?: boolean } = {},
+    options: { duration?: number; persistent?: boolean; onClick?: () => void } = {},
   ): string => {
     const id = `toast-${nextId++}`
     const duration = options.persistent ? 0 : (options.duration ?? 4000)
@@ -34,6 +35,7 @@ export const useToastStore = () => {
       type,
       duration,
       persistent: options.persistent || false,
+      onClick: options.onClick,
     }
 
     toasts.value.push(toast)
@@ -60,19 +62,31 @@ export const useToastStore = () => {
   }
 
   // Méthodes de convenance pour différents types
-  const showSuccess = (message: string, options?: { duration?: number; persistent?: boolean }) => {
+  const showSuccess = (
+    message: string,
+    options?: { duration?: number; persistent?: boolean; onClick?: () => void },
+  ) => {
     return addToast(message, 'success', options)
   }
 
-  const showError = (message: string, options?: { duration?: number; persistent?: boolean }) => {
+  const showError = (
+    message: string,
+    options?: { duration?: number; persistent?: boolean; onClick?: () => void },
+  ) => {
     return addToast(message, 'error', options)
   }
 
-  const showWarning = (message: string, options?: { duration?: number; persistent?: boolean }) => {
+  const showWarning = (
+    message: string,
+    options?: { duration?: number; persistent?: boolean; onClick?: () => void },
+  ) => {
     return addToast(message, 'warning', options)
   }
 
-  const showInfo = (message: string, options?: { duration?: number; persistent?: boolean }) => {
+  const showInfo = (
+    message: string,
+    options?: { duration?: number; persistent?: boolean; onClick?: () => void },
+  ) => {
     return addToast(message, 'info', options)
   }
 

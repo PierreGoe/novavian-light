@@ -244,9 +244,15 @@ export const useGameStore = () => {
 
     if (!savedGame) return router.push('/')
     if (savedGame) {
-      // if game over, redirect to game over screen
+      // Si game over, afficher une notification au lieu de rediriger directement
       if (gameState.currentStatus === 'game-over') {
-        router.push('/game-over')
+        const toastStore = useToastStore()
+        toastStore.showError('💀 Game Over — Votre leadership est tombé à zéro.', {
+          persistent: true,
+          onClick: () => {
+            router.push('/game-over')
+          },
+        })
       }
       try {
         const gameData = JSON.parse(savedGame)
@@ -571,8 +577,13 @@ export const useGameStore = () => {
         const total = loot.wood + loot.clay + loot.iron + loot.crop
         const defLost = Object.values(report.defender.losses.killed).reduce((s, v) => s + v, 0)
         toastStore.showError(
-          `\u2694\uFE0F D\u00e9fense \u00e9chou\u00e9e ! La forteresse ${loc} a pill\u00e9 ${total} ressources (\u2212${defLost} troupes perdues).`,
-          { duration: 12000 },
+          `\u2694\uFE0F D\u00e9fense \u00e9chou\u00e9e ! La forteresse ${loc} a pill\u00e9 ${total} ressources (\u2212${defLost} troupes perdues). Cliquez pour voir le rapport.`,
+          {
+            duration: 12000,
+            onClick: () => {
+              missionStore.requestOpenReport(savedReport)
+            },
+          },
         )
       } else {
         // D\u00e9fense r\u00e9ussie \u2014 r\u00e9duction de l'hostilit\u00e9
@@ -580,8 +591,13 @@ export const useGameStore = () => {
         const atkLost = Object.values(report.attacker.losses.killed).reduce((s, v) => s + v, 0)
         const defLost = Object.values(report.defender.losses.killed).reduce((s, v) => s + v, 0)
         toastStore.showSuccess(
-          `\uD83D\uDEE1\uFE0F Raid repouss\u00e9 ! La forteresse ${loc} a \u00e9t\u00e9 repouss\u00e9e (${atkLost} ennemis tu\u00e9s, \u2212${defLost} d\u00e9fenseurs perdus).`,
-          { duration: 10000 },
+          `\uD83D\uDEE1\uFE0F Raid repouss\u00e9 ! La forteresse ${loc} a \u00e9t\u00e9 repouss\u00e9e (${atkLost} ennemis tu\u00e9s, \u2212${defLost} d\u00e9fenseurs perdus). Cliquez pour voir le rapport.`,
+          {
+            duration: 10000,
+            onClick: () => {
+              missionStore.requestOpenReport(savedReport)
+            },
+          },
         )
       }
     }
@@ -652,6 +668,7 @@ export const useGameStore = () => {
   // ====== POINTS DE VICTOIRE ======
 
   const addVictoryPoints = (type: VictoryPointType, amount: number, reason: string) => {
+    const wasReached = gameState.victoryPoints[type] >= COMBAT_VP_GOAL
     gameState.victoryPoints[type] += amount
     gameState.victoryHistory.unshift({
       id: `vp-${Date.now()}`,
@@ -665,6 +682,20 @@ export const useGameStore = () => {
       gameState.victoryHistory.length = 100
     }
     saveGame()
+
+    // Notification au moment où l'objectif de campagne est atteint
+    if (!wasReached && gameState.victoryPoints[type] >= COMBAT_VP_GOAL) {
+      const toastStore = useToastStore()
+      toastStore.showSuccess(
+        '🏆 Objectif de campagne atteint ! Cliquez pour valider la victoire.',
+        {
+          persistent: true,
+          onClick: () => {
+            router.push('/campaign-score')
+          },
+        },
+      )
+    }
   }
 
   const victoryPoints = computed(() => gameState.victoryPoints)
@@ -787,8 +818,16 @@ export const useGameStore = () => {
     destroyDestructiblesOnCampaignLoss()
 
     gameState.currentStatus = 'game-over'
-    router.push('/game-over')
     saveGame()
+
+    // Afficher une notification persistante — redirection seulement au clic
+    const toastStore = useToastStore()
+    toastStore.showError('💀 Game Over — Votre leadership est tombé à zéro.', {
+      persistent: true,
+      onClick: () => {
+        router.push('/game-over')
+      },
+    })
   }
 
   // Computed pour vérifier l'état du leadership

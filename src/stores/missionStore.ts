@@ -1,4 +1,4 @@
-import { reactive, computed } from 'vue'
+import { reactive, computed, ref } from 'vue'
 import { useGameStore } from './gameStore'
 import { useMapStore, TERRAIN_MOVE_COST } from './mapStore'
 import type { SavedBattleReport } from '../combat/types'
@@ -370,6 +370,17 @@ export const useMissionStore = () => {
   )
 
   const battleReports = computed(() => missionState.battleReports)
+
+  // Rapport en attente d'ouverture (déclenché par un clic sur toast)
+  const pendingReportToOpen = ref<SavedBattleReport | null>(null)
+  const requestOpenReport = (report: SavedBattleReport) => {
+    pendingReportToOpen.value = report
+  }
+  const consumePendingReport = (): SavedBattleReport | null => {
+    const r = pendingReportToOpen.value
+    pendingReportToOpen.value = null
+    return r
+  }
 
   // Fonctions auxiliaires
   const getLeadershipReward = (difficulty: 'easy' | 'medium' | 'hard' | 'elite'): number => {
@@ -879,13 +890,13 @@ export const useMissionStore = () => {
     }
   }
 
-  // Timer pour l'affichage en temps réel (ne met pas à jour les vraies ressources)
+  // Timer pour l'affichage en temps réel — inclut la production pour un compteur fluide
   const startDisplayUpdates = () => {
     if (displayUpdateInterval) return
     displayUpdateInterval = window.setInterval(() => {
-      displayTrigger.timestamp = Date.now()
+      updateResourceProduction()
       processTrainingQueue()
-    }, 1000) // 1 seconde pour un affichage fluide
+    }, 1000)
   }
 
   const stopDisplayUpdates = () => {
@@ -898,7 +909,6 @@ export const useMissionStore = () => {
   // Fonctions utilitaires pour gérer tous les services
   const startAllServices = () => {
     startAutoSave()
-    startResourceProduction()
     startDisplayUpdates()
   }
 
@@ -953,6 +963,9 @@ export const useMissionStore = () => {
     deleteBattleReport,
     unreadReportsCount,
     battleReports,
+    pendingReportToOpen,
+    requestOpenReport,
+    consumePendingReport,
 
     // Sauvegarde
     saveMissionState,

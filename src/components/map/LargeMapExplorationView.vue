@@ -98,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import {
   useMapStore,
   HOSTILE_ATTACK_INTERVAL_MS,
@@ -119,6 +119,7 @@ import type {
 import { ENEMY_REGEN_INTERVAL_MS } from '../../config'
 import { gameSettings } from '../../stores/gameSettingsStore'
 import { useNotifications } from '../../composables/useNotifications'
+import { useToastStore } from '../../stores/toastStore'
 
 // Composants
 import LargeMapGrid from './LargeMapGrid.vue'
@@ -131,12 +132,24 @@ import CombatReportOverlay from './CombatReportOverlay.vue'
 const mapStore = useMapStore()
 const missionStore = useMissionStore()
 const gameStore = useGameStore()
+const toastStore = useToastStore()
 const { notification, showNotification } = useNotifications()
 
 // État local
 const selectedTileId = ref<string | null>(null)
 const combatReport = ref<CombatReport | null>(null)
 const now = ref(Date.now())
+
+// Ouvrir un rapport quand le store le demande (clic sur toast de raid)
+watch(
+  () => missionStore.pendingReportToOpen.value,
+  (report) => {
+    if (report) {
+      combatReport.value = report
+      missionStore.consumePendingReport()
+    }
+  },
+)
 
 // Computed
 const mapTiles = computed(() => mapStore.mapTiles.value)
@@ -373,8 +386,20 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
       },
       extra: { emptyGarrison: true, siegeUsed: hasSiegeUnit },
     }
-    combatReport.value = emptyReport
+    combatReport.value = null
     missionStore.addBattleReport(emptyReport)
+
+    // Toast cliquable pour voir le rapport (village vide)
+    const emptyToastMsg = hasSiegeUnit
+      ? `🏚️ Village ${tileName} démoli — cliquez pour voir le rapport`
+      : `🏚️ Village ${tileName} sans défenses — cliquez pour voir le rapport`
+    toastStore.addToast(emptyToastMsg, hasSiegeUnit ? 'success' : 'info', {
+      duration: 6000,
+      onClick: () => {
+        combatReport.value = emptyReport
+      },
+    })
+
     mapStore.saveMapState()
     missionStore.saveMissionState()
     return
@@ -388,7 +413,6 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
 
   // Résoudre le combat
   const report = defaultResolver.resolve(attackerArmy, defenderArmy)
-  combatReport.value = report
 
   // Consommer une utilisation des artefacts à durée limitée actifs
   equippedArtifacts
@@ -412,7 +436,6 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
     const pillageResult = mapStore.pillageVillage(tile.id, attackerSurvivors)
     // Attacher le résultat au rapport pour l'afficher dans l'overlay
     report.pillage = pillageResult
-    combatReport.value = { ...report }
     const { loot, carryCapacity, wasCapacityLimited, wasRecentlyPillaged } = pillageResult
     const lootTotal = loot.gold + loot.wood + loot.iron + loot.crop
     if (lootTotal > 0) {
@@ -502,6 +525,18 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
     read: false,
   }
   missionStore.addBattleReport(saved)
+
+  // Afficher un toast cliquable pour ouvrir le rapport
+  const toastMsg = report.attackerVictory
+    ? `⚔️ Victoire contre ${tileName} — cliquez pour voir le rapport`
+    : `💀 Défaite contre ${tileName} — cliquez pour voir le rapport`
+  const toastType = report.attackerVictory ? 'success' : 'error'
+  toastStore.addToast(toastMsg, toastType, {
+    duration: 8000,
+    onClick: () => {
+      combatReport.value = saved
+    },
+  })
 
   mapStore.saveMapState()
   missionStore.saveMissionState()

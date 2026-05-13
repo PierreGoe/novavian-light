@@ -6,7 +6,8 @@
           v-for="toast in toastStore.activeToasts.value"
           :key="toast.id"
           class="toast"
-          :class="[`toast-${toast.type}`]"
+          :class="[`toast-${toast.type}`, { 'toast-clickable': !!toast.onClick }]"
+          @click="handleToastClick(toast)"
         >
           <div class="toast-icon">
             <span v-if="toast.type === 'success'">✅</span>
@@ -40,9 +41,16 @@
 </template>
 
 <script setup lang="ts">
-import { useToastStore } from '@/stores/toastStore'
+import { useToastStore, type Toast } from '@/stores/toastStore'
 
 const toastStore = useToastStore()
+
+function handleToastClick(toast: Toast) {
+  if (toast.onClick) {
+    toast.onClick()
+    toastStore.removeToast(toast.id)
+  }
+}
 </script>
 
 <style scoped>
@@ -92,6 +100,18 @@ const toastStore = useToastStore()
 .toast-info {
   border-color: #3b82f6;
   background: rgba(59, 130, 246, 0.1);
+}
+
+.toast-clickable {
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.toast-clickable:hover {
+  transform: scale(1.02);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
 .toast-icon {
