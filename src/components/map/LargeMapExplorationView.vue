@@ -87,13 +87,6 @@
 
     <!-- Rapport de combat (overlay) -->
     <CombatReportOverlay :report="combatReport" @close="combatReport = null" />
-
-    <!-- Toast de notification -->
-    <Transition name="slide-fade">
-      <div v-if="notification" class="notification" :class="notification.type">
-        {{ notification.message }}
-      </div>
-    </Transition>
   </div>
 </template>
 
@@ -118,7 +111,6 @@ import type {
 } from '../../combat/types'
 import { ENEMY_REGEN_INTERVAL_MS } from '../../config'
 import { gameSettings } from '../../stores/gameSettingsStore'
-import { useNotifications } from '../../composables/useNotifications'
 import { useToastStore } from '../../stores/toastStore'
 
 // Composants
@@ -133,7 +125,6 @@ const mapStore = useMapStore()
 const missionStore = useMissionStore()
 const gameStore = useGameStore()
 const toastStore = useToastStore()
-const { notification, showNotification } = useNotifications()
 
 // État local
 const selectedTileId = ref<string | null>(null)
@@ -215,7 +206,7 @@ const handleTileSelect = (tileId: string) => {
   const tile = mapStore.getTileById(tileId)
 
   if (!tile) {
-    showNotification('Case introuvable', 'error')
+    toastStore.showError('Case introuvable')
     return
   }
 
@@ -237,13 +228,13 @@ const handleAttackTile = (tileId: string, selectedUnits: MovementUnit[]) => {
   if (!tile) return
 
   if (selectedUnits.length === 0 || selectedUnits.every((u) => u.count <= 0)) {
-    showNotification("Vous n'avez aucune unité à envoyer !", 'warning')
+    toastStore.showWarning("Vous n'avez aucune unité à envoyer !")
     return
   }
 
   // Bloquer si un mouvement est déjà en cours vers cette tuile
   if (mapStore.getMovementsToTile(tileId).length > 0) {
-    showNotification('Des troupes sont déjà en route vers cette case.', 'warning')
+    toastStore.showWarning('Des troupes sont déjà en route vers cette case.')
     return
   }
 
@@ -257,11 +248,11 @@ const handleAttackTile = (tileId: string, selectedUnits: MovementUnit[]) => {
 
   const movement = mapStore.dispatchTroops(tileId, selectedUnits)
   if (!movement) {
-    showNotification('Impossible de calculer le trajet.', 'error')
+    toastStore.showError('Impossible de calculer le trajet.')
     return
   }
 
-  showNotification(`🪖 Troupes envoyées — arrivée dans ${travelLabel}`, 'info')
+  toastStore.addToast(`🪖 Troupes envoyées — arrivée dans ${travelLabel}`, 'info')
   // Revenir à la carte pour voir le mouvement en temps réel
   closeDetails()
 }
@@ -270,7 +261,7 @@ const handleAttackTile = (tileId: string, selectedUnits: MovementUnit[]) => {
 const executeCombat = (movement: TroopMovement, tile: MapTile) => {
   // Vérifier que la tuile est toujours hostile (peut avoir changé pendant le trajet)
   if (!['village_enemy', 'stronghold'].includes(tile.type)) {
-    showNotification("La cible n'est plus hostile, troupes revenues.", 'info')
+    toastStore.addToast("La cible n'est plus hostile, troupes revenues.", 'info')
     return
   }
 
@@ -354,9 +345,9 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
       tile.garrison = undefined
       tile.lootStock = undefined
       mapStore.saveMapState()
-      showNotification('Village sans défenses détruit par vos machines de siège.', 'success')
+      toastStore.showSuccess('Village sans défenses détruit par vos machines de siège.')
     } else {
-      showNotification(
+      toastStore.addToast(
         '⚠️ Ce village est sans défenses — équipez des armes de siège pour le détruire.',
         'info',
       )
@@ -442,15 +433,15 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
       gameStore.addGold(loot.gold)
       missionStore.addResources({ wood: loot.wood, iron: loot.iron, crop: loot.crop })
       const lootMsg = `💰 Butin : ${loot.gold}or ${loot.wood}🪵 ${loot.iron}⚙️ ${loot.crop}🌾`
-      showNotification(lootMsg, 'success')
+      toastStore.showSuccess(lootMsg)
       if (wasCapacityLimited) {
-        showNotification(
+        toastStore.addToast(
           `🎒 Capacité de transport atteinte (${carryCapacity} ressources max avec vos survivants)`,
           'info',
         )
       }
       if (wasRecentlyPillaged) {
-        showNotification('⚠️ Village récemment pillé — butin réduit de 50%', 'info')
+        toastStore.addToast('⚠️ Village récemment pillé — butin réduit de 50%', 'info')
       }
     }
 
@@ -459,16 +450,15 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
       tile.type = 'ruins'
       tile.garrison = undefined
       tile.lootStock = undefined
-      showNotification(report.summary, 'success')
+      toastStore.showSuccess(report.summary)
       gameStore.addVictoryPoints('combat', 1, `Victoire en combat contre ${defenderArmy.label}`)
       if (isStronghold) {
         gameStore.addVictoryPoints('combat', 4, 'Forteresse ennemie détruite')
         // Déverrouiller les cadrans adjacents à la forteresse détruite
         const newChunks = mapStore.unlockAdjacentChunks(tile.id)
         if (newChunks.length > 0) {
-          showNotification(
+          toastStore.showSuccess(
             `🗺️ ${newChunks.length} nouveau cadran${newChunks.length > 1 ? 's' : ''} découvert${newChunks.length > 1 ? 's' : ''} !`,
-            'success',
           )
         }
       } else {
@@ -480,7 +470,7 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
       tile.garrison.units = []
       tile.garrison.maxUnits = report.defender.army.units.map((u) => ({ ...u }))
       tile.garrison.regenStartedAt = Date.now()
-      showNotification(report.summary + ' (sans siège — village non détruit)', 'success')
+      toastStore.showSuccess(report.summary + ' (sans siège — village non détruit)')
       gameStore.addVictoryPoints('combat', 1, `Victoire en combat contre ${defenderArmy.label}`)
     }
 
@@ -491,7 +481,7 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
       tile.garrison.maxUnits = report.defender.army.units.map((u) => ({ ...u }))
       tile.garrison.regenStartedAt = undefined // Arrêter la régén en cours
     }
-    showNotification(report.summary, 'error')
+    toastStore.showError(report.summary)
   }
 
   // Augmenter l'hostilité de la forteresse responsable après tout combat
@@ -505,9 +495,9 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
   if (fortress) {
     const zone = mapStore.getFortressZone(fortress)
     if (zone?.hostilityState === 'warned') {
-      showNotification('⚠️ Une forteresse ennemie surveille vos agissements (Avertie)', 'warning')
+      toastStore.showWarning('⚠️ Une forteresse ennemie surveille vos agissements (Avertie)')
     } else if (zone?.hostilityState === 'hostile') {
-      showNotification('🔴 Forteresse ennemie HOSTILE — des raids vont commencer !', 'error')
+      toastStore.showError('🔴 Forteresse ennemie HOSTILE — des raids vont commencer !')
     }
   }
 
@@ -576,7 +566,7 @@ function applyPostVictorySpecialPowers(artifacts: Artifact[], position: { x: num
             }
           }
         }
-        showNotification(`✨ ${artifact.name} révèle les environs !`, 'success')
+        toastStore.showSuccess(`✨ ${artifact.name} révèle les environs !`)
         break
       }
 
@@ -592,7 +582,7 @@ function applyPostVictorySpecialPowers(artifacts: Artifact[], position: { x: num
           }
         }
         if (totalRestored > 0) {
-          showNotification(`💚 ${artifact.name} restaure ${totalRestored} unité(s) !`, 'success')
+          toastStore.showSuccess(`💚 ${artifact.name} restaure ${totalRestored} unité(s) !`)
         }
         break
       }
@@ -601,11 +591,11 @@ function applyPostVictorySpecialPowers(artifacts: Artifact[], position: { x: num
 
   if (goldGained > 0) {
     gameStore.addGold(goldGained)
-    showNotification(`💰 +${goldGained} or (reliques actives)`, 'success')
+    toastStore.showSuccess(`💰 +${goldGained} or (reliques actives)`)
   }
   if (leadershipGained > 0) {
     gameStore.updateLeadership(leadershipGained, 'add')
-    showNotification(`👑 +${leadershipGained} leadership (reliques actives)`, 'success')
+    toastStore.showSuccess(`👑 +${leadershipGained} leadership (reliques actives)`)
   }
 }
 
@@ -651,17 +641,17 @@ function applyPlayerLosses(report: CombatReport) {
 /** Débloque un cadran via un fragment de carte */
 const handleUnlockChunk = (chunkId: string) => {
   if (gameStore.gameState.inventory.mapFragments <= 0) {
-    showNotification('Aucun fragment de carte disponible', 'warning')
+    toastStore.showWarning('Aucun fragment de carte disponible')
     return
   }
   const success = gameStore.useMapFragment(chunkId)
   if (success) {
-    showNotification('🗺️ Nouveau territoire révélé !', 'success')
+    toastStore.showSuccess('🗺️ Nouveau territoire révélé !')
   }
 }
 
 const handleTradeTile = (_tileId: string) => {
-  showNotification('Système de commerce en développement', 'info')
+  toastStore.addToast('Système de commerce en développement', 'info')
 }
 
 // Timer pour forcer le rafraîchissement de l'affichage
@@ -961,41 +951,8 @@ onUnmounted(() => {
   color: #fff;
 }
 
-.notification {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 15px 20px;
-  border-radius: 8px;
-  color: white;
-  font-weight: 500;
-  z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.notification.success {
-  background: linear-gradient(135deg, #4caf50, #388e3c);
-}
-
-.notification.error {
-  background: linear-gradient(135deg, #f44336, #d32f2f);
-}
-
-.notification.warning {
-  background: linear-gradient(135deg, #ff9800, #f57c00);
-}
-
-.notification.info {
-  background: linear-gradient(135deg, #2196f3, #1976d2);
-}
-
-/* Animations */
-.slide-fade-enter-active {
-  transition: all 0.3s ease;
-}
-
-.slide-fade-leave-active {
-  transition: all 0.3s ease;
+.notification-placeholder {
+  display: none;
 }
 
 .slide-fade-enter-from {
