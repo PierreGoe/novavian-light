@@ -559,6 +559,43 @@ export const useMissionStore = () => {
     return false
   }
 
+  // Construire un nouveau bâtiment (niveau 0 → 1)
+  const constructBuilding = (type: BuildingType): boolean => {
+    const def = BUILDING_DEFINITIONS[type]
+    if (!def) return false
+
+    // Vérifier que le bâtiment n'existe pas déjà
+    const exists = missionState.town.buildings.some((b) => b.type === type)
+    if (exists) return false
+
+    // Vérifier le prérequis HQ
+    const hqLevel = getHQLevel(missionState.town.buildings)
+    if (hqLevel < def.hqLevelRequired) return false
+
+    // Coût de construction (niveau 0 → 1)
+    const buildCost = getBuildingUpgrade(type, 0)
+
+    if (spendResources(buildCost)) {
+      missionState.town.buildings.push({
+        id: `${type}-${Date.now()}`,
+        type,
+        level: 1,
+        position: { x: 0, y: 0 },
+      })
+
+      // Ajouter la production initiale si applicable
+      if (def.productionPerLevel) {
+        const { resource, amount } = def.productionPerLevel
+        missionState.town.production[resource] += amount
+      }
+
+      saveMissionState()
+      return true
+    }
+
+    return false
+  }
+
   // Actions pour les unités
   const barrackLevel = computed((): number => {
     const barracks = missionState.town.buildings.find((b) => b.type === 'barracks')
@@ -897,6 +934,7 @@ export const useMissionStore = () => {
 
     // Actions bâtiments
     upgradeBuilding,
+    constructBuilding,
 
     // Actions unités
     trainUnit,

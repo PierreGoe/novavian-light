@@ -16,7 +16,10 @@
       </div>
     </div>
 
-    <!-- Carte du village -->
+    <!-- Carte isométrique du village -->
+    <VillageMapView :selected-building-type="selectedType" @building-click="onMapBuildingClick" />
+
+    <!-- Carte du village (grille) -->
     <div class="village-map">
       <!-- Routes SVG en fond -->
       <svg class="map-roads" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -136,6 +139,16 @@
               </span>
             </div>
           </div>
+
+          <!-- Bouton construire -->
+          <button
+            class="upgrade-btn"
+            :class="{ 'upgrade-btn-ready': canAffordBuild }"
+            :disabled="!canAffordBuild"
+            @click="doBuild()"
+          >
+            {{ canAffordBuild ? 'Construire' : 'Ressources insuffisantes' }}
+          </button>
         </div>
 
         <!-- Bâtiment construit -->
@@ -246,6 +259,7 @@ import {
   isBuildingUnlocked,
 } from '@/data/buildings'
 import type { BuildingType } from '@/data/buildings'
+import VillageMapView from './VillageMapView.vue'
 
 // Ordre d'affichage des bâtiments sur la carte
 const ALL_BUILDINGS = Object.values(BUILDING_DEFINITIONS)
@@ -261,6 +275,13 @@ const selectedType = ref<BuildingType | null>(null)
 
 const toggleSelect = (type: BuildingType) => {
   selectedType.value = selectedType.value === type ? null : type
+}
+
+// Clic sur un bâtiment depuis la carte isométrique
+const onMapBuildingClick = (payload: { slotIndex: number; buildingType: BuildingType | null }) => {
+  if (payload.buildingType) {
+    toggleSelect(payload.buildingType)
+  }
 }
 
 // Récupère l'instance construite d'un bâtiment (ou null si pas encore construit)
@@ -363,6 +384,26 @@ const doUpgrade = () => {
     toastStore.showSuccess('Bâtiment amélioré !', { duration: 2000 })
   } else {
     toastStore.showError("Ressources insuffisantes pour l'amélioration", { duration: 2000 })
+  }
+}
+
+// --- Construction d'un nouveau bâtiment ---
+const canAffordBuild = computed(() => {
+  if (!selectedDef.value) return false
+  const res = town.value?.resources
+  if (!res) return false
+  const cost = selectedBuildCost.value
+  return (
+    res.wood >= cost.wood && res.clay >= cost.clay && res.iron >= cost.iron && res.crop >= cost.crop
+  )
+})
+
+const doBuild = () => {
+  if (!selectedDef.value) return
+  if (missionStore.constructBuilding(selectedDef.value.type)) {
+    toastStore.showSuccess(`${selectedDef.value.name} construit !`, { duration: 2000 })
+  } else {
+    toastStore.showError('Construction impossible', { duration: 2000 })
   }
 }
 </script>
