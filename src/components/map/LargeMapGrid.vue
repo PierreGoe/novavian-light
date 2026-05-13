@@ -182,23 +182,30 @@ const viewportDimensions = computed(() => {
   return { startX, startY, endX, endY, cols: endX - startX, rows: endY - startY }
 })
 
-// Computed — tuiles visibles triées en ordre ligne-par-ligne (y croissant, x croissant).
-// Le tri est requis pour que le placement automatique CSS Grid soit correct
-// sans avoir à spécifier gridColumn/gridRow explicitement sur chaque tuile.
+// Index spatial des tuiles — Map<"x,y", MapTile> pour un accès O(1)
+// Recalculé uniquement quand le tableau de tuiles change de référence (pas à chaque mutation).
+const tileIndex = computed(() => {
+  const map = new Map<string, MapTile>()
+  for (const tile of props.tiles) {
+    map.set(`${tile.position.x},${tile.position.y}`, tile)
+  }
+  return map
+})
+
+// Computed — tuiles visibles en ordre ligne-par-ligne (y croissant, x croissant).
+// Accès direct par coordonnées : pas de filter ni de sort sur 2500 éléments.
 const visibleTiles = computed(() => {
   const { startX, startY, endX, endY } = viewportDimensions.value
+  const index = tileIndex.value
+  const result: MapTile[] = []
 
-  return props.tiles
-    .filter(
-      (tile) =>
-        tile.position.x >= startX &&
-        tile.position.x < endX &&
-        tile.position.y >= startY &&
-        tile.position.y < endY,
-    )
-    .sort((a, b) =>
-      a.position.y !== b.position.y ? a.position.y - b.position.y : a.position.x - b.position.x,
-    )
+  for (let y = startY; y < endY; y++) {
+    for (let x = startX; x < endX; x++) {
+      const tile = index.get(`${x},${y}`)
+      if (tile) result.push(tile)
+    }
+  }
+  return result
 })
 
 // Style CSS Grid — computed pour garantir la synchronisation avec viewportDimensions

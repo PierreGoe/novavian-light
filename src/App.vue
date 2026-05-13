@@ -2,11 +2,15 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
+import { useMissionStore } from '@/stores/missionStore'
+import { useMapStore } from '@/stores/mapStore'
 import SideNavBar from '@/components/globals/SideNavBar.vue'
 import ToastContainer from '@/components/globals/ToastContainer.vue'
 import PerformanceMonitor from '@/components/globals/PerformanceMonitor.vue'
 
 const gameStore = useGameStore()
+const missionStore = useMissionStore()
+const mapStore = useMapStore()
 const route = useRoute()
 
 // Largeur de la sidebar — synchronisée avec l'état collapse stocké dans localStorage
@@ -30,17 +34,34 @@ const onSidebarToggle = (e: Event) => {
   sidebarWidth.value = collapsed ? '64px' : '220px'
 }
 
+// Sauvegarde d'urgence — garantit 0 perte de données à la fermeture/switch d'onglet
+const saveAll = () => {
+  missionStore.updateResourceProduction()
+  missionStore.saveMissionState()
+  mapStore.saveMapState()
+  gameStore.saveGame()
+}
+
+const onBeforeUnload = () => saveAll()
+const onVisibilityChange = () => {
+  if (document.visibilityState === 'hidden') saveAll()
+}
+
 onMounted(() => {
   gameStore.loadGame()
   gameStore.startAutoSave()
   gameStore.startHostilityTimer()
   window.addEventListener('sidebar-toggle', onSidebarToggle)
+  window.addEventListener('beforeunload', onBeforeUnload)
+  document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
 onUnmounted(() => {
   gameStore.stopAutoSave()
   gameStore.stopHostilityTimer()
   window.removeEventListener('sidebar-toggle', onSidebarToggle)
+  window.removeEventListener('beforeunload', onBeforeUnload)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 </script>
 

@@ -146,15 +146,12 @@ const exitCampaign = () => {
 onMounted(() => {
   // Charger l'état des missions et démarrer les systèmes
   missionStore.loadMissionState()
-  missionStore.startAutoSave()
-  missionStore.startResourceProduction()
+  missionStore.startAllServices()
 })
 
 onUnmounted(() => {
   clearInterval(resourceIntervalId)
-  // Arrêter les systèmes automatiques
-  missionStore.stopAutoSave()
-  missionStore.stopResourceProduction()
+  missionStore.stopAllServices()
 })
 </script>
 

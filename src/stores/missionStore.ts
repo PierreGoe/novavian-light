@@ -330,8 +330,9 @@ export const useMissionStore = () => {
       missionState.lastUpdateTime = now
 
       displayTrigger.timestamp = now
-
-      saveMissionState()
+      // Note : pas de saveMissionState() ici — la sauvegarde est gérée par
+      // l'auto-save (30s) + beforeunload/visibilitychange pour éviter
+      // un JSON.stringify + localStorage.setItem à chaque seconde.
     }
   }
 
