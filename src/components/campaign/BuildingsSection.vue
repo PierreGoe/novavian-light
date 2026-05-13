@@ -115,7 +115,12 @@
 import { computed } from 'vue'
 import { useMissionStore } from '@/stores/missionStore'
 import { useToastStore } from '@/stores/toastStore'
-import { BUILDING_DEFINITIONS, getHQLevel, canBuildingBeUpgraded } from '@/data/buildings'
+import {
+  BUILDING_DEFINITIONS,
+  getHQLevel,
+  canBuildingBeUpgraded,
+  getBuildingUpgrade,
+} from '@/data/buildings'
 import type { BuildingType } from '@/data/buildings'
 
 const missionStore = useMissionStore()
@@ -133,7 +138,7 @@ const getBuildingName = (type: string): string =>
   BUILDING_DEFINITIONS[type as BuildingType]?.name ?? type
 
 const getUpgradeCost = (type: string, level: number) =>
-  BUILDING_DEFINITIONS[type as BuildingType]?.upgradeCost(level) ?? {
+  getBuildingUpgrade(type as BuildingType, level) ?? {
     wood: 0,
     clay: 0,
     iron: 0,

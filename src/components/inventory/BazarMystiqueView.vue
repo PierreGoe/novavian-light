@@ -265,7 +265,7 @@ const hasEffects = (artifact: Artifact): boolean => {
     e.resourceBonus?.wood ||
     e.resourceBonus?.stone ||
     e.resourceBonus?.iron ||
-    e.resourceBonus?.food
+    e.resourceBonus?.crop
   )
 }
 
