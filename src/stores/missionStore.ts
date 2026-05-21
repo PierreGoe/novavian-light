@@ -67,7 +67,7 @@ export const UNIT_DEFINITIONS: Record<MilitaryUnit['type'], UnitDefinition> = {
     icon: '🛡️',
     cost: { wood: 20, clay: 10, iron: 30, crop: 15 },
     stats: { attack: 40, defense: 35, health: 100 },
-    baseTrainingTime: 60, // secondes
+    baseTrainingTime: 10, // secondes
     barrackLevelRequired: 1,
   },
   archer: {
@@ -76,7 +76,7 @@ export const UNIT_DEFINITIONS: Record<MilitaryUnit['type'], UnitDefinition> = {
     icon: '🏹',
     cost: { wood: 30, clay: 15, iron: 25, crop: 20 },
     stats: { attack: 25, defense: 15, health: 80 },
-    baseTrainingTime: 90,
+    baseTrainingTime: 15,
     barrackLevelRequired: 2,
   },
   cavalry: {
@@ -85,7 +85,7 @@ export const UNIT_DEFINITIONS: Record<MilitaryUnit['type'], UnitDefinition> = {
     icon: '🐎',
     cost: { wood: 50, clay: 30, iron: 60, crop: 40 },
     stats: { attack: 100, defense: 50, health: 150 },
-    baseTrainingTime: 180,
+    baseTrainingTime: 30,
     barrackLevelRequired: 3,
   },
   siege: {
@@ -94,7 +94,7 @@ export const UNIT_DEFINITIONS: Record<MilitaryUnit['type'], UnitDefinition> = {
     icon: '🏰',
     cost: { wood: 100, clay: 80, iron: 120, crop: 60 },
     stats: { attack: 200, defense: 20, health: 300 },
-    baseTrainingTime: 600,
+    baseTrainingTime: 90,
     barrackLevelRequired: 5,
   },
 }
@@ -178,10 +178,10 @@ const initialState: MissionState = {
       crop: 0,
     },
     production: {
-      wood: 50, // par minute
-      clay: 40,
-      iron: 30,
-      crop: 60,
+      wood: 300, // par minute (×3)
+      clay: 288, // ×3
+      iron: 216, // ×3
+      crop: 360, // ×3
     },
     buildings: [
       {
@@ -207,6 +207,18 @@ const initialState: MissionState = {
         type: 'lumbermill' as BuildingType,
         level: 1,
         position: { x: 3, y: 1 },
+      },
+      {
+        id: 'quarry-1',
+        type: 'quarry' as BuildingType,
+        level: 1,
+        position: { x: 4, y: 2 },
+      },
+      {
+        id: 'mine-1',
+        type: 'mine' as BuildingType,
+        level: 1,
+        position: { x: 4, y: 3 },
       },
     ],
     units: [

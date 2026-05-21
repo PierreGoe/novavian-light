@@ -16,9 +16,6 @@
       </div>
     </div>
 
-    <!-- Carte isométrique du village -->
-    <VillageMapView :selected-building-type="selectedType" @building-click="onMapBuildingClick" />
-
     <!-- Carte du village (grille) -->
     <div class="village-map">
       <!-- Routes SVG en fond -->
@@ -259,8 +256,6 @@ import {
   isBuildingUnlocked,
 } from '@/data/buildings'
 import type { BuildingType } from '@/data/buildings'
-import VillageMapView from './VillageMapView.vue'
-
 // Ordre d'affichage des bâtiments sur la carte
 const ALL_BUILDINGS = Object.values(BUILDING_DEFINITIONS)
 
@@ -275,13 +270,6 @@ const selectedType = ref<BuildingType | null>(null)
 
 const toggleSelect = (type: BuildingType) => {
   selectedType.value = selectedType.value === type ? null : type
-}
-
-// Clic sur un bâtiment depuis la carte isométrique
-const onMapBuildingClick = (payload: { slotIndex: number; buildingType: BuildingType | null }) => {
-  if (payload.buildingType) {
-    toggleSelect(payload.buildingType)
-  }
 }
 
 // Récupère l'instance construite d'un bâtiment (ou null si pas encore construit)

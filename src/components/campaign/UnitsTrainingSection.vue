@@ -20,94 +20,108 @@
       </div>
     </div>
 
-    <!-- Cards de recrutement (1 clic = 1 unité en file) -->
-    <div class="recruit-section">
-      <h4>Recruter</h4>
-      <div class="recruit-grid">
-        <button
-          v-for="def in UNIT_DEFINITIONS"
-          :key="def.type"
-          class="recruit-card"
-          :class="{
-            'recruit-card--locked': barrackLevel < def.barrackLevelRequired,
-            'recruit-card--poor': !canAfford(def.type) && barrackLevel >= def.barrackLevelRequired,
-          }"
-          :disabled="barrackLevel < def.barrackLevelRequired || !canAfford(def.type)"
-          @click="handleRecruit(def.type)"
-        >
-          <div class="rc-icon">{{ def.icon }}</div>
-          <div class="rc-name">{{ def.name }}</div>
-          <div v-if="barrackLevel < def.barrackLevelRequired" class="rc-lock">
-            🔒 Casernes niv. {{ def.barrackLevelRequired }}
-          </div>
-          <template v-else>
-            <div class="rc-costs">
-              <span>🪵 {{ def.cost.wood }}</span>
-              <span>🧱 {{ def.cost.clay }}</span>
-              <span>⚒️ {{ def.cost.iron }}</span>
-              <span>🌾 {{ def.cost.crop }}</span>
-            </div>
-            <div class="rc-time">
-              ⏱ {{ formatDuration(getTrainingTime(def.type, barrackLevel)) }}
-            </div>
-          </template>
-        </button>
-      </div>
+    <!-- Casernes absentes : section verrouillée -->
+    <div v-if="barrackLevel === 0" class="barracks-locked">
+      <span class="barracks-locked__icon">🔒</span>
+      <p class="barracks-locked__title">Casernes requises</p>
+      <p class="barracks-locked__hint">
+        Construisez des Casernes dans l'onglet Village pour débloquer le recrutement.
+      </p>
     </div>
 
-    <!-- File de construction -->
-    <div class="queue-section">
-      <h4>File de construction</h4>
-      <div v-if="trainingQueue.length === 0" class="queue-empty">Aucune unité en construction</div>
-      <div v-else class="queue-clocks">
-        <!-- Entrée en cours (#1) : grand chronomètre circulaire -->
-        <div class="clock-item clock-item--active">
-          <div class="clock-ring">
-            <svg viewBox="0 0 60 60" class="clock-svg">
-              <circle class="clock-track" cx="30" cy="30" r="26" />
-              <circle
-                class="clock-progress"
-                cx="30"
-                cy="30"
-                r="26"
-                :stroke-dasharray="163.36"
-                :stroke-dashoffset="163.36 * (1 - getEntryProgress(trainingQueue[0]) / 100)"
-              />
-            </svg>
-            <div class="clock-inner">
-              <span class="clock-icon">{{ UNIT_DEFINITIONS[trainingQueue[0].type].icon }}</span>
-              <span class="clock-time">{{ getRemainingTime(trainingQueue[0]) }}</span>
-            </div>
-          </div>
-          <div class="clock-name">{{ UNIT_DEFINITIONS[trainingQueue[0].type].name }}</div>
-        </div>
-
-        <!-- Groupes en attente (#2+) : petits chronos -->
-        <div
-          v-for="group in groupedWaiting"
-          :key="group.firstEntry.id"
-          class="clock-item clock-item--waiting"
-        >
-          <div class="clock-ring">
-            <svg viewBox="0 0 44 44" class="clock-svg">
-              <circle class="clock-track" cx="22" cy="22" r="18" />
-            </svg>
-            <div class="clock-inner">
-              <span class="clock-icon">{{ UNIT_DEFINITIONS[group.type].icon }}</span>
-            </div>
-            <span v-if="group.count > 1" class="clock-badge">×{{ group.count }}</span>
-          </div>
-          <div class="clock-name">{{ getRemainingTime(group.lastEntry) }}</div>
+    <template v-else>
+      <!-- Cards de recrutement (1 clic = 1 unité en file) -->
+      <div class="recruit-section">
+        <h4>Recruter</h4>
+        <div class="recruit-grid">
           <button
-            class="clock-cancel"
-            @click="handleCancel(group.lastEntry)"
-            title="Annuler 1 unité et récupérer les ressources"
+            v-for="def in UNIT_DEFINITIONS"
+            :key="def.type"
+            class="recruit-card"
+            :class="{
+              'recruit-card--locked': barrackLevel < def.barrackLevelRequired,
+              'recruit-card--poor':
+                !canAfford(def.type) && barrackLevel >= def.barrackLevelRequired,
+            }"
+            :disabled="barrackLevel < def.barrackLevelRequired || !canAfford(def.type)"
+            @click="handleRecruit(def.type)"
           >
-            ✕
+            <div class="rc-icon">{{ def.icon }}</div>
+            <div class="rc-name">{{ def.name }}</div>
+            <div v-if="barrackLevel < def.barrackLevelRequired" class="rc-lock">
+              🔒 Casernes niv. {{ def.barrackLevelRequired }}
+            </div>
+            <template v-else>
+              <div class="rc-costs">
+                <span>🪵 {{ def.cost.wood }}</span>
+                <span>🧱 {{ def.cost.clay }}</span>
+                <span>⚒️ {{ def.cost.iron }}</span>
+                <span>🌾 {{ def.cost.crop }}</span>
+              </div>
+              <div class="rc-time">
+                ⏱ {{ formatDuration(getTrainingTime(def.type, barrackLevel)) }}
+              </div>
+            </template>
           </button>
         </div>
       </div>
-    </div>
+
+      <!-- File de construction -->
+      <div class="queue-section">
+        <h4>File de construction</h4>
+        <div v-if="trainingQueue.length === 0" class="queue-empty">
+          Aucune unité en construction
+        </div>
+        <div v-else class="queue-clocks">
+          <!-- Entrée en cours (#1) : grand chronomètre circulaire -->
+          <div class="clock-item clock-item--active">
+            <div class="clock-ring">
+              <svg viewBox="0 0 60 60" class="clock-svg">
+                <circle class="clock-track" cx="30" cy="30" r="26" />
+                <circle
+                  class="clock-progress"
+                  cx="30"
+                  cy="30"
+                  r="26"
+                  :stroke-dasharray="163.36"
+                  :stroke-dashoffset="163.36 * (1 - getEntryProgress(trainingQueue[0]) / 100)"
+                />
+              </svg>
+              <div class="clock-inner">
+                <span class="clock-icon">{{ UNIT_DEFINITIONS[trainingQueue[0].type].icon }}</span>
+                <span class="clock-time">{{ getRemainingTime(trainingQueue[0]) }}</span>
+              </div>
+            </div>
+            <div class="clock-name">{{ UNIT_DEFINITIONS[trainingQueue[0].type].name }}</div>
+          </div>
+
+          <!-- Groupes en attente (#2+) : petits chronos -->
+          <div
+            v-for="group in groupedWaiting"
+            :key="group.firstEntry.id"
+            class="clock-item clock-item--waiting"
+          >
+            <div class="clock-ring">
+              <svg viewBox="0 0 44 44" class="clock-svg">
+                <circle class="clock-track" cx="22" cy="22" r="18" />
+              </svg>
+              <div class="clock-inner">
+                <span class="clock-icon">{{ UNIT_DEFINITIONS[group.type].icon }}</span>
+              </div>
+              <span v-if="group.count > 1" class="clock-badge">×{{ group.count }}</span>
+            </div>
+            <div class="clock-name">{{ getRemainingTime(group.lastEntry) }}</div>
+            <button
+              class="clock-cancel"
+              @click="handleCancel(group.lastEntry)"
+              title="Annuler 1 unité et récupérer les ressources"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
   </section>
 </template>
 
@@ -203,6 +217,35 @@ const getEntryProgress = (entry: TrainingQueueEntry): number => {
 </script>
 
 <style scoped>
+.barracks-locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  border: 1px dashed rgba(218, 165, 32, 0.3);
+  border-radius: 8px;
+  color: #888;
+}
+
+.barracks-locked__icon {
+  font-size: 2rem;
+}
+
+.barracks-locked__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #aaa;
+}
+
+.barracks-locked__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
 .units-section {
   margin-bottom: 2rem;
 }

@@ -58,17 +58,18 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     maxLevel: 10,
     hqLevelRequired: 0,
     // prettier-ignore
+    // Coûts légers — QG = étape de déblocage, pas un obstacle (÷6 vs originaux)
     levels: [
-      { wood:  200, clay:  150, iron:  100, crop:   80, buildTime:    30 }, // 0 → 1
-      { wood:  420, clay:  320, iron:  210, crop:  170, buildTime:    75 }, // 1 → 2
-      { wood:  750, clay:  560, iron:  375, crop:  300, buildTime:   180 }, // 2 → 3
-      { wood: 1200, clay:  900, iron:  600, crop:  480, buildTime:   360 }, // 3 → 4
-      { wood: 1800, clay: 1350, iron:  900, crop:  720, buildTime:   720 }, // 4 → 5
-      { wood: 2600, clay: 1950, iron: 1300, crop: 1040, buildTime:  1440 }, // 5 → 6
-      { wood: 3700, clay: 2800, iron: 1850, crop: 1480, buildTime:  2700 }, // 6 → 7
-      { wood: 5200, clay: 3900, iron: 2600, crop: 2080, buildTime:  5400 }, // 7 → 8
-      { wood: 7200, clay: 5400, iron: 3600, crop: 2880, buildTime:  9000 }, // 8 → 9
-      { wood: 9800, clay: 7350, iron: 4900, crop: 3920, buildTime: 18000 }, // 9 → 10
+      { wood:   35, clay:   25, iron:   17, crop:   13, buildTime:    15 }, // 0 → 1
+      { wood:   70, clay:   55, iron:   35, crop:   28, buildTime:    30 }, // 1 → 2
+      { wood:  125, clay:   95, iron:   63, crop:   50, buildTime:    60 }, // 2 → 3
+      { wood:  200, clay:  150, iron:  100, crop:   80, buildTime:   120 }, // 3 → 4
+      { wood:  300, clay:  225, iron:  150, crop:  120, buildTime:   240 }, // 4 → 5
+      { wood:  435, clay:  325, iron:  215, crop:  175, buildTime:   480 }, // 5 → 6
+      { wood:  620, clay:  465, iron:  310, crop:  245, buildTime:   900 }, // 6 → 7
+      { wood:  865, clay:  650, iron:  435, crop:  345, buildTime:  1800 }, // 7 → 8
+      { wood: 1200, clay:  900, iron:  600, crop:  480, buildTime:  3000 }, // 8 → 9
+      { wood: 1630, clay: 1225, iron:  815, crop:  650, buildTime:  6000 }, // 9 → 10
     ],
     productionPerLevel: null,
   },
@@ -105,17 +106,18 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     hqLevelRequired: 1,
     // Coût principal : argile + fer (pas de bois — c'est justement ce qui manque)
     // prettier-ignore
+    // Coûts ÷3 pour parties 10-15 min
     levels: [
-      { wood:   25, clay:  120, iron:   65, crop:   45, buildTime:   20 }, // 0 → 1
-      { wood:   55, clay:  255, iron:  135, crop:   95, buildTime:   45 }, // 1 → 2
-      { wood:   90, clay:  430, iron:  230, crop:  160, buildTime:   90 }, // 2 → 3
-      { wood:  140, clay:  670, iron:  360, crop:  250, buildTime:  180 }, // 3 → 4
-      { wood:  205, clay:  990, iron:  530, crop:  370, buildTime:  360 }, // 4 → 5
-      { wood:  290, clay: 1385, iron:  740, crop:  520, buildTime:  720 }, // 5 → 6
-      { wood:  395, clay: 1900, iron: 1010, crop:  710, buildTime: 1440 }, // 6 → 7
-      { wood:  530, clay: 2540, iron: 1355, crop:  950, buildTime: 2700 }, // 7 → 8
-      { wood:  705, clay: 3360, iron: 1790, crop: 1255, buildTime: 4500 }, // 8 → 9
-      { wood:  925, clay: 4410, iron: 2350, crop: 1650, buildTime: 7200 }, // 9 → 10
+      { wood:   8, clay:  40, iron:  22, crop:  15, buildTime:   7 }, // 0 → 1
+      { wood:  18, clay:  85, iron:  45, crop:  32, buildTime:  15 }, // 1 → 2
+      { wood:  30, clay: 143, iron:  77, crop:  53, buildTime:  30 }, // 2 → 3
+      { wood:  47, clay: 223, iron: 120, crop:  83, buildTime:  60 }, // 3 → 4
+      { wood:  68, clay: 330, iron: 177, crop: 123, buildTime: 120 }, // 4 → 5
+      { wood:  97, clay: 462, iron: 247, crop: 173, buildTime: 240 }, // 5 → 6
+      { wood: 132, clay: 633, iron: 337, crop: 237, buildTime: 480 }, // 6 → 7
+      { wood: 177, clay: 847, iron: 452, crop: 317, buildTime: 900 }, // 7 → 8
+      { wood: 235, clay: 1120, iron: 597, crop: 418, buildTime: 1500 }, // 8 → 9
+      { wood: 308, clay: 1470, iron: 783, crop: 550, buildTime: 2400 }, // 9 → 10
     ],
     productionPerLevel: { resource: 'wood', amount: 10 },
   },
@@ -129,17 +131,18 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     hqLevelRequired: 1,
     // Coût principal : bois + argile (peu de céréales — c'est justement ce qui manque)
     // prettier-ignore
+    // Coûts ÷3 pour parties 10-15 min
     levels: [
-      { wood:   80, clay:   95, iron:   40, crop:   15, buildTime:   20 }, // 0 → 1
-      { wood:  170, clay:  200, iron:   85, crop:   30, buildTime:   45 }, // 1 → 2
-      { wood:  285, clay:  340, iron:  145, crop:   55, buildTime:   90 }, // 2 → 3
-      { wood:  445, clay:  530, iron:  225, crop:   85, buildTime:  180 }, // 3 → 4
-      { wood:  650, clay:  780, iron:  330, crop:  125, buildTime:  360 }, // 4 → 5
-      { wood:  915, clay: 1095, iron:  465, crop:  175, buildTime:  720 }, // 5 → 6
-      { wood: 1250, clay: 1495, iron:  635, crop:  240, buildTime: 1440 }, // 6 → 7
-      { wood: 1670, clay: 1995, iron:  850, crop:  320, buildTime: 2700 }, // 7 → 8
-      { wood: 2210, clay: 2640, iron: 1125, crop:  425, buildTime: 4500 }, // 8 → 9
-      { wood: 2905, clay: 3475, iron: 1480, crop:  560, buildTime: 7200 }, // 9 → 10
+      { wood:  27, clay:  32, iron:  13, crop:   5, buildTime:   7 }, // 0 → 1
+      { wood:  57, clay:  67, iron:  28, crop:  10, buildTime:  15 }, // 1 → 2
+      { wood:  95, clay: 113, iron:  48, crop:  18, buildTime:  30 }, // 2 → 3
+      { wood: 148, clay: 177, iron:  75, crop:  28, buildTime:  60 }, // 3 → 4
+      { wood: 217, clay: 260, iron: 110, crop:  42, buildTime: 120 }, // 4 → 5
+      { wood: 305, clay: 365, iron: 155, crop:  58, buildTime: 240 }, // 5 → 6
+      { wood: 417, clay: 498, iron: 212, crop:  80, buildTime: 480 }, // 6 → 7
+      { wood: 557, clay: 665, iron: 283, crop: 107, buildTime: 900 }, // 7 → 8
+      { wood: 737, clay: 880, iron: 375, crop: 142, buildTime: 1500 }, // 8 → 9
+      { wood: 968, clay: 1158, iron: 493, crop: 187, buildTime: 2400 }, // 9 → 10
     ],
     productionPerLevel: { resource: 'crop', amount: 12 },
   },
@@ -153,17 +156,18 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     hqLevelRequired: 1,
     // Coût principal : bois + fer (peu d'argile — c'est justement ce qui manque)
     // prettier-ignore
+    // Coûts ÷3 pour parties 10-15 min
     levels: [
-      { wood:  115, clay:   20, iron:   95, crop:   60, buildTime:   25 }, // 0 → 1
-      { wood:  240, clay:   42, iron:  200, crop:  125, buildTime:   55 }, // 1 → 2
-      { wood:  410, clay:   70, iron:  340, crop:  210, buildTime:  110 }, // 2 → 3
-      { wood:  640, clay:  110, iron:  530, crop:  330, buildTime:  220 }, // 3 → 4
-      { wood:  930, clay:  160, iron:  775, crop:  480, buildTime:  440 }, // 4 → 5
-      { wood: 1305, clay:  225, iron: 1085, crop:  675, buildTime:  880 }, // 5 → 6
-      { wood: 1780, clay:  305, iron: 1480, crop:  920, buildTime: 1760 }, // 6 → 7
-      { wood: 2380, clay:  410, iron: 1980, crop: 1230, buildTime: 3520 }, // 7 → 8
-      { wood: 3150, clay:  540, iron: 2620, crop: 1630, buildTime: 5760 }, // 8 → 9
-      { wood: 4135, clay:  710, iron: 3440, crop: 2140, buildTime: 8640 }, // 9 → 10
+      { wood:  38, clay:   7, iron:  32, crop:  20, buildTime:   8 }, // 0 → 1
+      { wood:  80, clay:  14, iron:  67, crop:  42, buildTime:  18 }, // 1 → 2
+      { wood: 137, clay:  23, iron: 113, crop:  70, buildTime:  37 }, // 2 → 3
+      { wood: 213, clay:  37, iron: 177, crop: 110, buildTime:  73 }, // 3 → 4
+      { wood: 310, clay:  53, iron: 258, crop: 160, buildTime: 147 }, // 4 → 5
+      { wood: 435, clay:  75, iron: 362, crop: 225, buildTime: 293 }, // 5 → 6
+      { wood: 593, clay: 102, iron: 493, crop: 307, buildTime: 587 }, // 6 → 7
+      { wood: 793, clay: 137, iron: 660, crop: 410, buildTime: 1173 }, // 7 → 8
+      { wood: 1050, clay: 180, iron: 873, crop: 543, buildTime: 1920 }, // 8 → 9
+      { wood: 1378, clay: 237, iron: 1147, crop: 713, buildTime: 2880 }, // 9 → 10
     ],
     productionPerLevel: { resource: 'clay', amount: 8 },
   },
@@ -177,17 +181,18 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     hqLevelRequired: 1,
     // Coût principal : bois + argile (peu de fer — c'est justement ce qui manque)
     // prettier-ignore
+    // Coûts ÷3 pour parties 10-15 min
     levels: [
-      { wood:  130, clay:  105, iron:   18, crop:   45, buildTime:   25 }, // 0 → 1
-      { wood:  275, clay:  220, iron:   38, crop:   95, buildTime:   55 }, // 1 → 2
-      { wood:  465, clay:  375, iron:   64, crop:  160, buildTime:  110 }, // 2 → 3
-      { wood:  725, clay:  585, iron:  100, crop:  250, buildTime:  220 }, // 3 → 4
-      { wood: 1060, clay:  855, iron:  146, crop:  365, buildTime:  440 }, // 4 → 5
-      { wood: 1485, clay: 1195, iron:  205, crop:  515, buildTime:  880 }, // 5 → 6
-      { wood: 2025, clay: 1630, iron:  280, crop:  700, buildTime: 1760 }, // 6 → 7
-      { wood: 2710, clay: 2180, iron:  374, crop:  940, buildTime: 3520 }, // 7 → 8
-      { wood: 3590, clay: 2880, iron:  495, crop: 1245, buildTime: 5760 }, // 8 → 9
-      { wood: 4720, clay: 3785, iron:  650, crop: 1635, buildTime: 8640 }, // 9 → 10
+      { wood:  43, clay:  35, iron:   6, crop:  15, buildTime:   8 }, // 0 → 1
+      { wood:  92, clay:  73, iron:  13, crop:  32, buildTime:  18 }, // 1 → 2
+      { wood: 155, clay: 125, iron:  21, crop:  53, buildTime:  37 }, // 2 → 3
+      { wood: 242, clay: 195, iron:  33, crop:  83, buildTime:  73 }, // 3 → 4
+      { wood: 353, clay: 285, iron:  49, crop: 122, buildTime: 147 }, // 4 → 5
+      { wood: 495, clay: 398, iron:  68, crop: 172, buildTime: 293 }, // 5 → 6
+      { wood: 675, clay: 543, iron:  93, crop: 233, buildTime: 587 }, // 6 → 7
+      { wood: 903, clay: 727, iron: 125, crop: 313, buildTime: 1173 }, // 7 → 8
+      { wood: 1197, clay: 960, iron: 165, crop: 415, buildTime: 1920 }, // 8 → 9
+      { wood: 1573, clay: 1262, iron: 217, crop: 545, buildTime: 2880 }, // 9 → 10
     ],
     productionPerLevel: { resource: 'iron', amount: 6 },
   },
