@@ -40,11 +40,11 @@
             :class="getTileClasses(tile)"
             @click="tile.type !== 'plains' && !isChunkLocked(tile) && selectTile(tile.id)"
           >
-            <!-- Icône du terrain visible uniquement si exploré (pas affiché pour les plaines) -->
+            <!-- Icône du terrain visible uniquement si exploré et dans un cadran déverrouillé -->
             <div
               class="tile-icon"
               :style="{ fontSize: tileIconFontSize }"
-              v-if="(gameSettings.disableFogOfWar || tile.explored) && tile.type !== 'plains'"
+              v-if="tile.type !== 'plains' && (gameSettings.disableFogOfWar || (tile.explored && !isChunkLocked(tile)))"
             >
               {{ getTileIcon(tile.type) }}
             </div>
@@ -813,6 +813,12 @@ const influenceZoneMap = computed(() => {
   background: #0d0d1a !important;
   cursor: default;
   pointer-events: none;
+  overflow: hidden;
+}
+
+/* Filet de sécurité cross-browser : masque tout contenu enfant des tuiles verrouillées */
+.tile-chunk-locked > * {
+  visibility: hidden;
 }
 
 /* Minimap supprimée */

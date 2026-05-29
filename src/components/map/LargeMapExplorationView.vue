@@ -451,8 +451,9 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
       tile.garrison = undefined
       tile.lootStock = undefined
       toastStore.showSuccess(report.summary)
-      gameStore.addVictoryPoints('combat', 1, `Victoire en combat contre ${defenderArmy.label}`)
       if (isStronghold) {
+        // Forteresse : victoire simple capée, destruction non capée
+        gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`)
         gameStore.addVictoryPoints('combat', 4, 'Forteresse ennemie détruite')
         // Déverrouiller les cadrans adjacents à la forteresse détruite
         const newChunks = mapStore.unlockAdjacentChunks(tile.id)
@@ -462,16 +463,19 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
           )
         }
       } else {
-        gameStore.addVictoryPoints('combat', 2, 'Village ennemi détruit')
+        // Village : victoire simple et destruction toutes deux soumises à leurs caps
+        gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`)
+        gameStore.addVillageVp(2, 'Village ennemi détruit')
       }
     } else {
-      // Sans armes de siège : le village reste mais la garnison est vaincue et commence à régénérer
+      // Sans armes de siège : la garnison est vaincue mais le village reste et commence à régénérer
       if (!tile.garrison) tile.garrison = { units: [] }
       tile.garrison.units = []
       tile.garrison.maxUnits = report.defender.army.units.map((u) => ({ ...u }))
       tile.garrison.regenStartedAt = Date.now()
       toastStore.showSuccess(report.summary + ' (sans siège — village non détruit)')
-      gameStore.addVictoryPoints('combat', 1, `Victoire en combat contre ${defenderArmy.label}`)
+      // Victoire simple capée quelle que soit la cible (village ou forteresse)
+      gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`)
     }
 
     applyPostVictorySpecialPowers(equippedArtifacts, tile.position)

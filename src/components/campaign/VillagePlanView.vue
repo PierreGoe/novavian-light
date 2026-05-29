@@ -71,6 +71,15 @@
             <template v-else-if="getBuildingState(def.type) === 'waiting'">⏳ ressources</template>
             <template v-else-if="getBuildingState(def.type) === 'maxed'">max</template>
           </div>
+          <!-- Bouton action rapide -->
+          <button
+            v-if="getBuildingState(def.type) === 'upgradable' || getBuildingState(def.type) === 'available'"
+            class="quick-btn"
+            :class="{ 'quick-btn--build': getBuildingState(def.type) === 'available' }"
+            @click.stop="quickAction(def.type)"
+          >
+            {{ getBuildingState(def.type) === 'upgradable' ? '▲' : '+' }}
+          </button>
         </div>
       </div>
     </div>
@@ -392,6 +401,26 @@ const doBuild = () => {
     toastStore.showSuccess(`${selectedDef.value.name} construit !`, { duration: 2000 })
   } else {
     toastStore.showError('Construction impossible', { duration: 2000 })
+  }
+}
+
+// Action rapide directement depuis la tuile (sans ouvrir le panneau)
+const quickAction = (type: BuildingType) => {
+  const state = getBuildingState(type)
+  const def = BUILDING_DEFINITIONS[type]
+  if (state === 'upgradable') {
+    const building = getBuilding(type)
+    if (building && missionStore.upgradeBuilding(building.id)) {
+      toastStore.showSuccess(`${def.name} → niv. ${building.level + 1} !`, { duration: 2000 })
+    } else {
+      toastStore.showError('Ressources insuffisantes', { duration: 2000 })
+    }
+  } else if (state === 'available') {
+    if (missionStore.constructBuilding(type)) {
+      toastStore.showSuccess(`${def.name} construit !`, { duration: 2000 })
+    } else {
+      toastStore.showError('Ressources insuffisantes', { duration: 2000 })
+    }
   }
 }
 </script>
@@ -749,6 +778,45 @@ const doBuild = () => {
 }
 .state-maxed .tile-status {
   color: #a78bfa;
+}
+
+/* ---- Bouton action rapide sur la tuile ---- */
+.quick-btn {
+  margin-top: 0.2rem;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  border-radius: 6px;
+  border: 1px solid rgba(34, 197, 94, 0.6);
+  background: rgba(18, 80, 30, 0.75);
+  color: #4ade80;
+  cursor: pointer;
+  line-height: 1.4;
+  transition:
+    background 0.15s,
+    transform 0.1s,
+    box-shadow 0.15s;
+}
+
+.quick-btn:hover {
+  background: rgba(34, 197, 94, 0.22);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.35);
+  transform: translateY(-1px);
+}
+
+.quick-btn:active {
+  transform: scale(0.95);
+}
+
+.quick-btn--build {
+  border-color: rgba(96, 165, 250, 0.6);
+  background: rgba(12, 30, 70, 0.75);
+  color: #93c5fd;
+}
+
+.quick-btn--build:hover {
+  background: rgba(96, 165, 250, 0.22);
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.35);
 }
 
 /* ====== Panneau de détails ====== */

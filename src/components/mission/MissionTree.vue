@@ -2,8 +2,6 @@
   <div class="mission-map">
     <div class="map-background"></div>
 
-    {{ gameStore.gameState.currentStatus }}
-
     <!-- En-tête avec progression -->
     <header class="map-header">
       <h1>Carte de Mission</h1>
@@ -27,6 +25,10 @@
               nextAvailableNodes.length > 1 ? 's' : ''
             }}</span
           >
+        </div>
+        <div class="status-item status-item--vp" :class="{ 'status-item--vp-done': totalCombatVP >= COMBAT_VP_GOAL }">
+          <span class="status-label">⚔️ Objectif :</span>
+          <span class="status-value">{{ totalCombatVP }} / {{ COMBAT_VP_GOAL }} PV</span>
         </div>
       </div>
 
@@ -92,7 +94,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useGameStore } from '@/stores/gameStore'
+import { useGameStore, COMBAT_VP_GOAL } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
 import type { MapNode } from '@/utils'
 import MissionMapLayer from './MissionMapLayer.vue'
@@ -124,6 +126,8 @@ const allNodes = computed(() => {
   })
   return nodes
 })
+
+const totalCombatVP = computed(() => gameStore.victoryPoints.value.combat)
 
 const selectNode = (node: MapNode) => {
   // selectMapNode contient déjà le guard et appelle handleMapNodeAction en interne
@@ -182,11 +186,13 @@ onMounted(() => {
 
 <style scoped>
 .mission-map {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
   color: #f4e4bc;
   position: relative;
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 .map-background {
@@ -274,6 +280,23 @@ onMounted(() => {
   font-size: 0.8rem;
 }
 
+/* Badge PV objectif */
+.status-item--vp {
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(218, 165, 32, 0.1);
+  border: 1px solid rgba(218, 165, 32, 0.3);
+}
+.status-item--vp-done {
+  background: rgba(34, 139, 34, 0.15);
+  border-color: rgba(34, 139, 34, 0.5);
+  animation: vp-pulse 2.2s ease-in-out infinite;
+}
+@keyframes vp-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 139, 34, 0); }
+  50%       { box-shadow: 0 0 0 5px rgba(34, 139, 34, 0.2); }
+}
+
 .status-label {
   color: #daa520;
   font-weight: bold;
@@ -300,7 +323,10 @@ onMounted(() => {
 }
 
 .map-container {
-  padding: 2rem;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 1rem 2rem;
   position: relative;
   z-index: 1;
 }

@@ -125,10 +125,27 @@ export interface MapState {
 export type VictoryPointType = 'combat'
 
 /** Objectif de PV combat pour valider une campagne */
-export const COMBAT_VP_GOAL = 5
+export const COMBAT_VP_GOAL = 12
+
+/**
+ * Plafond de PV pouvant être accumulés via les destructions de villages ennemis.
+ * Au-delà, le bonus +2 PV de destruction n'est plus accordé.
+ */
+export const VILLAGE_VP_CAP = 4
+
+/**
+ * Plafond de PV pouvant être accumulés via les victoires de combat simples (+1 PV).
+ * Au-delà, les victoires ne rapportent plus de PV — le joueur doit détruire
+ * des forteresses ou compléter des missions pour progresser.
+ */
+export const COMBAT_VICTORY_VP_CAP = 4
 
 export interface VictoryPoints {
   combat: number
+  /** PV cumulés depuis les destructions de villages (plafonné à VILLAGE_VP_CAP) */
+  villageVp: number
+  /** PV cumulés depuis les victoires simples (+1 PV, plafonné à COMBAT_VICTORY_VP_CAP) */
+  combatVictoryVp: number
 }
 
 /** Un événement qui a rapporté des PV (pour l'historique) */
@@ -177,6 +194,8 @@ const createInitialState = (): GameState => ({
   },
   victoryPoints: {
     combat: 0,
+    villageVp: 0,
+    combatVictoryVp: 0,
   },
   victoryHistory: [],
 })
@@ -299,6 +318,9 @@ export const useGameStore = () => {
         // Points de victoire
         if (gameData.victoryPoints) {
           gameState.victoryPoints.combat = gameData.victoryPoints.combat ?? 0
+          // Migration : champs absents des anciens saves
+          gameState.victoryPoints.villageVp = gameData.victoryPoints.villageVp ?? 0
+          gameState.victoryPoints.combatVictoryVp = gameData.victoryPoints.combatVictoryVp ?? 0
         }
         if (gameData.victoryHistory) {
           gameState.victoryHistory = gameData.victoryHistory
@@ -700,6 +722,29 @@ export const useGameStore = () => {
 
   const victoryPoints = computed(() => gameState.victoryPoints)
   const victoryHistory = computed(() => gameState.victoryHistory)
+
+  /**
+   * Ajoute des PV issus d'une victoire de combat simple (+1 PV), dans la limite
+   * de COMBAT_VICTORY_VP_CAP. Au-delà du cap, la victoire ne rapporte plus de PV.
+   */
+  const addCombatVictoryVp = (reason: string) => {
+    const spaceLeft = Math.max(0, COMBAT_VICTORY_VP_CAP - gameState.victoryPoints.combatVictoryVp)
+    if (spaceLeft <= 0) return
+    gameState.victoryPoints.combatVictoryVp += 1
+    addVictoryPoints('combat', 1, reason)
+  }
+
+  /**
+   * Ajoute des PV issus d'une destruction de village, dans la limite de VILLAGE_VP_CAP.
+   * Une fois le plafond atteint, les destructions de villages ne rapportent plus de PV.
+   */
+  const addVillageVp = (amount: number, reason: string) => {
+    const spaceLeft = Math.max(0, VILLAGE_VP_CAP - gameState.victoryPoints.villageVp)
+    const actual = Math.min(amount, spaceLeft)
+    if (actual <= 0) return
+    gameState.victoryPoints.villageVp += actual
+    addVictoryPoints('combat', actual, reason)
+  }
 
   /** Récompense de fin de campagne et retour au mission-tree */
   const completeCampaign = (bonusGold = 100) => {
@@ -1283,6 +1328,8 @@ export const useGameStore = () => {
 
     // Points de victoire
     addVictoryPoints,
+    addCombatVictoryVp,
+    addVillageVp,
     victoryPoints,
     victoryHistory,
     completeCampaign,

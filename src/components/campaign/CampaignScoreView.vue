@@ -88,14 +88,14 @@
         </div>
 
         <ul class="score-sources">
-          <li>
+          <li class="src-capped">
             <span class="src-icon">⚔️</span>
-            <span class="src-label">Victoire en combat</span>
+            <span class="src-label">Victoire en combat <em class="src-cap">(max {{ COMBAT_VICTORY_VP_CAP }} PV au total)</em></span>
             <span class="src-pts">+1 PV</span>
           </li>
-          <li>
+          <li class="src-capped">
             <span class="src-icon">🏚️</span>
-            <span class="src-label">Village ennemi détruit</span>
+            <span class="src-label">Village ennemi détruit <em class="src-cap">(max {{ VILLAGE_VP_CAP }} PV au total)</em></span>
             <span class="src-pts">+2 PV</span>
           </li>
           <li>
@@ -191,7 +191,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useGameStore, COMBAT_VP_GOAL } from '@/stores/gameStore'
+import { useGameStore, COMBAT_VP_GOAL, VILLAGE_VP_CAP, COMBAT_VICTORY_VP_CAP } from '@/stores/gameStore'
 import type { VictoryPointType, Artifact } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
 import CampaignVictoryModal from './CampaignVictoryModal.vue'
@@ -593,6 +593,16 @@ function formatDate(iso: string): string {
   font-weight: 700;
   color: #daa520;
   flex-shrink: 0;
+}
+/* Ligne avec plafond : texte légèrement atténué pour signaler la contrainte */
+.src-capped {
+  opacity: 0.85;
+}
+.src-cap {
+  font-style: italic;
+  font-size: 0.75em;
+  color: #a07850;
+  font-weight: 400;
 }
 
 .score-locked-msg {

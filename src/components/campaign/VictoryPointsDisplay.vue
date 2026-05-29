@@ -65,6 +65,11 @@ function goToScore() {
 .vp-count {
   font-variant-numeric: tabular-nums;
 }
+.vp-fortress {
+  font-size: 0.8rem;
+  color: #ffcc88;
+  opacity: 0.85;
+}
 .vp-badge {
   font-size: 1rem;
 }

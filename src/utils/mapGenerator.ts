@@ -24,7 +24,7 @@ export interface MapLayer {
 }
 
 // Configuration de génération
-const MAP_ROWS = 12 // Nombre de lignes (niveaux)
+const MAP_ROWS = 8 // Nombre de lignes (niveaux)
 
 // Types de nodes avec leurs probabilités et propriétés
 const nodeTypeConfig = {
@@ -134,18 +134,15 @@ const selectNodeTypeByPath = (col: number): keyof typeof nodeTypeConfig => {
   }
 }
 
-// Déterminer le type de voie selon la position
+// Déterminer le type de voie selon la position (2 voies : 0=militaire, 2=économique, 1=convergence)
 const getPathType = (col: number): 'military' | 'economic' | 'balanced' => {
   if (col === 0) return 'military' // Gauche = Militaire
-  if (col === 4) return 'economic' // Droite = Économique
+  if (col === 2) return 'economic' // Droite = Économique
   return 'balanced' // Centre/Convergence = Équilibré
 }
 
-// Vérifier si une connexion entre deux colonnes est interdite
-const isForbiddenConnection = (sourceCol: number, targetCol: number): boolean => {
-  // Interdire les connexions directes entre extrême gauche (col 0) et extrême droite (col 4)
-  return (sourceCol === 0 && targetCol === 4) || (sourceCol === 4 && targetCol === 0)
-}
+// Avec seulement 3 colonnes (0,1,2), aucune connexion n'est interdite
+const isForbiddenConnection = (_sourceCol: number, _targetCol: number): boolean => false
 
 // Génération des récompenses selon le type de node
 const generateReward = (nodeType: keyof typeof nodeTypeConfig) => {
@@ -180,18 +177,18 @@ export const generateMap = (): MapLayer[] => {
 
     if (isFirstRow) {
       nodesCount = 1
-      nodePositions = [2] // Centre
+      nodePositions = [1] // Centre
     } else if (isLastRow) {
       nodesCount = 1
-      nodePositions = [2] // Boss au centre
+      nodePositions = [1] // Boss au centre
     } else if (isConvergenceRow) {
-      // Point de convergence : 1-2 nodes centraux
-      nodesCount = Math.random() > 0.5 ? 1 : 2
-      nodePositions = nodesCount === 1 ? [2] : [1, 3]
+      // Point de convergence : 1 node central
+      nodesCount = 1
+      nodePositions = [1]
     } else {
-      // Voies normales : 3 nodes (gauche, centre, droite)
-      nodesCount = 3
-      nodePositions = [0, 2, 4] // Gauche, Centre, Droite
+      // Voies normales : 2 nodes (gauche et droite)
+      nodesCount = 2
+      nodePositions = [0, 2]
     }
 
     const layer: MapLayer = {
