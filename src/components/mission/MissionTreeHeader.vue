@@ -74,6 +74,38 @@
         </div>
       </div>
 
+      <!-- Progression de la carte de mission + objectif de PV combat -->
+      <div class="mission-progress" v-if="mapGenerated">
+        <div class="progress-container">
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{ width: progressPercentage + '%' }"></div>
+          </div>
+          <span class="progress-text">{{ Math.round(progressPercentage) }}%</span>
+        </div>
+
+        <div class="player-status">
+          <div class="status-item">
+            <span class="status-label">Niveau:</span>
+            <span class="status-value">{{ currentPlayerRow + 1 }}/{{ mapLayers.length }}</span>
+          </div>
+          <div class="status-item" v-if="nextAvailableNodes.length > 0">
+            <span class="status-label">Choix:</span>
+            <span class="status-value"
+              >{{ nextAvailableNodes.length }} option{{
+                nextAvailableNodes.length > 1 ? 's' : ''
+              }}</span
+            >
+          </div>
+          <div
+            class="status-item status-item--vp"
+            :class="{ 'status-item--vp-done': totalCombatVP >= COMBAT_VP_GOAL }"
+          >
+            <span class="status-label">⚔️ Objectif :</span>
+            <span class="status-value">{{ totalCombatVP }} / {{ COMBAT_VP_GOAL }} PV</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Actions inventaire -->
       <div class="inventory-actions">
         <button
@@ -125,10 +157,36 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue'
-import { useGameStore, type Artifact } from '@/stores/gameStore'
+import { useGameStore, COMBAT_VP_GOAL, type Artifact, type MapNode } from '@/stores/gameStore'
 import router from '@/router'
 
 const gameStore = useGameStore()
+
+// Progression de la carte de mission + objectif de PV combat
+const mapLayers = computed(() => gameStore.gameState.mapState.layers)
+const currentPlayerRow = computed(() => gameStore.gameState.mapState.currentPlayerRow)
+const mapGenerated = computed(() => gameStore.gameState.mapState.mapGenerated)
+
+const progressPercentage = computed(() => {
+  const totalNodes = mapLayers.value.reduce((sum, layer) => sum + layer.nodes.length, 0)
+  const completedNodes = mapLayers.value.reduce(
+    (sum, layer) => sum + layer.nodes.filter((node) => node.completed).length,
+    0,
+  )
+  return totalNodes > 0 ? (completedNodes / totalNodes) * 100 : 0
+})
+
+const nextAvailableNodes = computed(() => {
+  const accessible: MapNode[] = []
+  mapLayers.value.forEach((layer) => {
+    layer.nodes.forEach((node) => {
+      if (node.accessible && !node.completed) accessible.push(node)
+    })
+  })
+  return accessible
+})
+
+const totalCombatVP = computed(() => gameStore.victoryPoints.value.combat)
 
 const returnToMainMenu = () => {
   router.push('/')

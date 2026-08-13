@@ -282,6 +282,91 @@
   color: #daa520;
 }
 
+/* Progression de la carte de mission + objectif de PV combat */
+.mission-progress {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 140px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(139, 69, 19, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  min-width: 80px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #daa520, #ffd700);
+  transition: width 0.5s ease;
+}
+
+.progress-text {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #daa520;
+  min-width: 40px;
+}
+
+.player-status {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: rgba(139, 69, 19, 0.3);
+  border-radius: 8px;
+  border: 1px solid rgba(218, 165, 32, 0.3);
+  white-space: nowrap;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+/* Badge PV objectif */
+.status-item--vp {
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(218, 165, 32, 0.1);
+  border: 1px solid rgba(218, 165, 32, 0.3);
+}
+.status-item--vp-done {
+  background: rgba(34, 139, 34, 0.15);
+  border-color: rgba(34, 139, 34, 0.5);
+  animation: vp-pulse 2.2s ease-in-out infinite;
+}
+@keyframes vp-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 139, 34, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(34, 139, 34, 0.2);
+  }
+}
+
+.status-label {
+  color: #daa520;
+  font-weight: bold;
+}
+
+.status-value {
+  color: #f4e4bc;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .header-content {
@@ -327,6 +412,28 @@
     gap: 0.8rem;
     flex-wrap: wrap;
     justify-content: center;
+  }
+
+  .mission-progress {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  .progress-container {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .player-status {
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .status-item {
+    justify-content: space-between;
+    width: 100%;
   }
 }
 

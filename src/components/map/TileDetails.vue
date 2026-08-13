@@ -20,6 +20,26 @@
     <!-- Description -->
     <p class="tile-description">{{ getTileDescription(tile.type) }}</p>
 
+    <!-- Niveau de destruction (villages ennemis endommagés) -->
+    <div
+      v-if="tile.type === 'village_enemy' && (tile.destructionLevel ?? 0) > 0"
+      class="destruction-panel"
+      :class="destructionSeverityClass(tile.destructionLevel ?? 0)"
+    >
+      <div class="destruction-header">
+        <span class="destruction-icon">🔥</span>
+        <span class="destruction-title">Destruction</span>
+        <span class="destruction-badge">{{ destructionLabel(tile.destructionLevel ?? 0) }}</span>
+      </div>
+      <div class="destruction-bar-track">
+        <div
+          class="destruction-bar-fill"
+          :style="{ width: (tile.destructionLevel ?? 0) + '%' }"
+        />
+      </div>
+      <span class="destruction-value">{{ tile.destructionLevel }}% — Continuez le siège pour raser ce village</span>
+    </div>
+
     <!-- Troupes en route -->
     <div
       v-for="movement in mapStore.getMovementsToTile(tile.id)"
@@ -468,6 +488,22 @@ const statusBadgeClass = (type: MapTile['type']): string =>
     stronghold: 'badge-hostile',
   })[type] ?? 'badge-neutral'
 
+/** Libellé descriptif du niveau de destruction */
+const destructionLabel = (level: number): string => {
+  if (level <= 25) return 'Légèrement endommagé'
+  if (level <= 50) return 'Endommagé'
+  if (level <= 75) return 'Fortement endommagé'
+  return 'En ruine partielle'
+}
+
+/** Classe CSS selon la sévérité des dégâts */
+const destructionSeverityClass = (level: number): string => {
+  if (level <= 25) return 'destruction--light'
+  if (level <= 50) return 'destruction--medium'
+  if (level <= 75) return 'destruction--heavy'
+  return 'destruction--critical'
+}
+
 /**
  * Retourne le % de bonus artefact applicable à une ressource donnée.
  */
@@ -621,9 +657,73 @@ const getResourceIcon = (resource: string) => {
   padding: 0 2px;
 }
 
+/* ── Panneau de destruction ── */
+.destruction-panel {
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid rgba(255, 87, 34, 0.4);
+  background: rgba(255, 87, 34, 0.07);
+}
+.destruction-panel.destruction--medium {
+  border-color: rgba(255, 152, 0, 0.5);
+  background: rgba(255, 152, 0, 0.08);
+}
+.destruction-panel.destruction--heavy {
+  border-color: rgba(244, 67, 54, 0.5);
+  background: rgba(244, 67, 54, 0.1);
+}
+.destruction-panel.destruction--critical {
+  border-color: rgba(183, 28, 28, 0.7);
+  background: rgba(183, 28, 28, 0.14);
+}
+.destruction-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.destruction-icon {
+  font-size: 1em;
+}
+.destruction-title {
+  font-size: 0.82em;
+  font-weight: 700;
+  color: #ff8a65;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex: 1;
+}
+.destruction-badge {
+  font-size: 0.75em;
+  color: #ffccbc;
+  font-style: italic;
+}
+.destruction-bar-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.destruction-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+  background: linear-gradient(90deg, #ff9800, #f44336);
+}
+.destruction--heavy .destruction-bar-fill,
+.destruction--critical .destruction-bar-fill {
+  background: linear-gradient(90deg, #f44336, #b71c1c);
+}
+.destruction-value {
+  font-size: 0.75em;
+  color: rgba(255, 200, 180, 0.75);
+  font-style: italic;
+}
+
 /* ── Troupes en transit ── */
 .troops-in-transit {
-  background: rgba(255, 152, 0, 0.08);
   border: 1px solid rgba(255, 152, 0, 0.4);
   border-radius: 10px;
   padding: 12px 16px;

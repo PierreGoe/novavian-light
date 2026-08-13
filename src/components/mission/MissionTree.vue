@@ -2,35 +2,13 @@
   <div class="mission-map">
     <div class="map-background"></div>
 
-    <!-- En-tête avec progression -->
+    <!-- Bandeau inventaire + progression de mission / objectif de PV -->
+    <MissionTreeHeader />
+
+    <!-- En-tête -->
     <header class="map-header">
       <h1>Carte de Mission</h1>
       <p>Progressez à travers les dangers jusqu'au combat final</p>
-      <div class="progress-container">
-        <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: progressPercentage + '%' }"></div>
-        </div>
-        <span class="progress-text">{{ Math.round(progressPercentage) }}%</span>
-      </div>
-
-      <div class="player-status" v-if="mapGenerated">
-        <div class="status-item">
-          <span class="status-label">Niveau:</span>
-          <span class="status-value">{{ currentPlayerRow + 1 }}/{{ mapLayers.length }}</span>
-        </div>
-        <div class="status-item" v-if="nextAvailableNodes.length > 0">
-          <span class="status-label">Choix:</span>
-          <span class="status-value"
-            >{{ nextAvailableNodes.length }} option{{
-              nextAvailableNodes.length > 1 ? 's' : ''
-            }}</span
-          >
-        </div>
-        <div class="status-item status-item--vp" :class="{ 'status-item--vp-done': totalCombatVP >= COMBAT_VP_GOAL }">
-          <span class="status-label">⚔️ Objectif :</span>
-          <span class="status-value">{{ totalCombatVP }} / {{ COMBAT_VP_GOAL }} PV</span>
-        </div>
-      </div>
 
       <button class="reset-button" @click="resetMap" title="Nouvelle carte">🔄New Map</button>
     </header>
@@ -94,10 +72,11 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useGameStore, COMBAT_VP_GOAL } from '@/stores/gameStore'
+import { useGameStore } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
 import type { MapNode } from '@/utils'
 import MissionMapLayer from './MissionMapLayer.vue'
+import MissionTreeHeader from './MissionTreeHeader.vue'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -110,15 +89,6 @@ const selectedNodeId = computed(() => gameStore.gameState.mapState.selectedNodeI
 const mapGenerated = computed(() => gameStore.gameState.mapState.mapGenerated)
 
 // Computed
-const progressPercentage = computed(() => {
-  const totalNodes = mapLayers.value.reduce((sum, layer) => sum + layer.nodes.length, 0)
-  const completedNodes = mapLayers.value.reduce(
-    (sum, layer) => sum + layer.nodes.filter((node) => node.completed).length,
-    0,
-  )
-  return totalNodes > 0 ? (completedNodes / totalNodes) * 100 : 0
-})
-
 const allNodes = computed(() => {
   const nodes: MapNode[] = []
   mapLayers.value.forEach((layer) => {
@@ -126,8 +96,6 @@ const allNodes = computed(() => {
   })
   return nodes
 })
-
-const totalCombatVP = computed(() => gameStore.victoryPoints.value.combat)
 
 const selectNode = (node: MapNode) => {
   // selectMapNode contient déjà le guard et appelle handleMapNodeAction en interne
@@ -151,16 +119,6 @@ const resetMap = () => {
     toastStore.showSuccess('Nouvelle carte générée !', { duration: 2000 })
   }, 200)
 }
-
-const nextAvailableNodes = computed(() => {
-  const accessible: MapNode[] = []
-  mapLayers.value.forEach((layer) => {
-    layer.nodes.forEach((node) => {
-      if (node.accessible && !node.completed) accessible.push(node)
-    })
-  })
-  return accessible
-})
 
 const getConnectionX = (connectionId: string) => {
   const targetNode = allNodes.value.find((n) => n.id === connectionId)
@@ -231,79 +189,6 @@ onMounted(() => {
   font-size: 0.9rem;
   margin: 0.25rem 0 0;
   opacity: 0.8;
-}
-
-.progress-container {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex: 1;
-  max-width: 300px;
-  margin: 0 2rem;
-}
-
-.progress-bar {
-  flex: 1;
-  height: 8px;
-  background: rgba(139, 69, 19, 0.5);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #daa520, #ffd700);
-  transition: width 0.5s ease;
-}
-
-.progress-text {
-  font-size: 0.9rem;
-  font-weight: bold;
-  color: #daa520;
-  min-width: 40px;
-}
-
-.player-status {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  padding: 0.5rem 1rem;
-  background: rgba(139, 69, 19, 0.3);
-  border-radius: 8px;
-  border: 1px solid rgba(218, 165, 32, 0.3);
-}
-
-.status-item {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.8rem;
-}
-
-/* Badge PV objectif */
-.status-item--vp {
-  padding: 0.2rem 0.6rem;
-  border-radius: 12px;
-  background: rgba(218, 165, 32, 0.1);
-  border: 1px solid rgba(218, 165, 32, 0.3);
-}
-.status-item--vp-done {
-  background: rgba(34, 139, 34, 0.15);
-  border-color: rgba(34, 139, 34, 0.5);
-  animation: vp-pulse 2.2s ease-in-out infinite;
-}
-@keyframes vp-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 139, 34, 0); }
-  50%       { box-shadow: 0 0 0 5px rgba(34, 139, 34, 0.2); }
-}
-
-.status-label {
-  color: #daa520;
-  font-weight: bold;
-}
-
-.status-value {
-  color: #f4e4bc;
 }
 
 .reset-button {
@@ -455,21 +340,6 @@ onMounted(() => {
     flex-direction: column;
     gap: 1rem;
     padding: 1rem;
-  }
-
-  .progress-container {
-    margin: 0;
-    max-width: none;
-  }
-
-  .player-status {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .status-item {
-    justify-content: space-between;
-    width: 100%;
   }
 
   .map-container {

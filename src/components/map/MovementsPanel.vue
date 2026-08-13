@@ -104,14 +104,14 @@ const allItems = computed((): MovementItem[] => {
 
   // Troupes en transit
   for (const mov of mapStore.mapState.activeMovements) {
-    const tile = mapStore.getTileById(mov.targetTileId)
+    const tile = mapStore.getTileById(mov.isReturning ? mov.sourceTileId : mov.targetTileId)
     const name = tile ? mapStore.getTileName(tile.type) : '?'
     const coords = tile ? `${tile.position.x}, ${tile.position.y}` : '?'
     items.push({
       id: mov.id,
       kind: 'troop',
-      icon: '🪖',
-      label: `${name} (${coords})`,
+      icon: mov.isReturning ? '↩️' : '🪖',
+      label: mov.isReturning ? `Retour (${coords})` : `${name} (${coords})`,
       eta: formatEta(mov.arrivalTime),
       progress: getProgress(mov.departureTime, mov.arrivalTime),
       units: mov.units.map((u) => `${UNIT_ICONS[u.type] ?? '🗡️'} ×${u.count}`),

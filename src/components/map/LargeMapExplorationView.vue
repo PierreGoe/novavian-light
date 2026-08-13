@@ -99,9 +99,13 @@ import {
   type MovementUnit,
   type TroopMovement,
 } from '../../stores/mapStore'
-import { useMissionStore } from '../../stores/missionStore'
+import { useMissionStore, UNIT_DEFINITIONS, type MilitaryUnit } from '../../stores/missionStore'
 import { useGameStore } from '../../stores/gameStore'
-import { defaultResolver } from '../../combat/combatResolver'
+import {
+  defaultResolver,
+  computeSiegeDestruction,
+  getDestructionLabel,
+} from '../../combat/combatResolver'
 import type {
   Army,
   CombatModifier,
@@ -252,17 +256,28 @@ const handleAttackTile = (tileId: string, selectedUnits: MovementUnit[]) => {
     return
   }
 
+  // Retirer les troupes envoyées de la garnison — elles ne sont plus disponibles pendant le voyage
+  const townUnits = missionStore.missionState.town.units
+  for (const sentUnit of selectedUnits) {
+    const garrisonUnit = townUnits.find((u) => u.type === sentUnit.type)
+    if (garrisonUnit) {
+      garrisonUnit.count = Math.max(0, garrisonUnit.count - sentUnit.count)
+    }
+  }
+  missionStore.missionState.town.units = townUnits.filter((u) => u.count > 0)
+
   toastStore.addToast(`🪖 Troupes envoyées — arrivée dans ${travelLabel}`, 'info')
   // Revenir à la carte pour voir le mouvement en temps réel
   closeDetails()
 }
 
-/** Résout le combat quand les troupes arrivent à destination */
-const executeCombat = (movement: TroopMovement, tile: MapTile) => {
+/** Résout le combat quand les troupes arrivent à destination.
+ * Retourne les unités survivantes à remettre dans la garnison au retour. */
+const executeCombat = (movement: TroopMovement, tile: MapTile): MovementUnit[] => {
   // Vérifier que la tuile est toujours hostile (peut avoir changé pendant le trajet)
   if (!['village_enemy', 'stronghold'].includes(tile.type)) {
     toastStore.addToast("La cible n'est plus hostile, troupes revenues.", 'info')
-    return
+    return movement.units
   }
 
   const isStronghold = tile.type === 'stronghold'
@@ -337,15 +352,34 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
 
   // Si la garnison est vide (déjà vaincue)
   if (tile.garrison.units.length === 0 || tile.garrison.units.every((u) => u.count <= 0)) {
-    const hasSiegeUnit = movement.units.some((u) => u.type === 'siege')
+    const siegeUnits = movement.units.filter((u) => u.type === 'siege')
+    const hasSiegeUnit = siegeUnits.length > 0 && siegeUnits.some((u) => u.count > 0)
     const tileName = mapStore.getTileName(tile.type)
 
-    if (hasSiegeUnit) {
+    if (hasSiegeUnit && tile.type === 'village_enemy') {
+      // Village sans défenses : les machines de siège travaillent sans résistance
+      // → destruction maximale garantie (toutes les machines = plein rendement)
+      const siegeCount = siegeUnits.reduce((s, u) => s + u.count, 0)
+      const destructionAmount = computeSiegeDestruction(siegeCount)
+      const { newLevel, isRuined } = mapStore.applyVillageDestruction(tile.id, destructionAmount)
+
+      if (isRuined) {
+        toastStore.showSuccess('🏚️ Village sans défenses rasé par vos machines de siège !')
+        gameStore.addCombatVictoryVp(`Victoire sans résistance — ${tileName}`)
+        gameStore.addVillageVp(2, 'Village ennemi détruit')
+      } else {
+        toastStore.showSuccess(
+          `🔥 Village sans défenses endommagé à ${newLevel}% — ${getDestructionLabel(newLevel)}`,
+        )
+        gameStore.addCombatVictoryVp(`Victoire sans résistance — ${tileName}`)
+      }
+    } else if (hasSiegeUnit && tile.type === 'stronghold') {
+      // Forteresse sans garnison : destruction instantanée (même comportement qu'avant)
       tile.type = 'ruins'
       tile.garrison = undefined
       tile.lootStock = undefined
       mapStore.saveMapState()
-      toastStore.showSuccess('Village sans défenses détruit par vos machines de siège.')
+      toastStore.showSuccess('🏰 Forteresse sans défenses détruite par vos machines de siège !')
     } else {
       toastStore.addToast(
         '⚠️ Ce village est sans défenses — équipez des armes de siège pour le détruire.',
@@ -354,6 +388,7 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
     }
 
     // Rapport spécial "village vide"
+    const currentDestructionLevel = (tile as { destructionLevel?: number }).destructionLevel ?? 0
     const emptyReport: SavedBattleReport = {
       id: `battle-${Date.now()}`,
       gameTimestamp: missionStore.getGameTimestamp(),
@@ -361,9 +396,9 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
       tileName,
       date: new Date().toISOString(),
       read: false,
-      attackerVictory: false,
+      attackerVictory: hasSiegeUnit,
       summary: hasSiegeUnit
-        ? `🏚️ Village ${tileName} démoli — aucune résistance, rasé par vos machines de siège.`
+        ? `🏚️ ${tileName} sans défenses — machines de siège utilisées (destruction : ${currentDestructionLevel}%).`
         : `🏚️ Village ${tileName} sans défenses — aucun combat. Revenez avec des armes de siège pour le détruire.`,
       attacker: {
         army: { label: 'Vos troupes', units: [...movement.units], modifiers: [] },
@@ -375,7 +410,7 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
         losses: { killed: {}, survivors: [] },
         totalPowerUsed: 0,
       },
-      extra: { emptyGarrison: true, siegeUsed: hasSiegeUnit },
+      extra: { emptyGarrison: true, siegeUsed: hasSiegeUnit, destructionLevel: currentDestructionLevel },
     }
     combatReport.value = null
     missionStore.addBattleReport(emptyReport)
@@ -393,7 +428,7 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
 
     mapStore.saveMapState()
     missionStore.saveMissionState()
-    return
+    return movement.units // Pas de combat, toutes les troupes reviennent
   }
 
   const defenderArmy: Army = {
@@ -409,9 +444,6 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
   equippedArtifacts
     .filter((a) => a.durability !== 'permanent')
     .forEach((a) => gameStore.consumeArtifactUse(a.id))
-
-  // Appliquer les pertes joueur
-  applyPlayerLosses(report)
 
   // Mettre à jour la garnison ennemie avec les survivants
   tile.garrison.units = report.defender.losses.survivors
@@ -446,13 +478,12 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
     }
 
     if (hasSiegeUnit) {
-      // Destruction complète du village (comportement précédent)
-      tile.type = 'ruins'
-      tile.garrison = undefined
-      tile.lootStock = undefined
-      toastStore.showSuccess(report.summary)
       if (isStronghold) {
-        // Forteresse : victoire simple capée, destruction non capée
+        // Forteresse : destruction instantanée (objectif majeur — comportement conservé)
+        tile.type = 'ruins'
+        tile.garrison = undefined
+        tile.lootStock = undefined
+        toastStore.showSuccess(report.summary)
         gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`)
         gameStore.addVictoryPoints('combat', 4, 'Forteresse ennemie détruite')
         // Déverrouiller les cadrans adjacents à la forteresse détruite
@@ -463,9 +494,32 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
           )
         }
       } else {
-        // Village : victoire simple et destruction toutes deux soumises à leurs caps
-        gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`)
-        gameStore.addVillageVp(2, 'Village ennemi détruit')
+        // Village : destruction progressive basée sur les machines de siège survivantes
+        const siegeSurvivors = report.attacker.losses.survivors
+          .filter((u) => u.type === 'siege')
+          .reduce((s, u) => s + u.count, 0)
+        const destructionAmount = computeSiegeDestruction(siegeSurvivors)
+        const { newLevel, isRuined } = mapStore.applyVillageDestruction(tile.id, destructionAmount)
+        report.siegeDestruction = destructionAmount
+
+        if (isRuined) {
+          // Destruction totale atteinte
+          toastStore.showSuccess(
+            `💥 Village rasé ! ${destructionAmount}% de dégâts de siège — total : 100%`,
+          )
+          gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`)
+          gameStore.addVillageVp(2, 'Village ennemi détruit')
+        } else {
+          // Destruction partielle : le village est endommagé mais pas encore rasé
+          toastStore.showSuccess(
+            `🔥 ${report.summary} — Village endommagé (${getDestructionLabel(newLevel)}, ${newLevel}%)`,
+          )
+          gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`)
+          // La garnison commence à régénérer (le village survit)
+          tile.garrison.units = []
+          tile.garrison.maxUnits = report.defender.army.units.map((u) => ({ ...u }))
+          tile.garrison.regenStartedAt = Date.now()
+        }
       }
     } else {
       // Sans armes de siège : la garnison est vaincue mais le village reste et commence à régénérer
@@ -534,6 +588,9 @@ const executeCombat = (movement: TroopMovement, tile: MapTile) => {
 
   mapStore.saveMapState()
   missionStore.saveMissionState()
+
+  // Retourner les survivants pour qu'ils soient remis dans la garnison au retour
+  return report.attacker.losses.survivors
 }
 
 import type { Artifact } from '../../stores/gameStore'
@@ -627,21 +684,6 @@ function generateEnemyGarrison(tile: MapTile): { units: CombatUnit[] } {
   return { units }
 }
 
-/** Applique les pertes du rapport aux unités du joueur dans le missionStore */
-function applyPlayerLosses(report: CombatReport) {
-  const townUnits = missionStore.missionState.town.units
-
-  for (const [unitType, killedCount] of Object.entries(report.attacker.losses.killed)) {
-    const unit = townUnits.find((u) => u.type === unitType)
-    if (unit) {
-      unit.count = Math.max(0, unit.count - killedCount)
-    }
-  }
-
-  // Retirer les unités à 0
-  missionStore.missionState.town.units = townUnits.filter((u) => u.count > 0)
-}
-
 /** Débloque un cadran via un fragment de carte */
 const handleUnlockChunk = (chunkId: string) => {
   if (gameStore.gameState.inventory.mapFragments <= 0) {
@@ -683,9 +725,45 @@ onMounted(() => {
     now.value = Date.now()
     const arrivals = mapStore.getArrivedMovements()
     for (const movement of arrivals) {
-      const tile = mapStore.getTileById(movement.targetTileId)
-      if (tile) executeCombat(movement, tile)
-      mapStore.resolveMovement(movement.id)
+      if (movement.isReturning) {
+        // Troupes de retour : remettre les survivants dans la garnison
+        const townUnits = missionStore.missionState.town.units
+        for (const unit of movement.units) {
+          if (unit.count <= 0) continue
+          const existing = townUnits.find((u) => u.type === unit.type)
+          if (existing) {
+            existing.count += unit.count
+          } else {
+            const unitType = unit.type as MilitaryUnit['type']
+            townUnits.push({
+              id: `${unitType}-${Date.now()}`,
+              type: unitType,
+              count: unit.count,
+              attack: unit.attack,
+              defense: unit.defense,
+              health: unit.health,
+              cost: UNIT_DEFINITIONS[unitType].cost,
+              trainingTime: UNIT_DEFINITIONS[unitType].baseTrainingTime,
+            })
+          }
+        }
+        missionStore.saveMissionState()
+        toastStore.addToast('🏠 Vos troupes sont rentrées au village.', 'info')
+        mapStore.resolveMovement(movement.id)
+      } else {
+        // Troupes à destination : résoudre le combat puis créer le mouvement de retour
+        const tile = mapStore.getTileById(movement.targetTileId)
+        const survivors = tile ? executeCombat(movement, tile) : movement.units
+        const returnMs = movement.arrivalTime - movement.departureTime
+        const totalReturnSec = Math.ceil(returnMs / 1000)
+        const returnLabel =
+          totalReturnSec >= 60
+            ? `${Math.floor(totalReturnSec / 60)}m ${totalReturnSec % 60}s`
+            : `${totalReturnSec}s`
+        mapStore.createReturnMovement(movement, survivors)
+        mapStore.resolveMovement(movement.id)
+        toastStore.addToast(`↩️ Troupes en route vers la base — retour dans ${returnLabel}`, 'info')
+      }
     }
   }, 1000)
 })

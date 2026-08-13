@@ -63,6 +63,8 @@ export interface CombatReport {
   summary: string
   /** Butin récupéré après une victoire (uniquement si pillage effectué) */
   pillage?: PillageResult
+  /** Dégâts de siège appliqués au village (0–100, uniquement si des machines de siège ont participé) */
+  siegeDestruction?: number
   /** Données arbitraires que le resolver peut ajouter (butin, etc.) */
   extra?: Record<string, unknown>
 }

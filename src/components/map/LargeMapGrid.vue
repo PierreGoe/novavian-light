@@ -94,7 +94,7 @@
       </div>
     </div>
 
-    <!-- Panneau debug forteresses -->
+    <!--Panneau debug forteresses
     <div
       class="debug-fortress-panel"
       v-if="Object.keys(mapStore.mapState.fortressZones).length > 0"
@@ -111,7 +111,7 @@
         <span class="debug-level">📊 {{ zone.hostilityLevel }}%</span>
         <span class="debug-state">{{ zone.hostilityState }}</span>
       </div>
-    </div>
+    </div>-->
 
     <!-- Indicateur de chargement -->
     <div v-if="isLoading" class="loading-indicator">⏳ Chargement de la carte...</div>

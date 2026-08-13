@@ -100,8 +100,8 @@ const nodeTypeConfig = {
     titles: ['Seigneur de guerre', 'Dragon ancien', 'Nécromancien suprême', 'Empereur déchu'],
     descriptions: [
       "L'ennemi final vous attend",
-      'Une créature légendaire garde le trésor',
-      'Le maître des ténèbres',
+      'La forteresse du mal se dresse devant vous',
+      'Le maître des ténèbres vous attend dans sa forteresse',
       'Le dernier obstacle vers la victoire',
     ],
   },

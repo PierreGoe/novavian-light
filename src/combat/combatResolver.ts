@@ -134,3 +134,38 @@ class NaiveCombatResolver implements ICombatResolver {
 // --- Export singleton (swap ici pour changer de resolver) ---
 
 export const defaultResolver: ICombatResolver = new NaiveCombatResolver()
+
+// ============================================================
+// Destruction de village par les machines de siège
+// ============================================================
+
+/** Dégâts de destruction minimum par machine de siège (en points sur 100) */
+export const SIEGE_DESTRUCTION_PER_UNIT_MIN = 5
+/** Dégâts de destruction maximum par machine de siège (en points sur 100) */
+export const SIEGE_DESTRUCTION_PER_UNIT_MAX = 10
+
+/**
+ * Calcule le niveau de destruction infligé par les machines de siège survivantes.
+ * Chaque machine inflige entre SIEGE_DESTRUCTION_PER_UNIT_MIN et MAX points.
+ * Retourne 0 si aucune machine de siège n'est présente.
+ */
+export const computeSiegeDestruction = (siegeCount: number): number => {
+  if (siegeCount <= 0) return 0
+  let total = 0
+  for (let i = 0; i < siegeCount; i++) {
+    const roll =
+      SIEGE_DESTRUCTION_PER_UNIT_MIN +
+      Math.random() * (SIEGE_DESTRUCTION_PER_UNIT_MAX - SIEGE_DESTRUCTION_PER_UNIT_MIN)
+    total += roll
+  }
+  return Math.min(100, Math.round(total))
+}
+
+/** Libellé descriptif du niveau de destruction (0–100) */
+export const getDestructionLabel = (level: number): string => {
+  if (level <= 0) return 'Intact'
+  if (level <= 25) return 'Légèrement endommagé'
+  if (level <= 50) return 'Endommagé'
+  if (level <= 75) return 'Fortement endommagé'
+  return 'En ruine partielle'
+}

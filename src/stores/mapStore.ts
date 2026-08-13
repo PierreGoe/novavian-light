@@ -97,6 +97,8 @@ export interface TroopMovement {
   /** Timestamp réel à l'arrivée (Date.now() + durée du trajet) */
   arrivalTime: number
   units: MovementUnit[]
+  /** Vrai si les troupes sont en train de rentrer (après le combat) */
+  isReturning?: boolean
 }
 
 /** Coût de déplacement par type de terrain (exploration map) */
@@ -114,12 +116,13 @@ export const TERRAIN_MOVE_COST: Record<TerrainType, number> = {
 /**
  * Vitesse de déplacement par type d'unité, en cases/seconde.
  * L'armée se déplace à la vitesse de l'unité la plus lente.
+ * Référence : infanterie = 0.1 case/sec = 1 case toutes les 10 secondes.
  */
 export const UNIT_MOVE_SPEED: Record<string, number> = {
-  infantry: 1.0, // 1 case/sec — référence
-  archer: 0.8, // Moins mobile (équipement + carquois)
-  cavalry: 2.5, // Très rapide
-  siege: 0.3, // Engins de siège — extrêmement lent
+  infantry: 0.1, // 1 case / 10 sec — référence
+  archer: 0.08, // Moins mobile (équipement + carquois)
+  cavalry: 0.25, // Très rapide
+  siege: 0.03, // Engins de siège — extrêmement lent
 }
 
 /** Unité de garnison persistée sur une tuile ennemie */
@@ -171,6 +174,12 @@ export interface MapTile {
    * Affecte la puissance de base dans computeFortressZones.
    */
   level?: number
+  /**
+   * Niveau de destruction infligé par les machines de siège (0–100).
+   * 100 = le village bascule automatiquement en ruines.
+   * Non défini = intact (équivalent à 0).
+   */
+  destructionLevel?: number
 }
 
 export interface ExplorationState {
@@ -668,6 +677,32 @@ export const useMapStore = () => {
       mapState.activeMovements.splice(idx, 1)
       saveMapState()
     }
+  }
+
+  /**
+   * Crée un mouvement de retour après le combat.
+   * La durée du retour est identique à celle de l'aller (symétrique).
+   * @param movement - Le mouvement d'origine
+   * @param survivors - Les unités survivantes après le combat (si omis, utilise le snapshot du départ)
+   */
+  const createReturnMovement = (
+    movement: TroopMovement,
+    survivors?: MovementUnit[],
+  ): TroopMovement => {
+    const travelDuration = movement.arrivalTime - movement.departureTime
+    const now = Date.now()
+    const returnMovement: TroopMovement = {
+      id: `mov-ret-${now}`,
+      sourceTileId: movement.targetTileId,
+      targetTileId: movement.sourceTileId,
+      departureTime: now,
+      arrivalTime: now + travelDuration,
+      units: survivors ?? movement.units,
+      isReturning: true,
+    }
+    mapState.activeMovements.push(returnMovement)
+    saveMapState()
+    return returnMovement
   }
 
   /** Renvoie les mouvements dont l'heure d'arrivée est passée */
@@ -1211,6 +1246,44 @@ export const useMapStore = () => {
     }
   }
 
+  // ====================================================================
+  // DESTRUCTION DE VILLAGE PAR LES MACHINES DE SIÈGE
+  // ====================================================================
+
+  /**
+   * Applique un niveau de destruction à un village ennemi.
+   * Accumule les destructions successives ; convertit en ruines quand le total >= 100.
+   *
+   * @param tileId   Identifiant du village cible (doit être de type 'village_enemy')
+   * @param amount   Points de destruction à ajouter (0–100)
+   * @returns        Le nouveau niveau (0–100) et un booléen indiquant si le village est rasé
+   */
+  const applyVillageDestruction = (
+    tileId: string,
+    amount: number,
+  ): { newLevel: number; isRuined: boolean } => {
+    const tile = getTileById(tileId)
+    if (!tile || tile.type !== 'village_enemy') return { newLevel: 0, isRuined: false }
+
+    const previous = tile.destructionLevel ?? 0
+    const newLevel = Math.min(100, previous + amount)
+    tile.destructionLevel = newLevel
+
+    const isRuined = newLevel >= 100
+    if (isRuined) {
+      // Conversion en ruines : nettoyer les données de combat
+      tile.type = 'ruins'
+      tile.garrison = undefined
+      tile.lootStock = undefined
+      tile.destructionLevel = undefined
+      // Mettre à jour les zones de forteresse (le village n'est plus dans la zone)
+      computeFortressZones()
+    }
+
+    saveMapState()
+    return { newLevel, isRuined }
+  }
+
   return {
     // État
     mapState,
@@ -1242,6 +1315,7 @@ export const useMapStore = () => {
     calculateTravelTimeMs,
     dispatchTroops,
     resolveMovement,
+    createReturnMovement,
     getArrivedMovements,
     getMovementsToTile,
 
@@ -1249,6 +1323,9 @@ export const useMapStore = () => {
     pillageVillage,
     tickLootRegen,
     tickGarrisonRegen,
+
+    // Destruction de village
+    applyVillageDestruction,
 
     // Cadrans
     getChunkIdForTile,
