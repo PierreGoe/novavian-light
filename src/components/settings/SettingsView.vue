@@ -150,32 +150,54 @@
       </section>
 
       <!-- ── Debug / Triche ───────────────────────────────── -->
-      <section class="settings-section settings-section--debug">
-        <h2 class="section-title">🛠️ Options de Débogage</h2>
-        <p class="debug-warning">⚠️ Ces options affectent les prochaines missions.</p>
+      <!-- Bloc volontairement mis à l'écart visuellement : ce ne sont pas des options de
+           jeu normales, mais des triches réservées au debug/dev (pas destinées au joueur). -->
+      <div class="debug-zone">
+        <div class="debug-zone-label">🔧 Mode Debug (dev uniquement)</div>
+        <section class="settings-section settings-section--debug">
+          <h2 class="section-title">🛠️ Options de Débogage</h2>
+          <p class="debug-warning">
+            ⚠️ Triches réservées aux tests internes — affectent les prochaines missions.
+          </p>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Ressources de départ</span>
-            <span class="setting-desc">Démarre chaque mission avec 10 000 de chaque ressource</span>
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Ressources de départ</span>
+              <span class="setting-desc"
+                >Démarre chaque mission avec 10 000 de chaque ressource</span
+              >
+            </div>
+            <label class="toggle">
+              <input type="checkbox" v-model="settings.cheatResources" />
+              <span class="toggle-slider"></span>
+            </label>
           </div>
-          <label class="toggle">
-            <input type="checkbox" v-model="settings.cheatResources" />
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Points de victoire de départ</span>
-            <span class="setting-desc">Démarre chaque mission avec 1 000 points de victoire</span>
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Points de victoire de départ</span>
+              <span class="setting-desc">Démarre chaque mission avec 1 000 points de victoire</span>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" v-model="settings.cheatVictoryPoints" />
+              <span class="toggle-slider"></span>
+            </label>
           </div>
-          <label class="toggle">
-            <input type="checkbox" v-model="settings.cheatVictoryPoints" />
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </section>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Garnison de départ (100 fantassins)</span>
+              <span class="setting-desc"
+                >Démarre chaque mission avec 100 fantassins au lieu de la garnison normale</span
+              >
+            </div>
+            <label class="toggle">
+              <input type="checkbox" v-model="settings.cheatStartingGarrison" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </section>
+      </div>
 
       <!-- ── Réinitialiser ────────────────────────────────── -->
       <div class="settings-footer">
@@ -267,14 +289,39 @@ const confirmReset = () => {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* ---- Zone debug : séparée visuellement du reste des paramètres ---- */
+.debug-zone {
+  margin-top: 0.5rem;
+  padding: 0.9rem 0.9rem 0.75rem;
+  border: 1px dashed rgba(245, 158, 11, 0.35);
+  border-radius: 14px;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(245, 158, 11, 0.035),
+    rgba(245, 158, 11, 0.035) 10px,
+    rgba(245, 158, 11, 0.06) 10px,
+    rgba(245, 158, 11, 0.06) 20px
+  );
+}
+
+.debug-zone-label {
+  margin: 0 0 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #f59e0b;
+}
+
 .settings-section--debug {
-  border-color: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(17, 17, 17, 0.35);
 }
 
 .settings-section--debug .section-title {
   color: #f59e0b;
-  background: rgba(245, 158, 11, 0.05);
-  border-bottom-color: rgba(245, 158, 11, 0.12);
+  background: rgba(245, 158, 11, 0.08);
+  border-bottom-color: rgba(245, 158, 11, 0.15);
 }
 
 .section-note {

@@ -119,7 +119,11 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
       { wood: 235, clay: 1120, iron: 597, crop: 418, buildTime: 1500 }, // 8 → 9
       { wood: 308, clay: 1470, iron: 783, crop: 550, buildTime: 2400 }, // 9 → 10
     ],
-    productionPerLevel: { resource: 'wood', amount: 10 },
+    // Rééquilibrage : la production totale de départ (toutes ressources) était gonflée par
+    // un multiplicateur "mission mode ×3" codé en dur dans missionStore.ts, désormais retiré.
+    // Ces montants sont la valeur "×3" divisée par 3 (100/96/72/120 par ressource) — l'ordre
+    // de grandeur d'origine, avant le bug — répartis en amount/niveau ici.
+    productionPerLevel: { resource: 'wood', amount: 100 },
   },
 
   farm: {
@@ -144,7 +148,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
       { wood: 737, clay: 880, iron: 375, crop: 142, buildTime: 1500 }, // 8 → 9
       { wood: 968, clay: 1158, iron: 493, crop: 187, buildTime: 2400 }, // 9 → 10
     ],
-    productionPerLevel: { resource: 'crop', amount: 12 },
+    productionPerLevel: { resource: 'crop', amount: 120 },
   },
 
   quarry: {
@@ -169,7 +173,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
       { wood: 1050, clay: 180, iron: 873, crop: 543, buildTime: 1920 }, // 8 → 9
       { wood: 1378, clay: 237, iron: 1147, crop: 713, buildTime: 2880 }, // 9 → 10
     ],
-    productionPerLevel: { resource: 'clay', amount: 8 },
+    productionPerLevel: { resource: 'clay', amount: 96 },
   },
 
   mine: {
@@ -194,7 +198,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
       { wood: 1197, clay: 960, iron: 165, crop: 415, buildTime: 1920 }, // 8 → 9
       { wood: 1573, clay: 1262, iron: 217, crop: 545, buildTime: 2880 }, // 9 → 10
     ],
-    productionPerLevel: { resource: 'iron', amount: 6 },
+    productionPerLevel: { resource: 'iron', amount: 72 },
   },
 }
 

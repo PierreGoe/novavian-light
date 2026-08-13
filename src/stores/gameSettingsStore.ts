@@ -34,6 +34,8 @@ export interface GameSettings {
   cheatResources: boolean
   /** Démarre chaque mission avec 1 000 points de victoire */
   cheatVictoryPoints: boolean
+  /** Démarre chaque mission avec 100 fantassins au lieu de la garnison de départ normale */
+  cheatStartingGarrison: boolean
 
   // --- Ressources initiales ---
   /** Ressources disponibles au début de chaque mission */
@@ -54,6 +56,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   showInfluenceZones: true,
   cheatResources: false,
   cheatVictoryPoints: false,
+  cheatStartingGarrison: false,
   initialResources: { wood: 200, clay: 200, iron: 100, crop: 150 },
 }
 

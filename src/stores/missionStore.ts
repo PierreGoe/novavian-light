@@ -165,6 +165,97 @@ export interface MissionState {
   battleReports: SavedBattleReport[]
 }
 
+/**
+ * Calcule la production de base (par minute) à partir de la liste de bâtiments réellement
+ * présents, en sommant `productionPerLevel.amount * level` pour chaque bâtiment producteur.
+ *
+ * IMPORTANT : c'est la SEULE source de vérité pour `town.production`. Ne jamais seeder ou
+ * incrémenter `production` avec des valeurs codées en dur ailleurs — cela casse l'invariant
+ * "somme des productions par bâtiment == total affiché" (voir TownView.vue, onglet Ressources).
+ */
+const computeBaseProduction = (
+  buildings: { type: BuildingType; level: number }[],
+): ResourceProduction => {
+  const production: ResourceProduction = { wood: 0, clay: 0, iron: 0, crop: 0 }
+  for (const b of buildings) {
+    const def = BUILDING_DEFINITIONS[b.type]
+    if (def?.productionPerLevel) {
+      const { resource, amount } = def.productionPerLevel
+      production[resource] += amount * b.level
+    }
+  }
+  return production
+}
+
+/**
+ * Nombre d'infanterie de départ. 100 en mode triche debug (pratique pour tester le combat
+ * sans attendre), sinon une petite garnison de départ raisonnable — voir gameSettingsStore.ts.
+ */
+const getStartingInfantryCount = (): number => (gameSettings.cheatStartingGarrison ? 100 : 10)
+
+const createStartingUnits = (): MilitaryUnit[] => [
+  {
+    id: 'infantry-start',
+    type: 'infantry',
+    count: getStartingInfantryCount(),
+    attack: UNIT_DEFINITIONS.infantry.stats.attack,
+    defense: UNIT_DEFINITIONS.infantry.stats.defense,
+    health: UNIT_DEFINITIONS.infantry.stats.health,
+    cost: UNIT_DEFINITIONS.infantry.cost,
+    trainingTime: UNIT_DEFINITIONS.infantry.baseTrainingTime,
+  },
+]
+
+/**
+ * Bâtiments de départ d'une ville fraîche (nouvelle partie ou mission suivante).
+ * Fonction (et non tableau constant) pour retourner une copie fraîche à chaque appel,
+ * sans référence partagée entre l'état initial du module et les resets ultérieurs.
+ *
+ * NOTE : carrière et mine sont incluses dès le départ (leur hqLevelRequired est 1, donc
+ * déjà "débloquées" au niveau 1 du QG) — les deux instances de ville de mission (première
+ * partie et resets après mission) doivent utiliser la même liste pour que la production
+ * de départ (calculée depuis ces bâtiments, voir computeBaseProduction) soit cohérente et
+ * que le joueur ne se retrouve pas avec une production d'argile/fer bloquée à zéro.
+ */
+const createStartingBuildings = (): MissionBuilding[] => [
+  {
+    id: 'headquarters-1',
+    type: 'headquarters' as BuildingType,
+    level: 1,
+    position: { x: 0, y: 0 },
+  },
+  {
+    id: 'barracks-1',
+    type: 'barracks' as BuildingType,
+    level: 1,
+    position: { x: 2, y: 2 },
+  },
+  {
+    id: 'farm-1',
+    type: 'farm' as BuildingType,
+    level: 1,
+    position: { x: 1, y: 1 },
+  },
+  {
+    id: 'lumbermill-1',
+    type: 'lumbermill' as BuildingType,
+    level: 1,
+    position: { x: 3, y: 1 },
+  },
+  {
+    id: 'quarry-1',
+    type: 'quarry' as BuildingType,
+    level: 1,
+    position: { x: 4, y: 2 },
+  },
+  {
+    id: 'mine-1',
+    type: 'mine' as BuildingType,
+    level: 1,
+    position: { x: 4, y: 3 },
+  },
+]
+
 // État initial
 const initialState: MissionState = {
   isInMission: false,
@@ -177,62 +268,12 @@ const initialState: MissionState = {
       iron: 0,
       crop: 0,
     },
-    production: {
-      wood: 300, // par minute (×3)
-      clay: 288, // ×3
-      iron: 216, // ×3
-      crop: 360, // ×3
-    },
-    buildings: [
-      {
-        id: 'headquarters-1',
-        type: 'headquarters' as BuildingType,
-        level: 1,
-        position: { x: 0, y: 0 },
-      },
-      {
-        id: 'barracks-1',
-        type: 'barracks' as BuildingType,
-        level: 1,
-        position: { x: 2, y: 2 },
-      },
-      {
-        id: 'farm-1',
-        type: 'farm' as BuildingType,
-        level: 1,
-        position: { x: 1, y: 1 },
-      },
-      {
-        id: 'lumbermill-1',
-        type: 'lumbermill' as BuildingType,
-        level: 1,
-        position: { x: 3, y: 1 },
-      },
-      {
-        id: 'quarry-1',
-        type: 'quarry' as BuildingType,
-        level: 1,
-        position: { x: 4, y: 2 },
-      },
-      {
-        id: 'mine-1',
-        type: 'mine' as BuildingType,
-        level: 1,
-        position: { x: 4, y: 3 },
-      },
-    ],
-    units: [
-      {
-        id: 'infantry-start',
-        type: 'infantry',
-        count: 100,
-        attack: UNIT_DEFINITIONS.infantry.stats.attack,
-        defense: UNIT_DEFINITIONS.infantry.stats.defense,
-        health: UNIT_DEFINITIONS.infantry.stats.health,
-        cost: UNIT_DEFINITIONS.infantry.cost,
-        trainingTime: UNIT_DEFINITIONS.infantry.baseTrainingTime,
-      },
-    ],
+    // Dérivée des bâtiments ci-dessous — ne jamais coder cette valeur en dur (voir
+    // computeBaseProduction plus haut : c'était la cause du bug "les chiffres ne
+    // s'additionnent jamais" dans l'onglet Ressources).
+    production: computeBaseProduction(createStartingBuildings()),
+    buildings: createStartingBuildings(),
+    units: createStartingUnits(),
     trainingQueue: [],
     population: 10,
   },
@@ -769,20 +810,9 @@ export const useMissionStore = () => {
           if (!missionState.town.trainingQueue) {
             missionState.town.trainingQueue = []
           }
-          // Migration : s'assurer que les 100 fantassins de départ sont présents
+          // Migration : s'assurer que l'infanterie de départ est présente
           if (!missionState.town.units || missionState.town.units.length === 0) {
-            missionState.town.units = [
-              {
-                id: 'infantry-start',
-                type: 'infantry',
-                count: 100,
-                attack: UNIT_DEFINITIONS.infantry.stats.attack,
-                defense: UNIT_DEFINITIONS.infantry.stats.defense,
-                health: UNIT_DEFINITIONS.infantry.stats.health,
-                cost: UNIT_DEFINITIONS.infantry.cost,
-                trainingTime: UNIT_DEFINITIONS.infantry.baseTrainingTime,
-              },
-            ]
+            missionState.town.units = createStartingUnits()
           }
         }
 
@@ -805,6 +835,8 @@ export const useMissionStore = () => {
 
   const resetMissionState = () => {
     // Création d'une copie profonde de l'état initial pour éviter les références partagées
+    const freshBuildings = createStartingBuildings()
+
     const freshInitialState: MissionState = {
       isInMission: false,
       currentMission: null,
@@ -816,50 +848,10 @@ export const useMissionStore = () => {
           iron: 0,
           crop: 0,
         },
-        production: {
-          wood: 50, // par minute
-          clay: 40,
-          iron: 30,
-          crop: 60,
-        },
-        buildings: [
-          {
-            id: 'headquarters-1',
-            type: 'headquarters' as BuildingType,
-            level: 1,
-            position: { x: 0, y: 0 },
-          },
-          {
-            id: 'barracks-1',
-            type: 'barracks' as BuildingType,
-            level: 1,
-            position: { x: 2, y: 2 },
-          },
-          {
-            id: 'farm-1',
-            type: 'farm' as BuildingType,
-            level: 1,
-            position: { x: 1, y: 1 },
-          },
-          {
-            id: 'lumbermill-1',
-            type: 'lumbermill' as BuildingType,
-            level: 1,
-            position: { x: 3, y: 1 },
-          },
-        ],
-        units: [
-          {
-            id: 'infantry-start',
-            type: 'infantry',
-            count: 100,
-            attack: UNIT_DEFINITIONS.infantry.stats.attack,
-            defense: UNIT_DEFINITIONS.infantry.stats.defense,
-            health: UNIT_DEFINITIONS.infantry.stats.health,
-            cost: UNIT_DEFINITIONS.infantry.cost,
-            trainingTime: UNIT_DEFINITIONS.infantry.baseTrainingTime,
-          },
-        ],
+        // Dérivée des bâtiments ci-dessus — voir computeBaseProduction
+        production: computeBaseProduction(freshBuildings),
+        buildings: freshBuildings,
+        units: createStartingUnits(),
         trainingQueue: [],
         population: 10,
       },
