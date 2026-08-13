@@ -59,8 +59,8 @@
               {{ getBuilding(def.type)!.level }}
             </span>
           </div>
-          <!-- Nom -->
-          <div class="tile-name">{{ def.name }}</div>
+          <!-- Nom (abrégé en "QG" pour le Bâtiment Principal, trop long pour la tuile) -->
+          <div class="tile-name">{{ getTileLabel(def.type) }}</div>
           <!-- Statut -->
           <div class="tile-status">
             <template v-if="getBuildingState(def.type) === 'locked'"
@@ -285,6 +285,12 @@ const toggleSelect = (type: BuildingType) => {
 const getBuilding = (type: BuildingType) =>
   town.value?.buildings?.find((b) => b.type === type) ?? null
 
+// Libellé affiché sur la tuile : "Bâtiment Principal" est abrégé en "QG"
+// (terminologie déjà utilisée ailleurs dans cette vue) pour éviter la troncature,
+// les autres noms de bâtiments tiennent tous dans la largeur de la tuile.
+const getTileLabel = (type: BuildingType): string =>
+  type === 'headquarters' ? 'QG' : BUILDING_DEFINITIONS[type].name
+
 // État d'un bâtiment : locked | available | upgradable | waiting | maxed
 type BuildingState = 'locked' | 'available' | 'upgradable' | 'waiting' | 'maxed'
 
@@ -376,9 +382,12 @@ const getTimeUntilUpgrade = (): string | null => {
 
 // --- Action ---
 const doUpgrade = () => {
-  if (!selectedBuilding.value) return
+  if (!selectedBuilding.value || !selectedDef.value) return
+  const newLevel = selectedBuilding.value.level + 1
   if (missionStore.upgradeBuilding(selectedBuilding.value.id)) {
-    toastStore.showSuccess('Bâtiment amélioré !', { duration: 2000 })
+    toastStore.showSuccess(`🏗️ ${selectedDef.value.name} amélioré au niveau ${newLevel} !`, {
+      duration: 2500,
+    })
   } else {
     toastStore.showError("Ressources insuffisantes pour l'amélioration", { duration: 2000 })
   }
@@ -410,8 +419,11 @@ const quickAction = (type: BuildingType) => {
   const def = BUILDING_DEFINITIONS[type]
   if (state === 'upgradable') {
     const building = getBuilding(type)
+    const newLevel = building ? building.level + 1 : 0
     if (building && missionStore.upgradeBuilding(building.id)) {
-      toastStore.showSuccess(`${def.name} → niv. ${building.level + 1} !`, { duration: 2000 })
+      toastStore.showSuccess(`🏗️ ${def.name} amélioré au niveau ${newLevel} !`, {
+        duration: 2500,
+      })
     } else {
       toastStore.showError('Ressources insuffisantes', { duration: 2000 })
     }
