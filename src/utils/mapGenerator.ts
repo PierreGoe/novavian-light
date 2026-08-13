@@ -145,16 +145,39 @@ const getPathType = (col: number): 'military' | 'economic' | 'balanced' => {
 const isForbiddenConnection = (_sourceCol: number, _targetCol: number): boolean => false
 
 // Génération des récompenses selon le type de node
+//
+// Barème risque/récompense : un node qui coûte des Points de Victoire et expose à des pertes
+// (combat, elite) doit payer clairement plus, en espérance, qu'un node gratuit et sans danger
+// (event, rest) — sinon un joueur rationnel n'a aucune raison de se battre.
+// Rappel du coût en PV à la victoire (voir missionStore.ts, vpByDifficulty) :
+//   combat (difficulty 'medium') -> 4 PV     elite (difficulty 'elite') -> 12 PV (3x combat)
 const generateReward = (nodeType: keyof typeof nodeTypeConfig) => {
   switch (nodeType) {
     case 'combat':
-      return { type: 'gold' as const, amount: Math.floor(Math.random() * 50) + 25 }
-    case 'elite':
-      return { type: 'relic' as const, name: 'Relique ancienne' }
-    case 'event':
-      return Math.random() > 0.5
-        ? { type: 'card' as const, name: 'Carte mystique' }
-        : { type: 'gold' as const, amount: Math.floor(Math.random() * 100) + 50 }
+      // Risque réel (4 PV + pertes de combat possibles) : prime nette par rapport aux nodes
+      // gratuits. 60-129 or (moy. ~95), largement au-dessus du plafond des events.
+      return { type: 'gold' as const, amount: Math.floor(Math.random() * 70) + 60 }
+    case 'elite': {
+      // Risque maximal (12 PV, soit 3x un combat classique, pertes potentiellement plus lourdes) :
+      // soit une relique rare (valeur hors-or), soit un gros lot d'or dont la moyenne dépasse
+      // nettement celle d'un combat, cohérent avec le coût en PV bien plus élevé.
+      const isGoldJackpot = Math.random() > 0.6
+      return isGoldJackpot
+        ? { type: 'gold' as const, amount: Math.floor(Math.random() * 160) + 220 } // 220-379 (moy. ~300)
+        : { type: 'relic' as const, name: 'Relique ancienne' }
+    }
+    case 'event': {
+      // Gratuit, aucun risque, aucun coût en PV : reste un joli bonus occasionnel mais plafonné
+      // bas, avec un gros lot rare (10%) pour garder un peu de surprise sans concurrencer le combat.
+      const roll = Math.random()
+      if (roll < 0.55) {
+        return { type: 'card' as const, name: 'Carte mystique' }
+      }
+      if (roll < 0.9) {
+        return { type: 'gold' as const, amount: Math.floor(Math.random() * 30) + 15 } // 15-44 (moy. ~30)
+      }
+      return { type: 'gold' as const, amount: Math.floor(Math.random() * 50) + 50 } // rare jackpot: 50-99
+    }
     case 'rest':
       return { type: 'leadership' as const, amount: 15 }
     default:
