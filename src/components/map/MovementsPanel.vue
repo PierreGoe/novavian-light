@@ -242,13 +242,13 @@ const allItems = computed((): MovementItem[] => {
 
 /* Label destination */
 .clock-label {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   color: #93c5fd;
   text-align: center;
-  max-width: 72px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  max-width: 100px;
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.2;
 }
 
 /* Badges unités */

@@ -110,27 +110,35 @@
 
       <!-- ===== Filtres ===== -->
       <div class="filters">
-        <button
-          v-for="filter in typeFilters"
-          :key="filter.value"
-          class="filter-btn"
-          :class="{ active: activeTypeFilter === filter.value }"
-          @click="activeTypeFilter = filter.value"
-        >
-          {{ filter.label }}
-        </button>
+        <div class="filter-group">
+          <span class="filter-group-label">Type</span>
+          <div class="filter-group-buttons">
+            <button
+              v-for="filter in typeFilters"
+              :key="filter.value"
+              class="filter-btn"
+              :class="{ active: activeTypeFilter === filter.value }"
+              @click="activeTypeFilter = filter.value"
+            >
+              {{ filter.label }}
+            </button>
+          </div>
+        </div>
 
-        <div class="filter-separator"></div>
-
-        <button
-          v-for="rarity in rarityFilters"
-          :key="rarity.value"
-          class="filter-btn rarity"
-          :class="[{ active: activeRarityFilter === rarity.value }, `rarity-${rarity.value}`]"
-          @click="activeRarityFilter = rarity.value"
-        >
-          {{ rarity.label }}
-        </button>
+        <div class="filter-group">
+          <span class="filter-group-label">Rareté</span>
+          <div class="filter-group-buttons">
+            <button
+              v-for="rarity in rarityFilters"
+              :key="rarity.value"
+              class="filter-btn rarity"
+              :class="[{ active: activeRarityFilter === rarity.value }, `rarity-${rarity.value}`]"
+              @click="activeRarityFilter = rarity.value"
+            >
+              {{ rarity.label }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- ===== Forge d'artefacts ===== -->
@@ -824,8 +832,28 @@ $rarity-legendary: #f59e0b;
 .filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 1.25rem;
   margin-bottom: 1.5rem;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.filter-group-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-group-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   align-items: center;
 }
 
@@ -908,12 +936,6 @@ $rarity-legendary: #f59e0b;
       cursor: not-allowed;
     }
   }
-}
-
-.filter-separator {
-  width: 1px;
-  height: 24px;
-  background: rgba(255, 255, 255, 0.2);
 }
 
 .filter-btn {
