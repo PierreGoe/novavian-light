@@ -8,7 +8,6 @@ import GameOverScreen from '@/components/home/GameOverScreen.vue'
 import InventoryView from '@/components/inventory/InventoryView.vue'
 import BazarMystiqueView from '@/components/inventory/BazarMystiqueView.vue'
 import SettingsView from '@/components/settings/SettingsView.vue'
-import { MapExplorationView, LargeMapExplorationView } from '@/components/map'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -37,16 +36,6 @@ const router = createRouter({
       path: '/campaign-score',
       name: 'campaign-score',
       component: CampaignScoreView,
-    },
-    {
-      path: '/map',
-      name: 'map-exploration',
-      component: MapExplorationView,
-    },
-    {
-      path: '/map-large',
-      name: 'map-exploration-large',
-      component: LargeMapExplorationView,
     },
     {
       path: '/game-over',

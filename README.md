@@ -5,6 +5,8 @@
 MiniTravianVue est un prototype de jeu de stratégie inspiré de Travian, entièrement développé en front-end avec Vue.js, HTML/CSS et animations simples.
 L'objectif est de tester et expérimenter les mécaniques de gameplay sans backend ni multijoueur. Ce projet est pensé comme un terrain d'expérimentation pour des développeurs souhaitant explorer la logique d'un jeu de stratégie dans le navigateur.
 
+> **Note** : le projet a largement dépassé le MVP initial décrit ci-dessous. Sont aujourd'hui implémentés : l'exploration de carte (fog of war, grande carte), le combat et les raids, les points de victoire, le siège/destruction de village, l'inventaire, les artefacts et le bazar mystique.
+
 ---
 
 ## Objectifs
@@ -39,18 +41,26 @@ Ouvrir le navigateur sur <http://localhost:5173> (ou port indiqué par Vite).
 
 ---
 
-## Structure du projet (suggestion)
+## Structure du projet
 
 ```
 src/
 ├─ components/
-│  ├─ HomeScreen.vue        # Écran d'accueil / lancement de partie
-│  ├─ RaceSelector.vue      # Sélection de la race du joueur
-│  ├─ MissionTree.vue       # Arbre de missions
-│  ├─ GameScreen.vue        # Écran de jeu principal
-├─ store/                   # État global (Pinia ou reactive)
-├─ utils/                   # Fonctions utilitaires (calcul ressources, progression)
-└─ App.vue                  # Conteneur principal + router
+│  ├─ home/           # Écran d'accueil, sélection de race, game over
+│  ├─ mission/         # Arbre de missions
+│  ├─ campaign/        # Vue de campagne / village (plan, bâtiments, score)
+│  ├─ map/             # Exploration de carte, combat/raids, mouvements de troupes
+│  ├─ inventory/       # Inventaire, artefacts, bazar mystique
+│  ├─ settings/        # Paramètres du jeu
+│  ├─ globals/         # Layout partagé (sidebar, toasts, monitoring)
+│  └─ ui/              # Composants UI génériques réutilisables
+├─ combat/             # Résolution de combat (types + moteur)
+├─ stores/             # État global — singletons `reactive()` (pas de Pinia)
+├─ composables/         # Hooks Vue réutilisables
+├─ data/               # Données statiques du jeu (artefacts, etc.)
+├─ utils/              # Fonctions utilitaires (génération de carte, calculs...)
+├─ router/             # Routes Vue Router
+└─ App.vue             # Conteneur principal
 ```
 
 ---

@@ -1,9 +1,5 @@
 // Composants de carte et exploration - Module isolé
 
-// Composants pour petite carte (11x11)
-export { default as MapExplorationView } from './MapExplorationView.vue'
-export { default as MapGrid } from './MapGrid.vue'
-
 // Composants pour grande carte (50x50) - OPTIMISÉS
 export { default as LargeMapExplorationView } from './LargeMapExplorationView.vue'
 export { default as LargeMapGrid } from './LargeMapGrid.vue'

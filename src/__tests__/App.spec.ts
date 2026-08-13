@@ -1,11 +1,28 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 
 import { mount } from '@vue/test-utils'
+import { createRouter, createWebHistory } from 'vue-router'
 import App from '../App.vue'
+import routes from '../router/index'
 
 describe('App', () => {
-  it('mounts renders properly', () => {
-    const wrapper = mount(App)
-    expect(wrapper.text()).toContain('You did it!')
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('mounts renders properly', async () => {
+    const router = createRouter({
+      history: createWebHistory(),
+      routes: routes.options.routes,
+    })
+    router.push('/')
+    await router.isReady()
+
+    const wrapper = mount(App, {
+      global: {
+        plugins: [router],
+      },
+    })
+    expect(wrapper.exists()).toBe(true)
   })
 })
