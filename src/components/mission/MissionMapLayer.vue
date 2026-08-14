@@ -57,7 +57,7 @@
         </div>
 
         <!-- Pied de carte : sections verticales séparées -->
-        <div class="node-footer" v-if="node.reward || getNodeVp(node.type) > 0">
+        <div class="node-footer" v-if="node.reward || getNodeDifficultyLabel(node.type)">
           <div class="footer-section footer-section--reward" v-if="node.reward">
             <span class="section-label">Récompense</span>
             <span class="chip chip--reward">
@@ -65,10 +65,13 @@
               {{ node.reward.name || `+${node.reward.amount}` }}
             </span>
           </div>
-          <div class="footer-sep" v-if="node.reward && getNodeVp(node.type) > 0"></div>
-          <div class="footer-section footer-section--vp" v-if="getNodeVp(node.type) > 0">
-            <span class="section-label">Objectif</span>
-            <span class="chip chip--vp">⚔️ +{{ getNodeVp(node.type) }} PV</span>
+          <div
+            class="footer-sep"
+            v-if="node.reward && getNodeDifficultyLabel(node.type)"
+          ></div>
+          <div class="footer-section footer-section--vp" v-if="getNodeDifficultyLabel(node.type)">
+            <span class="section-label">Difficulté</span>
+            <span class="chip chip--vp">⚔️ {{ getNodeDifficultyLabel(node.type) }}</span>
           </div>
         </div>
       </div>
@@ -95,12 +98,16 @@ const getConnectionX = (connectionId: string) => {
   return targetNode ? (targetNode.col + 0.5) * 240 : 120
 }
 
-/** PV accordés à la complétion d'un nœud selon son type */
-const getNodeVp = (nodeType: MapNode['type']): number => {
+/**
+ * Libellé de difficulté affiché sur le nœud. Ne promet pas de PV garantis : les points de
+ * victoire viennent des actions sur la carte d'exploration, pas de la complétion du nœud
+ * lui-même (voir gameStore.handleMapNodeAction).
+ */
+const getNodeDifficultyLabel = (nodeType: MapNode['type']): string => {
   switch (nodeType) {
-    case 'combat': return 4   // difficulté medium
-    case 'elite':  return 12  // difficulté elite
-    default:       return 0
+    case 'combat': return 'Moyenne'
+    case 'elite':  return 'Élite'
+    default:       return ''
   }
 }
 
