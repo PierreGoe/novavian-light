@@ -20,12 +20,6 @@ export interface Race {
   name: string
   icon: string
   description: string
-  bonuses: string[]
-  stats: {
-    economy: number
-    military: number
-    defense: number
-  }
 }
 
 /** Type de durabilité d'un artefact */
@@ -863,6 +857,7 @@ export const useGameStore = () => {
     destroyDestructiblesOnCampaignLoss()
 
     gameState.currentStatus = 'game-over'
+    gameState.gameOverReason = 'Votre leadership est tombé à zéro'
     saveGame()
 
     // Afficher une notification persistante — redirection seulement au clic
@@ -1170,18 +1165,20 @@ export const useGameStore = () => {
 
       case 'boss':
         if (toastStore) {
-          toastStore.showSuccess(`${node.title} - Bravo! Vous avez terminé cette carte!`, {
-            duration: 7000,
-          })
+          toastStore.showSuccess(
+            `${node.title} - Bravo! Vous avez terminé cette carte! Générez-en une nouvelle pour continuer.`,
+            { duration: 7000 },
+          )
         }
         // Compléter immédiatement le node (pas de mission)
         completeMapNode(node.id)
-        // Naviguer vers le jeu principal
         gameState.currentGameSection = 'completed-map'
         saveGame()
+        // Reste sur l'arbre de mission — plus de route "/game/victory" (inexistante, menait
+        // à une impasse). Le joueur relance une carte via le bouton "New Map" déjà en place.
         if (router) {
           setTimeout(() => {
-            router.push('/game/victory')
+            router.push('/mission-tree')
           }, 1000) // Petit délai pour laisser le temps de voir le toast
         }
         break

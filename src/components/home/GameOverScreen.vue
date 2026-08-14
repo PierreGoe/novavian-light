@@ -137,8 +137,7 @@ const restartWithSameRace = () => {
   gameStore.resetMapOnly()
 
   // Réinitialiser l'état Game Over
-  //  gameStore.gameState.isGameOver = false
-  //  gameStore.gameState.gameOverReason = undefined
+  gameStore.gameState.gameOverReason = undefined
   gameStore.gameState.currentGameSection = undefined
 
   gameStore.saveGame()
