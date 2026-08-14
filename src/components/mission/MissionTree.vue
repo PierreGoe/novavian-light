@@ -67,30 +67,47 @@
 
     <!-- Légende et contrôles -->
     <footer class="map-footer">
-      <div class="legend">
-        <div class="legend-item">
-          <span class="legend-icon" style="color: #dc143c">⚔️</span>
-          <span>Combat</span>
+      <div class="legends">
+        <div class="legend">
+          <div class="legend-item">
+            <span class="legend-icon" style="color: #dc143c">⚔️</span>
+            <span>Combat</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-icon" style="color: #ffd700">👑</span>
+            <span>Élite</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-icon" style="color: #32cd32">🏪</span>
+            <span>Magasin</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-icon" style="color: #9932cc">❓</span>
+            <span>Événement</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-icon" style="color: #4169e1">🏕️</span>
+            <span>Repos</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-icon" style="color: #8b0000">💀</span>
+            <span>Boss</span>
+          </div>
         </div>
-        <div class="legend-item">
-          <span class="legend-icon" style="color: #ffd700">👑</span>
-          <span>Élite</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-icon" style="color: #32cd32">🏪</span>
-          <span>Magasin</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-icon" style="color: #9932cc">❓</span>
-          <span>Événement</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-icon" style="color: #4169e1">🏕️</span>
-          <span>Repos</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-icon" style="color: #8b0000">💀</span>
-          <span>Boss</span>
+
+        <div class="status-legend">
+          <div class="legend-item">
+            <span class="legend-icon status-icon-completed">✓</span>
+            <span>Terminé</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-icon status-icon-accessible">→</span>
+            <span>Accessible</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-icon status-icon-locked">🔒</span>
+            <span>Verrouillé — terminez un nœud connecté pour le débloquer</span>
+          </div>
         </div>
       </div>
 
@@ -387,10 +404,22 @@ onMounted(() => {
   backdrop-filter: blur(10px);
 }
 
-.legend {
+.legends {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.legend,
+.status-legend {
   display: flex;
   gap: 1.5rem;
   flex-wrap: wrap;
+}
+
+.status-legend {
+  gap: 1rem;
+  opacity: 0.85;
 }
 
 .legend-item {
@@ -402,6 +431,32 @@ onMounted(() => {
 
 .legend-icon {
   font-size: 1.2rem;
+}
+
+.status-legend .legend-icon {
+  font-size: 0.85rem;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.status-icon-completed {
+  background: #228b22;
+  color: white;
+}
+
+.status-icon-accessible {
+  background: #daa520;
+  color: white;
+}
+
+.status-icon-locked {
+  background: #444;
+  color: #888;
 }
 
 .home-button {
