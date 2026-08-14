@@ -29,8 +29,8 @@
         v-for="(strategy, mode) in QUICK_ATTACK_STRATEGIES"
         :key="mode"
         class="ap-strat"
-        :class="{ 'ap-strat--disabled': !canUseMode(mode) }"
-        :disabled="!canUseMode(mode)"
+        :class="{ 'ap-strat--disabled': !canUseMode(mode) || sendingQuick !== null }"
+        :disabled="!canUseMode(mode) || sendingQuick !== null"
         @click="launchQuick(mode)"
       >
         <!-- Ligne titre -->
@@ -155,6 +155,7 @@
 import { ref, computed, watch } from 'vue'
 import type { MovementUnit } from '../../stores/mapStore'
 import { UNIT_DEFINITIONS } from '../../stores/missionStore'
+import { useToastStore } from '../../stores/toastStore'
 import {
   QUICK_ATTACK_STRATEGIES,
   buildQuickAttackPlan,
@@ -183,6 +184,8 @@ const emit = defineEmits<{
   /** Émis quand le joueur confirme l'attaque avec les unités choisies */
   confirm: [units: MovementUnit[]]
 }>()
+
+const toastStore = useToastStore()
 
 // ------------------------------------
 // État local
@@ -298,11 +301,24 @@ const travelLabel = (units: MovementUnit[]): string => {
 // Confirmation
 // ------------------------------------
 
+/** true pendant le court instant qui suit un clic, pour éviter un double-envoi */
+const sendingQuick = ref<QuickAttackMode | null>(null)
+
 /** Mode rapide : envoi immédiat au clic sur la carte */
 const launchQuick = (mode: QuickAttackMode) => {
+  if (sendingQuick.value) return
   const plan = quickPlanFor(mode)
   if (!plan) return
+
+  sendingQuick.value = mode
   emit('confirm', plan.units)
+  toastStore.showSuccess(`⚔️ ${QUICK_ATTACK_STRATEGIES[mode].label} envoyée !`, { duration: 2000 })
+
+  // Le panneau disparaît généralement de lui-même (troupes engagées côté parent) ;
+  // ce court verrou protège seulement contre un double-clic dans le même instant.
+  requestAnimationFrame(() => {
+    sendingQuick.value = null
+  })
 }
 
 /** Mode custom : envoi via le bouton */
