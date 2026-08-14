@@ -1091,4 +1091,37 @@ const quickAction = (type: BuildingType) => {
   opacity: 0;
   transform: translateY(8px);
 }
+
+/* ====== Responsive ======
+   La carte garde ses 3x3 zones nommées (les routes SVG sont alignées dessus) —
+   on réduit juste densité et tailles pour les petits écrans plutôt que de
+   changer la structure de la grille. */
+@media (max-width: 480px) {
+  .village-map {
+    gap: 0.4rem;
+    padding: 0.9rem 0.6rem;
+    min-height: 200px;
+  }
+
+  .building-tile {
+    min-height: 64px;
+  }
+
+  .tile-icon {
+    font-size: 1.4rem;
+  }
+
+  .tile-headquarters .tile-icon {
+    font-size: 1.7rem;
+  }
+
+  .tile-name {
+    font-size: 0.55rem;
+    max-width: 60px;
+  }
+
+  .tile-status {
+    font-size: 0.48rem;
+  }
+}
 </style>
