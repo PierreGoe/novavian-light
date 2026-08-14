@@ -47,6 +47,11 @@ function reset() {
 
 // Raccourci clavier : Shift+P pour afficher/masquer
 function onKeyDown(e: KeyboardEvent) {
+  const target = e.target as HTMLElement | null
+  const isTyping =
+    target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable
+  if (isTyping) return
+
   if (e.shiftKey && e.key === 'P') visible.value = !visible.value
 }
 
