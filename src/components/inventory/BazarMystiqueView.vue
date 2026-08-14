@@ -2,6 +2,13 @@
   <div class="bazar-page">
     <!-- En-tête -->
     <header class="bazar-header">
+      <button
+        class="back-btn"
+        @click="exitBazar"
+        title="Quitter le Bazar — vous ne pourrez plus y revenir"
+      >
+        ← Retour
+      </button>
       <h1>🔮 Bazar Mystique</h1>
       <span class="gold-display">🪙 {{ currentGold }} or</span>
     </header>
@@ -331,13 +338,13 @@ $rarity-legendary: #f59e0b;
 .bazar-header {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 1rem;
   padding: 1rem 2rem;
   background: rgba(80, 0, 120, 0.35);
   border-bottom: 1px solid rgba(160, 80, 255, 0.25);
 
   h1 {
+    flex: 1;
     margin: 0;
     font-size: 1.5rem;
     text-align: center;
