@@ -101,6 +101,7 @@ import {
 } from '../../stores/mapStore'
 import { useMissionStore, UNIT_DEFINITIONS, type MilitaryUnit } from '../../stores/missionStore'
 import { useGameStore } from '../../stores/gameStore'
+import { formatDuration } from '../../utils/formatDuration'
 import {
   defaultResolver,
   computeSiegeDestruction,
@@ -185,12 +186,8 @@ const nextHostileRaidLocation = computed(() => {
   return tile ? `Forteresse (${tile.position.x}, ${tile.position.y})` : 'Forteresse hostile'
 })
 
-/** Formate un nombre de secondes en MM:SS */
-const formatCountdown = (seconds: number): string => {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return m > 0 ? `${m}m ${s.toString().padStart(2, '0')}s` : `${s}s`
-}
+/** Formate un nombre de secondes en "5m 23s" ou "45s" */
+const formatCountdown = (seconds: number): string => formatDuration(seconds * 1000)
 
 const openCombatReport = (report: SavedBattleReport) => {
   combatReport.value = null

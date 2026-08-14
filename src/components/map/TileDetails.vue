@@ -315,6 +315,7 @@ import AttackPanel from './AttackPanel.vue'
 import type { AvailableUnit } from '../../combat/attackPlanner'
 import { GARRISON_REGEN_DURATION_MS } from '../../config'
 import { computeLootCapacity, computePillage, UNIT_CARRY_CAPACITY } from '../../combat/loot'
+import { formatDuration } from '../../utils/formatDuration'
 
 // Props
 interface Props {
@@ -406,10 +407,7 @@ onUnmounted(() => {
 })
 
 /** Formatte un temps restant en ms en "1m 30s" ou "45s" */
-const formatRemaining = (ms: number): string => {
-  const s = Math.max(0, Math.ceil(ms / 1000))
-  return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`
-}
+const formatRemaining = formatDuration
 
 // ------------------------------------
 // Phase 2 — Pillage & garnison

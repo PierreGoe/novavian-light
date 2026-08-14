@@ -49,6 +49,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMissionStore } from '../../stores/missionStore'
 import { useMapStore } from '../../stores/mapStore'
+import { formatDuration } from '../../utils/formatDuration'
 
 const missionStore = useMissionStore()
 const mapStore = useMapStore()
@@ -73,11 +74,9 @@ const getProgress = (startedAt: number, endsAt: number): number => {
 }
 
 const formatEta = (endsAt: number): string => {
-  const remaining = Math.max(0, endsAt - now.value)
-  const s = Math.ceil(remaining / 1000)
-  if (s <= 0) return 'Arrivée...'
-  if (s < 60) return `${s}s`
-  return `${Math.floor(s / 60)}m${s % 60}s`
+  const remaining = endsAt - now.value
+  if (remaining <= 0) return 'Arrivée...'
+  return formatDuration(remaining)
 }
 
 const UNIT_ICONS: Record<string, string> = {
