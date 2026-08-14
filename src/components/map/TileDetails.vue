@@ -181,6 +181,30 @@
       </div>
     </div>
 
+    <!-- Estimation de la garnison ennemie — aide à la décision avant d'attaquer -->
+    <div
+      v-if="garrisonEstimate"
+      class="garrison-estimate"
+      :class="`garrison-tier-${garrisonTierSlug(garrisonEstimate.label)}`"
+    >
+      <div class="section-label">
+        🛡️ Garnison {{ garrisonEstimate.isExact ? 'estimée' : 'estimée (jamais explorée)' }}
+      </div>
+      <div class="garrison-estimate-body">
+        <span
+          class="garrison-tier-badge"
+          :class="`tier-badge-${garrisonTierSlug(garrisonEstimate.label)}`"
+        >
+          {{ garrisonEstimate.label }}
+        </span>
+        <span class="garrison-estimate-text">{{ garrisonEstimate.text }}</span>
+      </div>
+      <p v-if="!garrisonEstimate.isExact" class="garrison-estimate-hint">
+        Estimation basée sur le type de territoire — la garnison réelle n'est révélée qu'au premier
+        combat.
+      </p>
+    </div>
+
     <!-- Stock pillable (Phase 2) -->
     <div
       v-if="tile.lootStock && (tile.type === 'village_enemy' || tile.type === 'stronghold')"
@@ -280,6 +304,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   useMapStore,
+  estimateGarrisonStrength,
   type MapTile,
   type MovementUnit,
   type FortressZone,
@@ -427,6 +452,25 @@ const estimatedPillage = computed(() => {
 const estimatedLoot = computed(
   () => estimatedPillage.value?.loot ?? { gold: 0, wood: 0, iron: 0, crop: 0 },
 )
+
+/**
+ * Estimation de la force de la garnison ennemie — affichée AVANT que le joueur engage ses
+ * troupes, pour éviter de miser à l'aveugle. Lecture seule : ne génère jamais la vraie
+ * garnison (voir estimateGarrisonStrength dans mapStore.ts pour le détail de la formule).
+ */
+const garrisonEstimate = computed(() => {
+  if (!props.tile) return null
+  if (props.tile.type !== 'village_enemy' && props.tile.type !== 'stronghold') return null
+  return estimateGarrisonStrength(props.tile)
+})
+
+/** Slug ASCII pour les classes CSS (le label affiché peut contenir des accents) */
+const GARRISON_TIER_SLUGS: Record<string, string> = {
+  Faible: 'low',
+  Modérée: 'mid',
+  Forte: 'high',
+}
+const garrisonTierSlug = (label: string): string => GARRISON_TIER_SLUGS[label] ?? 'mid'
 
 /** Progression de la régénération de la garnison (0–100) */
 const garrisonRegenPct = computed(() => {
@@ -1032,6 +1076,75 @@ const getResourceIcon = (resource: string) => {
   border-radius: 999px;
   padding: 1px 7px;
   cursor: default;
+}
+
+/* ── Estimation de la garnison ennemie ── */
+.garrison-estimate {
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.garrison-tier-low {
+  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.06);
+}
+
+.garrison-tier-mid {
+  border-color: rgba(251, 146, 60, 0.35);
+  background: rgba(251, 146, 60, 0.06);
+}
+
+.garrison-tier-high {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.garrison-estimate-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.garrison-tier-badge {
+  font-size: 0.78em;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+}
+
+.tier-badge-low {
+  background: rgba(74, 222, 128, 0.2);
+  color: #86efac;
+}
+
+.tier-badge-mid {
+  background: rgba(251, 146, 60, 0.2);
+  color: #fdba74;
+}
+
+.tier-badge-high {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+.garrison-estimate-text {
+  font-size: 0.92em;
+  font-weight: 600;
+  color: #ddd;
+}
+
+.garrison-estimate-hint {
+  font-size: 0.78em;
+  color: #888;
+  margin: 0;
+  font-style: italic;
 }
 
 /* ── Phase 2 — Pillage & garnison ── */

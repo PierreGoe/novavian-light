@@ -245,6 +245,118 @@ const generateLootStock = (isStronghold: boolean): EnemyLootStock => {
   }
 }
 
+// ====================================================================
+// ESTIMATION DE GARNISON (aide à la décision avant attaque)
+// ====================================================================
+//
+// La vraie garnison (src/components/map/LargeMapExplorationView.vue,
+// fonction locale `generateEnemyGarrison`) n'est générée qu'au tout premier
+// combat sur une tuile — tant qu'elle n'a pas été attaquée, `tile.garrison`
+// est `undefined` et on ne doit surtout pas la faire générer juste pour
+// l'afficher (ça romprait le côté "lazy" et pourrait désynchroniser une
+// génération en cours de modification ailleurs).
+//
+// Les constantes ci-dessous ne font que MIROITER la forme du générateur réel
+// (mêmes bases `enemyBaseInfantry` / `enemyStrongholdInfantry`, même ordre de
+// grandeur de variation) pour produire une fourchette honnête, PAS une copie
+// exacte de son aléatoire (archer conditionnel à 50%, cavalerie fixe, etc.).
+//
+// ⚠️ À REVOIR si `generateEnemyGarrison` change de formule (une évolution
+// parallèle y ajoute un multiplicateur de difficulté) — ajuster les
+// constantes ci-dessous en conséquence, elles sont volontairement isolées et
+// nommées pour rester faciles à recaler.
+
+/** Variation aléatoire max reproduite de `generateEnemyGarrison` (Math.floor(Math.random() * 3) → 0..2) */
+const GARRISON_ESTIMATE_INFANTRY_VARIATION_MAX = 2
+/** Archers d'un village : présents ~50% du temps, 1 à 3 unités (1 + variation 0..2) */
+const GARRISON_ESTIMATE_VILLAGE_ARCHER_MAX = 3
+/** Archers d'une forteresse : toujours présents, 3 à 5 unités (3 + variation 0..2) */
+const GARRISON_ESTIMATE_STRONGHOLD_ARCHER_MAX = 5
+/** Cavalerie d'une forteresse : toujours 2 unités fixes dans le générateur réel */
+const GARRISON_ESTIMATE_STRONGHOLD_CAVALRY = 2
+
+/** Seuils (nombre d'unités) séparant les tiers de force affichés au joueur */
+const GARRISON_STRENGTH_TIER_LOW_MAX = 5
+const GARRISON_STRENGTH_TIER_MID_MAX = 10
+
+/** Tier de force lisible pour un joueur, dérivé d'un nombre d'unités */
+export type GarrisonStrengthLabel = 'Faible' | 'Modérée' | 'Forte'
+
+const garrisonStrengthLabel = (units: number): GarrisonStrengthLabel => {
+  if (units <= GARRISON_STRENGTH_TIER_LOW_MAX) return 'Faible'
+  if (units <= GARRISON_STRENGTH_TIER_MID_MAX) return 'Modérée'
+  return 'Forte'
+}
+
+/** Résultat de `estimateGarrisonStrength`, prêt à afficher dans TileDetails */
+export interface GarrisonStrengthEstimate {
+  /** true si la garnison a déjà été générée (tuile déjà attaquée) → donnée exacte, pas une estimation */
+  isExact: boolean
+  /** Nombre d'unités approximatif (ou exact si isExact) — utile pour un tri/affichage compact */
+  approxUnits: number
+  /** Borne haute de la fourchette estimée (= approxUnits si isExact) */
+  approxUnitsMax: number
+  /** Tier de force lisible (Faible / Modérée / Forte) */
+  label: GarrisonStrengthLabel
+  /** Texte prêt à afficher, ex. "~3-8 unités" ou "12 unités (garnison connue)" */
+  text: string
+}
+
+/**
+ * Estime la force de la garnison ennemie d'une tuile, SANS jamais générer ni
+ * lire/écrire `tile.garrison` de façon destructive — lecture seule, appelable
+ * à tout moment (y compris avant le premier combat) pour aider le joueur à
+ * décider s'il attaque ou non.
+ *
+ * - Si `tile.garrison` existe déjà (post-1er-combat), on résume les vraies
+ *   unités actuelles (somme des `count`) — donnée exacte.
+ * - Sinon, on approxime à partir des réglages `gameSettings.enemyBaseInfantry`
+ *   / `enemyStrongholdInfantry` (voir note plus haut sur les limites de cette
+ *   estimation).
+ */
+export const estimateGarrisonStrength = (tile: MapTile): GarrisonStrengthEstimate => {
+  // Cas 1 — garnison réelle déjà connue (tuile déjà attaquée au moins une fois)
+  if (tile.garrison) {
+    const total = tile.garrison.units.reduce((sum, u) => sum + u.count, 0)
+    return {
+      isExact: true,
+      approxUnits: total,
+      approxUnitsMax: total,
+      label: garrisonStrengthLabel(total),
+      text: `${total} unité${total > 1 ? 's' : ''} (garnison connue)`,
+    }
+  }
+
+  // Cas 2 — jamais attaquée : approximation à partir de la même base que generateEnemyGarrison
+  const isStronghold = tile.type === 'stronghold'
+  const baseInfantry = isStronghold
+    ? gameSettings.enemyStrongholdInfantry
+    : gameSettings.enemyBaseInfantry
+
+  const minUnits = baseInfantry
+  let maxUnits = baseInfantry + GARRISON_ESTIMATE_INFANTRY_VARIATION_MAX
+
+  if (isStronghold) {
+    // Forteresse : archers + cavalerie systématiquement présents dans le générateur réel
+    maxUnits += GARRISON_ESTIMATE_STRONGHOLD_ARCHER_MAX + GARRISON_ESTIMATE_STRONGHOLD_CAVALRY
+  } else {
+    // Village : archers présents environ 1 fois sur 2 → seulement inclus dans la borne haute
+    maxUnits += GARRISON_ESTIMATE_VILLAGE_ARCHER_MAX
+  }
+
+  const approxUnits = Math.round((minUnits + maxUnits) / 2)
+
+  return {
+    isExact: false,
+    approxUnits,
+    approxUnitsMax: maxUnits,
+    label: garrisonStrengthLabel(approxUnits),
+    text: isStronghold
+      ? `~${minUnits}-${maxUnits} unités + soutien (archers, cavalerie)`
+      : `~${minUnits}-${maxUnits} unités`,
+  }
+}
+
 /**
  * Post-traitement en deux passes :
  *
