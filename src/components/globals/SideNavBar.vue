@@ -78,6 +78,36 @@
       </div>
     </div>
 
+    <!-- Artefacts équipés + bonus totaux -->
+    <div class="nav-artifacts" v-if="isInGame && equippedArtifacts.length > 0">
+      <div
+        v-for="artifact in equippedArtifacts"
+        :key="artifact.id"
+        class="artifact-chip"
+        :class="`artifact-${artifact.rarity}`"
+        :title="getArtifactTooltip(artifact)"
+      >
+        <span class="artifact-icon">{{ artifact.icon }}</span>
+        <Transition name="fade-text">
+          <span v-if="!isCollapsed" class="artifact-name">{{ artifact.name }}</span>
+        </Transition>
+      </div>
+
+      <Transition name="fade-text">
+        <div class="total-effects" v-if="!isCollapsed && hasAnyTotalEffect" title="Bonus totaux">
+          <span v-if="totalEffects.economy > 0" class="total-effect economy"
+            >📈 +{{ totalEffects.economy }}%</span
+          >
+          <span v-if="totalEffects.military > 0" class="total-effect military"
+            >⚔️ +{{ totalEffects.military }}%</span
+          >
+          <span v-if="totalEffects.defense > 0" class="total-effect defense"
+            >🛡️ +{{ totalEffects.defense }}%</span
+          >
+        </div>
+      </Transition>
+    </div>
+
     <!-- Bouton menu principal (retour accueil) -->
     <button v-if="isInGame" class="nav-home-btn" @click="goHome" title="Menu principal">
       <span class="nav-icon">🏠</span>
@@ -125,7 +155,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useGameStore } from '@/stores/gameStore'
+import { useGameStore, type Artifact } from '@/stores/gameStore'
 
 // ===============================================================
 // Stores & router
@@ -190,6 +220,44 @@ const leadershipTooltip = computed(() => {
   const status = gameStore.leadershipStatus.value
   return `Leadership: ${ls}/200 — ${status.description}`
 })
+
+// ===============================================================
+// Artefacts équipés + bonus totaux
+// ===============================================================
+const equippedArtifacts = computed(() => gameStore.getEquippedArtifacts.value)
+const totalEffects = computed(() => gameStore.getTotalArtifactEffects.value)
+const hasAnyTotalEffect = computed(
+  () => totalEffects.value.economy > 0 || totalEffects.value.military > 0 || totalEffects.value.defense > 0,
+)
+
+const hasVisibleEffects = (artifact: Artifact): boolean => {
+  return !!(artifact.effects.economy || artifact.effects.military || artifact.effects.defense)
+}
+
+const getArtifactTooltip = (artifact: Artifact): string => {
+  let tooltip = `${artifact.name} (${artifact.rarity})\n${artifact.description}`
+
+  if (hasVisibleEffects(artifact)) {
+    tooltip += '\n\nEffets:'
+    if (artifact.effects.economy) tooltip += `\n• Économie: +${artifact.effects.economy}%`
+    if (artifact.effects.military) tooltip += `\n• Militaire: +${artifact.effects.military}%`
+    if (artifact.effects.defense) tooltip += `\n• Défense: +${artifact.effects.defense}%`
+
+    if (artifact.effects.resourceBonus) {
+      const resourceBonus = artifact.effects.resourceBonus
+      if (resourceBonus.wood) tooltip += `\n• Bois: +${resourceBonus.wood}%`
+      if (resourceBonus.stone) tooltip += `\n• Pierre: +${resourceBonus.stone}%`
+      if (resourceBonus.iron) tooltip += `\n• Fer: +${resourceBonus.iron}%`
+      if (resourceBonus.crop) tooltip += `\n• Céréales: +${resourceBonus.crop}%`
+    }
+  }
+
+  if (artifact.obtainedFrom) {
+    tooltip += `\n\nObtenu: ${artifact.obtainedFrom}`
+  }
+
+  return tooltip
+}
 
 const formatNumber = (num: number): string => {
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M'
@@ -484,6 +552,71 @@ $mobile-breakpoint: 768px;
 .stat-race {
   background: rgba(218, 165, 32, 0.06);
   border-color: rgba(218, 165, 32, 0.15);
+}
+
+// Artefacts équipés
+.nav-artifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.artifact-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(169, 169, 169, 0.5);
+  background: rgba(169, 169, 169, 0.08);
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 0.85rem;
+
+  .artifact-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    width: 1.5rem;
+    text-align: center;
+  }
+
+  .artifact-name {
+    color: $text-color;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &.artifact-rare {
+    border-color: rgba(30, 144, 255, 0.5);
+    background: rgba(30, 144, 255, 0.08);
+  }
+
+  &.artifact-epic {
+    border-color: rgba(138, 43, 226, 0.5);
+    background: rgba(138, 43, 226, 0.08);
+  }
+
+  &.artifact-legendary {
+    border-color: rgba(255, 165, 0, 0.7);
+    background: rgba(255, 165, 0, 0.12);
+    box-shadow: 0 0 8px rgba(255, 165, 0, 0.25);
+  }
+}
+
+.total-effects {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.4rem 0.75rem;
+}
+
+.total-effect {
+  font-size: 0.72rem;
+  color: $text-color;
+  opacity: 0.85;
+  line-height: 1.3;
 }
 
 @keyframes leadershipAlert {

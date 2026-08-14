@@ -2,13 +2,43 @@
   <div class="mission-map">
     <div class="map-background"></div>
 
-    <!-- Bandeau inventaire + progression de mission / objectif de PV -->
-    <MissionTreeHeader />
-
-    <!-- En-tête -->
+    <!-- En-tête : titre de la page + progression/objectif de cette carte -->
     <header class="map-header">
-      <h1>Carte de Mission</h1>
-      <p>Progressez à travers les dangers jusqu'au combat final</p>
+      <div class="map-header-title">
+        <h1>Carte de Mission</h1>
+        <p>Progressez à travers les dangers jusqu'au combat final</p>
+      </div>
+
+      <div class="map-header-status" v-if="mapGenerated">
+        <div class="progress-container">
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{ width: progressPercentage + '%' }"></div>
+          </div>
+          <span class="progress-text">{{ Math.round(progressPercentage) }}%</span>
+        </div>
+
+        <div class="player-status">
+          <div class="status-item">
+            <span class="status-label">Niveau:</span>
+            <span class="status-value">{{ currentPlayerRow + 1 }}/{{ mapLayers.length }}</span>
+          </div>
+          <div class="status-item" v-if="nextAvailableNodes.length > 0">
+            <span class="status-label">Choix:</span>
+            <span class="status-value"
+              >{{ nextAvailableNodes.length }} option{{
+                nextAvailableNodes.length > 1 ? 's' : ''
+              }}</span
+            >
+          </div>
+          <div
+            class="status-item status-item--vp"
+            :class="{ 'status-item--vp-done': totalCombatVP >= COMBAT_VP_GOAL }"
+          >
+            <span class="status-label">⚔️ Objectif :</span>
+            <span class="status-value">{{ totalCombatVP }} / {{ COMBAT_VP_GOAL }} PV</span>
+          </div>
+        </div>
+      </div>
 
       <button class="reset-button" @click="resetMap" title="Nouvelle carte">🔄New Map</button>
     </header>
@@ -72,11 +102,10 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useGameStore } from '@/stores/gameStore'
+import { useGameStore, COMBAT_VP_GOAL } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
 import type { MapNode } from '@/utils'
 import MissionMapLayer from './MissionMapLayer.vue'
-import MissionTreeHeader from './MissionTreeHeader.vue'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -87,6 +116,28 @@ const mapLayers = computed(() => gameStore.gameState.mapState.layers)
 const currentPlayerRow = computed(() => gameStore.gameState.mapState.currentPlayerRow)
 const selectedNodeId = computed(() => gameStore.gameState.mapState.selectedNodeId)
 const mapGenerated = computed(() => gameStore.gameState.mapState.mapGenerated)
+
+// Progression de la carte de mission + objectif de PV combat
+const progressPercentage = computed(() => {
+  const totalNodes = mapLayers.value.reduce((sum, layer) => sum + layer.nodes.length, 0)
+  const completedNodes = mapLayers.value.reduce(
+    (sum, layer) => sum + layer.nodes.filter((node) => node.completed).length,
+    0,
+  )
+  return totalNodes > 0 ? (completedNodes / totalNodes) * 100 : 0
+})
+
+const nextAvailableNodes = computed(() => {
+  const accessible: MapNode[] = []
+  mapLayers.value.forEach((layer) => {
+    layer.nodes.forEach((node) => {
+      if (node.accessible && !node.completed) accessible.push(node)
+    })
+  })
+  return accessible
+})
+
+const totalCombatVP = computed(() => gameStore.victoryPoints.value.combat)
 
 // Computed
 const allNodes = computed(() => {
@@ -169,6 +220,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
   padding: 1.5rem 2rem;
   background: rgba(0, 0, 0, 0.4);
   border-bottom: 1px solid rgba(218, 165, 32, 0.3);
@@ -176,6 +229,10 @@ onMounted(() => {
   top: 0;
   z-index: 100;
   backdrop-filter: blur(10px);
+}
+
+.map-header-title {
+  flex-shrink: 0;
 }
 
 .map-header h1 {
@@ -189,6 +246,92 @@ onMounted(() => {
   font-size: 0.9rem;
   margin: 0.25rem 0 0;
   opacity: 0.8;
+}
+
+.map-header-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 140px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(139, 69, 19, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  min-width: 80px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #daa520, #ffd700);
+  transition: width 0.5s ease;
+}
+
+.progress-text {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #daa520;
+  min-width: 40px;
+}
+
+.player-status {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: rgba(139, 69, 19, 0.3);
+  border-radius: 8px;
+  border: 1px solid rgba(218, 165, 32, 0.3);
+  white-space: nowrap;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.status-item--vp {
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(218, 165, 32, 0.1);
+  border: 1px solid rgba(218, 165, 32, 0.3);
+}
+
+.status-item--vp-done {
+  background: rgba(34, 139, 34, 0.15);
+  border-color: rgba(34, 139, 34, 0.5);
+  animation: vp-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes vp-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 139, 34, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(34, 139, 34, 0.2);
+  }
+}
+
+.status-label {
+  color: #daa520;
+  font-weight: bold;
+}
+
+.status-value {
+  color: #f4e4bc;
 }
 
 .reset-button {
@@ -340,6 +483,18 @@ onMounted(() => {
     flex-direction: column;
     gap: 1rem;
     padding: 1rem;
+  }
+
+  .map-header-status {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .player-status {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
   }
 
   .map-container {
