@@ -76,17 +76,18 @@ import ResourceCounter from '@/components/globals/ResourceCounter.vue'
 const missionStore = useMissionStore()
 const town = computed(() => missionStore.town.value)
 
-const totalUnits = computed(
-  () => town.value?.units?.reduce((sum: number, u: { count: number }) => sum + u.count, 0) || 0,
-)
-
 type TabId = 'village' | 'resources' | 'military'
 const activeTab = ref<TabId>('village')
 
 const TABS = computed(() => [
   { id: 'village' as TabId, icon: '🏛️', label: 'Village', badge: undefined },
   { id: 'resources' as TabId, icon: '🌾', label: 'Ressources', badge: undefined },
-  { id: 'military' as TabId, icon: '⚔️', label: 'Militaire', badge: totalUnits.value },
+  {
+    id: 'military' as TabId,
+    icon: '⚔️',
+    label: 'Militaire',
+    badge: missionStore.trainingQueue.value.length,
+  },
 ])
 
 const RESOURCES = [
