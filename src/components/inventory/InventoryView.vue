@@ -280,7 +280,14 @@
 
     <!-- ===== Modale de détail ===== -->
     <Transition name="modal">
-      <div v-if="selectedArtifact" class="modal-overlay" @click.self="closeDetail">
+      <div
+        v-if="selectedArtifact"
+        ref="modalOverlayRef"
+        class="modal-overlay"
+        tabindex="-1"
+        @click.self="closeDetail"
+        @keydown.esc="closeDetail"
+      >
         <div class="modal-card" :class="`rarity-${selectedArtifact.rarity}`">
           <button class="modal-close" @click="closeDetail" aria-label="Fermer">×</button>
 
@@ -377,7 +384,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore, MAX_ACTIVE_ARTIFACTS, type Artifact } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
@@ -456,9 +463,12 @@ const filteredArtifacts = computed(() => {
 
 // ===== Modale de détail =====
 const selectedArtifact = ref<Artifact | null>(null)
+const modalOverlayRef = ref<HTMLElement | null>(null)
 
-const openDetail = (artifact: Artifact) => {
+const openDetail = async (artifact: Artifact) => {
   selectedArtifact.value = artifact
+  await nextTick()
+  modalOverlayRef.value?.focus()
 }
 
 const closeDetail = () => {
@@ -1215,6 +1225,7 @@ $rarity-legendary: #f59e0b;
   justify-content: center;
   z-index: 1000;
   padding: 1rem;
+  outline: none;
 }
 
 .modal-card {
