@@ -36,18 +36,27 @@
           },
         ]"
         :style="{ left: `${node.col * 240 + 120}px` }"
+        v-clickable="node.inProgress || (node.accessible && !node.completed)"
         @click="
           node.inProgress || (node.accessible && !node.completed)
             ? emit('selectNode', node)
             : undefined
         "
-        :title="`${node.title}\n${node.description}`"
       >
         <!-- Badge statut en haut-droite -->
         <div class="node-status">
           <span v-if="node.completed" class="status-completed">✓</span>
           <span v-else-if="node.accessible" class="status-accessible">→</span>
           <span v-else class="status-locked">🔒</span>
+        </div>
+
+        <!-- Description : visible au survol ET au focus clavier (pas seulement au survol souris) -->
+        <div class="node-tooltip">
+          <strong>{{ node.title }}</strong>
+          <span>{{ node.description }}</span>
+          <span v-if="!node.accessible && !node.completed && !node.inProgress" class="node-tooltip-locked">
+            🔒 Terminez un nœud connecté pour débloquer
+          </span>
         </div>
 
         <!-- Corps : icône + titre -->
@@ -321,6 +330,45 @@ const getRewardIcon = (type: string): string => {
   font-size: 0.9rem;
   font-weight: bold;
   z-index: 5;
+}
+
+/* ─── Description (survol ET focus clavier) ─────────────────── */
+.node-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 220px;
+  background: rgba(10, 8, 4, 0.97);
+  border: 1px solid rgba(218, 165, 32, 0.4);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #d4c9a8;
+  z-index: 20;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.node-tooltip strong {
+  color: #daa520;
+  font-size: 0.78rem;
+}
+
+.node-tooltip-locked {
+  color: #f59e0b;
+}
+
+.map-node:hover .node-tooltip,
+.map-node:focus-visible .node-tooltip {
+  opacity: 1;
+  visibility: visible;
 }
 .status-completed { background: #228b22; color: white; }
 .status-accessible { background: #daa520; color: white; }
