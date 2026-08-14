@@ -22,6 +22,7 @@
 
     <!-- Viewport principal avec défilement -->
     <div
+      ref="mapViewportRef"
       class="map-viewport"
       @mousedown="startPan"
       @mousemove="handlePan"
@@ -119,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMapStore, type MapTile, MAP_CONFIG, type HostilityState } from '../../stores/mapStore'
 import { useMapViewport, ZOOM_PRESETS } from '../../composables/useMapViewport'
 import { gameSettings } from '../../stores/gameSettingsStore'
@@ -156,6 +157,24 @@ const {
 } = useMapViewport()
 
 const isLoading = ref(false)
+
+// Taille réelle du viewport (suit .map-viewport, y compris son breakpoint mobile height: 400px)
+const mapViewportRef = ref<HTMLElement | null>(null)
+const viewportPixelHeight = ref(600)
+let viewportResizeObserver: ResizeObserver | null = null
+
+onMounted(() => {
+  if (!mapViewportRef.value) return
+  viewportResizeObserver = new ResizeObserver((entries) => {
+    const entry = entries[0]
+    if (entry) viewportPixelHeight.value = entry.contentRect.height
+  })
+  viewportResizeObserver.observe(mapViewportRef.value)
+})
+
+onUnmounted(() => {
+  viewportResizeObserver?.disconnect()
+})
 
 // Dimensions réelles du viewport après clamping aux bords de la carte
 const viewportDimensions = computed(() => {
@@ -195,7 +214,7 @@ const visibleTiles = computed(() => {
 // Style CSS Grid — computed pour garantir la synchronisation avec viewportDimensions
 const tileSizeAdaptive = computed(() => {
   const { cols } = viewportDimensions.value
-  const containerSize = 600 - 40
+  const containerSize = viewportPixelHeight.value - 40
   return Math.floor((containerSize - cols * 2) / cols)
 })
 
