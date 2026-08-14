@@ -193,7 +193,11 @@ const leadershipTooltip = computed(() => {
 })
 
 
-const goHome = () => router.push('/')
+const goHome = () => {
+  if (window.confirm('Retourner au menu principal ? Votre partie en cours reste sauvegardée.')) {
+    router.push('/')
+  }
+}
 
 // ===============================================================
 // Animation des chiffres flottants
