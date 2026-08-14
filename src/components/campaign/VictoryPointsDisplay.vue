@@ -1,8 +1,13 @@
 <template>
-  <button class="vp-btn" :class="{ 'vp-btn--victory': objectiveReached }" @click="goToScore">
-    <span>⚔️</span>
+  <button
+    class="vp-btn"
+    :class="{ 'vp-btn--victory': objectiveReached }"
+    :aria-label="`Voir les points de victoire : ${totalCombatVP} PV${objectiveReached ? ', objectif atteint' : ''}`"
+    @click="goToScore"
+  >
+    <span aria-hidden="true">⚔️</span>
     <span class="vp-count">{{ totalCombatVP }} PV</span>
-    <span v-if="objectiveReached" class="vp-badge">🏆</span>
+    <span v-if="objectiveReached" class="vp-badge" aria-hidden="true">🏆</span>
   </button>
 </template>
 

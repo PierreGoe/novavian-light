@@ -28,29 +28,29 @@
       </div>
       <!-- Ressources Travian -->
       <div class="resources-display">
-        <div class="resource-item wood">
-          <span class="resource-icon">🪵</span>
+        <div class="resource-item wood" aria-label="Bois">
+          <span class="resource-icon" aria-hidden="true">🪵</span>
           <ResourceCounter class="resource-amount" :value="town?.resources?.wood || 0" />
           <span class="resource-production"
             >+{{ Math.floor(town?.production?.wood || 0) }}/min</span
           >
         </div>
-        <div class="resource-item clay">
-          <span class="resource-icon">🧱</span>
+        <div class="resource-item clay" aria-label="Argile">
+          <span class="resource-icon" aria-hidden="true">🧱</span>
           <ResourceCounter class="resource-amount" :value="town?.resources?.clay || 0" />
           <span class="resource-production"
             >+{{ Math.floor(town?.production?.clay || 0) }}/min</span
           >
         </div>
-        <div class="resource-item iron">
-          <span class="resource-icon">⚒️</span>
+        <div class="resource-item iron" aria-label="Fer">
+          <span class="resource-icon" aria-hidden="true">⚒️</span>
           <ResourceCounter class="resource-amount" :value="town?.resources?.iron || 0" />
           <span class="resource-production"
             >+{{ Math.floor(town?.production?.iron || 0) }}/min</span
           >
         </div>
-        <div class="resource-item crop">
-          <span class="resource-icon">🌾</span>
+        <div class="resource-item crop" aria-label="Céréales">
+          <span class="resource-icon" aria-hidden="true">🌾</span>
           <ResourceCounter class="resource-amount" :value="town?.resources?.crop || 0" />
           <span class="resource-production"
             >+{{ Math.floor(town?.production?.crop || 0) }}/min</span

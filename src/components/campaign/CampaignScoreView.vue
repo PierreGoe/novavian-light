@@ -18,7 +18,7 @@
 
     <!-- Bannière de victoire -->
     <Transition name="banner-fade">
-      <div v-if="objectiveReached" class="victory-banner">
+      <div v-if="objectiveReached && !continuing" class="victory-banner">
         <div class="victory-glow" />
         <div class="victory-content">
           <h2>🏆 Objectif de campagne atteint !</h2>
@@ -167,16 +167,18 @@
       <table v-else class="history-table">
         <thead>
           <tr>
-            <th>Type</th>
-            <th>Action</th>
-            <th>Date</th>
-            <th>PV</th>
+            <th scope="col">Type</th>
+            <th scope="col">Action</th>
+            <th scope="col">Date</th>
+            <th scope="col">PV</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="event in history" :key="event.id">
             <td>
-              <span class="hist-icon">{{ getTypeIcon(event.type) }}</span>
+              <span class="hist-icon" role="img" :aria-label="getTypeLabel(event.type)">{{
+                getTypeIcon(event.type)
+              }}</span>
             </td>
             <td class="hist-reason">{{ event.reason }}</td>
             <td class="hist-date">{{ formatDate(event.date) }}</td>
@@ -290,6 +292,10 @@ function onModalClose() {
 
 function getTypeIcon(type: VictoryPointType): string {
   return type === 'combat' ? '⚔️' : '🏆'
+}
+
+function getTypeLabel(type: VictoryPointType): string {
+  return type === 'combat' ? 'Victoire de combat' : 'Autre'
 }
 
 function formatDate(iso: string): string {
