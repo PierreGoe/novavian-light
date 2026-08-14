@@ -552,20 +552,20 @@ $rarity-legendary: #f59e0b;
   font-weight: 600;
 
   &.economy {
-    background: rgba(16, 185, 129, 0.2);
-    color: #10b981;
+    background: rgba(var(--fx-economy-rgb), 0.2);
+    color: var(--fx-economy);
   }
   &.military {
-    background: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
+    background: rgba(var(--fx-military-rgb), 0.2);
+    color: var(--fx-military);
   }
   &.defense {
-    background: rgba(59, 130, 246, 0.2);
-    color: #3b82f6;
+    background: rgba(var(--fx-defense-rgb), 0.2);
+    color: var(--fx-defense);
   }
   &.resource {
-    background: rgba(245, 158, 11, 0.2);
-    color: #f59e0b;
+    background: rgba(var(--fx-resource-rgb), 0.2);
+    color: var(--fx-resource);
   }
 }
 

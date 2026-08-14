@@ -320,20 +320,20 @@ const confirmSelection = () => {
 }
 
 .fx-badge.economy {
-  background: rgba(34, 197, 94, 0.2);
-  color: #86efac;
+  background: rgba(var(--fx-economy-rgb), 0.2);
+  color: var(--fx-economy);
 }
 .fx-badge.military {
-  background: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
+  background: rgba(var(--fx-military-rgb), 0.2);
+  color: var(--fx-military);
 }
 .fx-badge.defense {
-  background: rgba(59, 130, 246, 0.2);
-  color: #93c5fd;
+  background: rgba(var(--fx-defense-rgb), 0.2);
+  color: var(--fx-defense);
 }
 .fx-badge.resource {
-  background: rgba(245, 158, 11, 0.2);
-  color: #fcd34d;
+  background: rgba(var(--fx-resource-rgb), 0.2);
+  color: var(--fx-resource);
 }
 
 .selector-footer {
