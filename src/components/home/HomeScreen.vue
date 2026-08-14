@@ -9,7 +9,7 @@
 
     <main class="content-section">
       <div class="game-options">
-        <div class="option-card new-game" @click="startNewGame">
+        <div class="option-card new-game" v-clickable @click="startNewGame">
           <span class="new-game-badge">Commencer</span>
           <div class="card-icon">⚔️</div>
           <h3>Nouvelle Partie</h3>
@@ -19,6 +19,7 @@
         <div
           class="option-card load-game"
           :class="{ disabled: !gameStore.hasSavedGame.value }"
+          v-clickable="gameStore.hasSavedGame.value"
           @click="loadGame"
         >
           <div class="card-icon">📜</div>
@@ -26,7 +27,7 @@
           <p>{{ gameStore.hasSavedGame.value ? 'Reprenez votre partie' : 'Aucune sauvegarde' }}</p>
         </div>
 
-        <div class="option-card settings" @click="showSettings">
+        <div class="option-card settings" v-clickable @click="showSettings">
           <div class="card-icon">⚙️</div>
           <h3>Paramètres</h3>
           <p>Configuration du jeu</p>
