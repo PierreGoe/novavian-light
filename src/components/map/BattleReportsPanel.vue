@@ -32,12 +32,21 @@
         <button
           class="report-delete-btn"
           title="Supprimer"
-          @click.stop="missionStore.deleteBattleReport(report.id)"
+          @click.stop="requestDelete(report.id)"
         >
           ✕
         </button>
       </div>
     </div>
+
+    <ConfirmDialog
+      v-model:open="showDeleteConfirm"
+      title="Supprimer ce rapport ?"
+      message="Ce rapport de combat sera définitivement supprimé."
+      confirm-label="Supprimer"
+      danger
+      @confirm="confirmDelete"
+    />
   </section>
 </template>
 
@@ -45,11 +54,25 @@
 import { ref } from 'vue'
 import { useMissionStore } from '../../stores/missionStore'
 import type { SavedBattleReport } from '../../combat/types'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 
 const emit = defineEmits<{ viewReport: [report: SavedBattleReport] }>()
 
 const missionStore = useMissionStore()
 const showReportsPanel = ref(false)
+
+const showDeleteConfirm = ref(false)
+const pendingDeleteId = ref<string | null>(null)
+
+const requestDelete = (id: string) => {
+  pendingDeleteId.value = id
+  showDeleteConfirm.value = true
+}
+
+const confirmDelete = () => {
+  if (pendingDeleteId.value) missionStore.deleteBattleReport(pendingDeleteId.value)
+  pendingDeleteId.value = null
+}
 
 const formatReportDate = (iso: string): string => {
   const d = new Date(iso)
