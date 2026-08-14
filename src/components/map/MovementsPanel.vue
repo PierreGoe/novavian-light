@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMissionStore } from '../../stores/missionStore'
-import { useMapStore } from '../../stores/mapStore'
+import { useMapStore, type TroopMovement } from '../../stores/mapStore'
 import { formatDuration } from '../../utils/formatDuration'
 
 const missionStore = useMissionStore()
@@ -57,9 +57,46 @@ const mapStore = useMapStore()
 // Horloge commune
 const now = ref(Date.now())
 let timer: number | null = null
+
+/** Durée d'affichage du statut "arrivé" avant disparition définitive de la carte */
+const DONE_DISPLAY_MS = 3000
+
+interface DoneEntry {
+  id: string
+  icon: string
+  label: string
+  expiresAt: number
+}
+
+/** Mouvements retirés de activeMovements depuis le dernier tick, affichés brièvement en "arrivé" */
+const justArrived = ref<DoneEntry[]>([])
+let previousMovements = new Map<string, TroopMovement>()
+
+const describeMovement = (mov: TroopMovement) => {
+  const tile = mapStore.getTileById(mov.isReturning ? mov.sourceTileId : mov.targetTileId)
+  const name = tile ? mapStore.getTileName(tile.type) : '?'
+  const coords = tile ? `${tile.position.x}, ${tile.position.y}` : '?'
+  return {
+    icon: mov.isReturning ? '↩️' : '🪖',
+    label: mov.isReturning ? `Retour (${coords})` : `${name} (${coords})`,
+  }
+}
+
 onMounted(() => {
+  previousMovements = new Map(mapStore.mapState.activeMovements.map((m) => [m.id, m]))
+
   timer = window.setInterval(() => {
     now.value = Date.now()
+
+    const currentMovements = new Map(mapStore.mapState.activeMovements.map((m) => [m.id, m]))
+    for (const [id, mov] of previousMovements) {
+      if (!currentMovements.has(id)) {
+        justArrived.value.push({ id, ...describeMovement(mov), expiresAt: now.value + DONE_DISPLAY_MS })
+      }
+    }
+    justArrived.value = justArrived.value.filter((entry) => entry.expiresAt > now.value)
+
+    previousMovements = currentMovements
   }, 1000)
 })
 onUnmounted(() => {
@@ -114,6 +151,18 @@ const allItems = computed((): MovementItem[] => {
       eta: formatEta(mov.arrivalTime),
       progress: getProgress(mov.departureTime, mov.arrivalTime),
       units: mov.units.map((u) => `${UNIT_ICONS[u.type] ?? '🗡️'} ×${u.count}`),
+    })
+  }
+
+  // Mouvements tout juste arrivés — état transitoire avant disparition
+  for (const entry of justArrived.value) {
+    items.push({
+      id: entry.id,
+      kind: 'done',
+      icon: entry.icon,
+      label: entry.label,
+      eta: 'Arrivé !',
+      progress: 100,
     })
   }
 
