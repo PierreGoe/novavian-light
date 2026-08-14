@@ -505,6 +505,11 @@ const confirmReset = () => {
   border-color: rgba(34, 197, 94, 0.5);
 }
 
+.toggle input:focus-visible + .toggle-slider {
+  outline: 2px solid #daa520;
+  outline-offset: 2px;
+}
+
 .toggle input:checked + .toggle-slider::before {
   background: #4ade80;
   transform: translateX(18px);
