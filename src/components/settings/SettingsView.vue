@@ -24,6 +24,7 @@
                 step="1"
                 v-model.number="settings.gameSpeedMultiplier"
                 class="range-input"
+                aria-label="Vitesse du jeu"
               />
               <span class="range-value">×{{ settings.gameSpeedMultiplier }}</span>
             </div>
@@ -42,7 +43,7 @@
             <span class="setting-desc">Masque les zones non explorées</span>
           </div>
           <label class="toggle">
-            <input type="checkbox" v-model="fogEnabled" />
+            <input type="checkbox" v-model="fogEnabled" aria-label="Brouillard de guerre" />
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -53,7 +54,11 @@
             <span class="setting-desc">Affiche le halo rouge autour des forteresses ennemies</span>
           </div>
           <label class="toggle">
-            <input type="checkbox" v-model="settings.showInfluenceZones" />
+            <input
+              type="checkbox"
+              v-model="settings.showInfluenceZones"
+              aria-label="Zones d'influence ennemies"
+            />
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -72,6 +77,7 @@
                 step="1"
                 v-model.number="settings.rankRevealRange"
                 class="range-input"
+                aria-label="Rayon de révélation initial"
               />
               <span class="range-value">{{ settings.rankRevealRange }} cases</span>
             </div>
@@ -97,6 +103,7 @@
                 step="1"
                 v-model.number="settings.enemyBaseInfantry"
                 class="range-input"
+                aria-label="Infanterie d'un village ennemi"
               />
               <span class="range-value">{{ settings.enemyBaseInfantry }}</span>
             </div>
@@ -117,6 +124,7 @@
                 step="1"
                 v-model.number="settings.enemyStrongholdInfantry"
                 class="range-input"
+                aria-label="Garnison d'une forteresse"
               />
               <span class="range-value">{{ settings.enemyStrongholdInfantry }}</span>
             </div>
@@ -142,6 +150,7 @@
                 :step="res.step"
                 v-model.number="settings.initialResources[res.key]"
                 class="range-input"
+                :aria-label="res.label"
               />
               <span class="range-value">{{ settings.initialResources[res.key] }}</span>
             </div>
@@ -168,7 +177,11 @@
               >
             </div>
             <label class="toggle">
-              <input type="checkbox" v-model="settings.cheatResources" />
+              <input
+                type="checkbox"
+                v-model="settings.cheatResources"
+                aria-label="Ressources de départ (triche)"
+              />
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -179,7 +192,11 @@
               <span class="setting-desc">Démarre chaque mission avec 1 000 points de victoire</span>
             </div>
             <label class="toggle">
-              <input type="checkbox" v-model="settings.cheatVictoryPoints" />
+              <input
+                type="checkbox"
+                v-model="settings.cheatVictoryPoints"
+                aria-label="Points de victoire de départ (triche)"
+              />
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -192,7 +209,11 @@
               >
             </div>
             <label class="toggle">
-              <input type="checkbox" v-model="settings.cheatStartingGarrison" />
+              <input
+                type="checkbox"
+                v-model="settings.cheatStartingGarrison"
+                aria-label="Garnison de départ (triche)"
+              />
               <span class="toggle-slider"></span>
             </label>
           </div>
