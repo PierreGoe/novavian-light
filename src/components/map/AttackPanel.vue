@@ -154,6 +154,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { MovementUnit } from '../../stores/mapStore'
+import { UNIT_DEFINITIONS } from '../../stores/missionStore'
 import {
   QUICK_ATTACK_STRATEGIES,
   buildQuickAttackPlan,
@@ -281,22 +282,10 @@ const decrement = (type: string) => {
 // Affichage
 // ------------------------------------
 
-const UNIT_ICONS: Record<string, string> = {
-  infantry: '🗡️',
-  archer: '🏹',
-  cavalry: '🐴',
-  siege: '⚙️',
-}
-
-const UNIT_LABELS: Record<string, string> = {
-  infantry: 'Infanterie',
-  archer: 'Archers',
-  cavalry: 'Cavalerie',
-  siege: 'Siège',
-}
-
-const unitIcon = (type: string) => UNIT_ICONS[type] ?? '🪖'
-const unitLabel = (type: string) => UNIT_LABELS[type] ?? type
+const unitIcon = (type: string) =>
+  UNIT_DEFINITIONS[type as keyof typeof UNIT_DEFINITIONS]?.icon ?? '🪖'
+const unitLabel = (type: string) =>
+  UNIT_DEFINITIONS[type as keyof typeof UNIT_DEFINITIONS]?.name ?? type
 
 /** Formate le temps de trajet estimé pour un jeu d'unités */
 const travelLabel = (units: MovementUnit[]): string => {

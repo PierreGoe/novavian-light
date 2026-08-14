@@ -40,7 +40,7 @@
                   :class="{ 'no-loss': killed === 0 }"
                 >
                   <span class="unit-loss-icon">{{ unitIcon(String(type)) }}</span>
-                  <span class="unit-loss-name">{{ type }}</span>
+                  <span class="unit-loss-name">{{ unitLabel(String(type)) }}</span>
                   <span class="unit-loss-count" :class="{ 'count-zero': killed === 0 }">
                     {{ killed === 0 ? '—' : `-${killed}` }}
                   </span>
@@ -59,7 +59,7 @@
                 >
                   <span class="chip-icon">{{ unitIcon(unit.type) }}</span>
                   <span class="chip-count">{{ unit.count }}</span>
-                  <span class="chip-name">{{ unit.type }}</span>
+                  <span class="chip-name">{{ unitLabel(unit.type) }}</span>
                 </div>
               </div>
             </div>
@@ -81,7 +81,7 @@
                   :class="{ 'no-loss': killed === 0 }"
                 >
                   <span class="unit-loss-icon">{{ unitIcon(String(type)) }}</span>
-                  <span class="unit-loss-name">{{ type }}</span>
+                  <span class="unit-loss-name">{{ unitLabel(String(type)) }}</span>
                   <span class="unit-loss-count" :class="{ 'count-zero': killed === 0 }">
                     {{ killed === 0 ? '—' : `-${killed}` }}
                   </span>
@@ -100,7 +100,7 @@
                 >
                   <span class="chip-icon">{{ unitIcon(unit.type) }}</span>
                   <span class="chip-count">{{ unit.count }}</span>
-                  <span class="chip-name">{{ unit.type }}</span>
+                  <span class="chip-name">{{ unitLabel(unit.type) }}</span>
                 </div>
               </div>
             </div>
@@ -147,6 +147,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { CombatReport, SavedBattleReport } from '../../combat/types'
+import { UNIT_DEFINITIONS } from '../../stores/missionStore'
 
 const props = defineProps<{ report: CombatReport | SavedBattleReport | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -201,17 +202,14 @@ const attackerBonusPct = computed(() => {
   return bonus > 0 ? Math.round((bonus / rawPower) * 100) : 0
 })
 
-/** Icône selon le type d'unité */
+/** Icône selon le type d'unité — même source que le panneau d'attaque et l'entraînement */
 function unitIcon(type: string): string {
-  const icons: Record<string, string> = {
-    infantry: '🗡️',
-    archer: '🏹',
-    cavalry: '🐎',
-    siege: '🏰',
-    mage: '🔮',
-    scout: '🦅',
-  }
-  return icons[type.toLowerCase()] ?? '⚔️'
+  return UNIT_DEFINITIONS[type as keyof typeof UNIT_DEFINITIONS]?.icon ?? '⚔️'
+}
+
+/** Libellé français selon le type d'unité — idem, source unique */
+function unitLabel(type: string): string {
+  return UNIT_DEFINITIONS[type as keyof typeof UNIT_DEFINITIONS]?.name ?? type
 }
 
 /** Total des ressources pillées (pour masquer la section si rien) */
