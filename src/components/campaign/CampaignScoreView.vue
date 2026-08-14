@@ -10,6 +10,14 @@
       :artifact-bonuses="pendingArtifactBonuses"
       @close="onModalClose"
     />
+    <ConfirmDialog
+      v-model:open="showCompleteConfirm"
+      title="Terminer la campagne ?"
+      message="Cette action est définitive : les récompenses seront distribuées et tu retourneras à la carte des missions."
+      confirm-label="Valider et terminer"
+      danger
+      @confirm="proceedComplete"
+    />
     <!-- Header -->
     <header class="score-header">
       <button class="btn-back" @click="goBack">← Retour à la campagne</button>
@@ -201,6 +209,7 @@ import { useGameStore, COMBAT_VP_GOAL, VILLAGE_VP_CAP, COMBAT_VICTORY_VP_CAP } f
 import type { VictoryPointType, Artifact } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
 import CampaignVictoryModal from './CampaignVictoryModal.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 
 const CAMPAIGN_BONUS_GOLD = 100
 
@@ -246,16 +255,14 @@ function goBack() {
 }
 
 const completing = ref(false)
+const showCompleteConfirm = ref(false)
 
 function handleComplete() {
   if (completing.value) return
-  if (
-    !window.confirm(
-      'Valider et terminer la campagne est définitif : les récompenses seront distribuées et tu retourneras à la carte des missions. Continuer ?',
-    )
-  ) {
-    return
-  }
+  showCompleteConfirm.value = true
+}
+
+function proceedComplete() {
   completing.value = true
 
   // Calculer les bonus artefacts actifs AVANT completeCampaign (qui les consomme)
