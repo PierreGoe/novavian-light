@@ -211,8 +211,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { gameSettings, resetGameSettings } from '@/stores/gameSettingsStore'
+import { useToastStore } from '@/stores/toastStore'
 
 const settings = gameSettings
+const toastStore = useToastStore()
 
 const INITIAL_RESOURCES = [
   { key: 'wood' as const, icon: '🪵', label: 'Bois', min: 0, max: 2000, step: 50 },
@@ -232,6 +234,7 @@ const fogEnabled = computed({
 const confirmReset = () => {
   if (confirm('Réinitialiser tous les paramètres aux valeurs par défaut ?')) {
     resetGameSettings()
+    toastStore.showSuccess('Paramètres réinitialisés', { duration: 2000 })
   }
 }
 </script>
