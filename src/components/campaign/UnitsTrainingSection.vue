@@ -34,7 +34,7 @@
       <div class="recruit-section">
         <h4>Recruter</h4>
         <div class="recruit-grid">
-          <button
+          <div
             v-for="def in UNIT_DEFINITIONS"
             :key="def.type"
             class="recruit-card"
@@ -43,8 +43,6 @@
               'recruit-card--poor':
                 !canAfford(def.type) && barrackLevel >= def.barrackLevelRequired,
             }"
-            :disabled="barrackLevel < def.barrackLevelRequired || !canAfford(def.type)"
-            @click="handleRecruit(def.type)"
           >
             <div class="rc-icon">{{ def.icon }}</div>
             <div class="rc-name">{{ def.name }}</div>
@@ -61,8 +59,19 @@
               <div class="rc-time">
                 ⏱ {{ formatDuration(getTrainingTime(def.type, barrackLevel)) }}
               </div>
+              <div class="rc-qty-actions">
+                <button
+                  v-for="qty in [1, 5, 10]"
+                  :key="qty"
+                  class="rc-qty-btn"
+                  :disabled="!canAffordBatch(def.type, qty)"
+                  @click="handleRecruit(def.type, qty)"
+                >
+                  +{{ qty }}
+                </button>
+              </div>
             </template>
-          </button>
+          </div>
         </div>
       </div>
 
@@ -185,10 +194,35 @@ const canAfford = (type: MilitaryUnit['type']): boolean => {
   )
 }
 
-const handleRecruit = (type: MilitaryUnit['type']) => {
-  const success = missionStore.enqueueUnit(type)
-  if (success) {
-    toastStore.showSuccess(`${UNIT_DEFINITIONS[type].name} ajouté(e) en file !`, { duration: 1500 })
+/** Vérifie si les ressources actuelles permettent d'entraîner `qty` unités d'un coup */
+const canAffordBatch = (type: MilitaryUnit['type'], qty: number): boolean => {
+  const res = missionStore.displayResources.value
+  const cost = UNIT_DEFINITIONS[type].cost
+  return (
+    res.wood >= cost.wood * qty &&
+    res.clay >= cost.clay * qty &&
+    res.iron >= cost.iron * qty &&
+    res.crop >= cost.crop * qty
+  )
+}
+
+const handleRecruit = (type: MilitaryUnit['type'], qty = 1) => {
+  let queued = 0
+  for (let i = 0; i < qty; i++) {
+    if (!missionStore.enqueueUnit(type)) break
+    queued++
+  }
+
+  const name = UNIT_DEFINITIONS[type].name
+  if (queued === qty) {
+    toastStore.showSuccess(
+      queued > 1 ? `${queued}x ${name} ajoutées en file !` : `${name} ajouté(e) en file !`,
+      { duration: 1500 },
+    )
+  } else if (queued > 0) {
+    toastStore.showInfo(`${queued}/${qty} ${name} ajoutées — ressources insuffisantes pour le reste`, {
+      duration: 2500,
+    })
   } else {
     toastStore.showError('Ressources insuffisantes ou caserne trop basse', { duration: 2000 })
   }
@@ -347,23 +381,46 @@ const getEntryProgress = (entry: TrainingQueueEntry): number => {
   background: rgba(139, 69, 19, 0.12);
   border: 1px solid rgba(218, 165, 32, 0.35);
   border-radius: 10px;
+  transition: border-color 0.15s;
+  text-align: center;
+  color: #f4e4bc;
+}
+
+.rc-qty-actions {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}
+
+.rc-qty-btn {
+  flex: 1;
+  padding: 0.3rem 0;
+  background: rgba(218, 165, 32, 0.12);
+  border: 1px solid rgba(218, 165, 32, 0.4);
+  border-radius: 6px;
+  color: #f4e4bc;
+  font-size: 0.72rem;
+  font-weight: 600;
   cursor: pointer;
   transition:
     background 0.15s,
     border-color 0.15s,
     transform 0.1s;
-  text-align: center;
-  color: #f4e4bc;
 }
 
-.recruit-card:hover:not(:disabled) {
-  background: rgba(218, 165, 32, 0.18);
-  border-color: rgba(218, 165, 32, 0.7);
-  transform: translateY(-2px);
+.rc-qty-btn:hover:not(:disabled) {
+  background: rgba(218, 165, 32, 0.25);
+  border-color: rgba(218, 165, 32, 0.8);
+  transform: translateY(-1px);
 }
 
-.recruit-card:active:not(:disabled) {
+.rc-qty-btn:active:not(:disabled) {
   transform: translateY(0);
+}
+
+.rc-qty-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .recruit-card--locked {
