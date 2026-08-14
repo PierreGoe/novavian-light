@@ -57,6 +57,13 @@ onMounted(() => {
 })
 
 const startNewGame = () => {
+  if (
+    gameStore.hasSavedGame.value &&
+    !window.confirm('Une partie sauvegardée existe déjà. La commencer écrasera définitivement cette sauvegarde. Continuer ?')
+  ) {
+    return
+  }
+
   // Réinitialiser tous les stores avant de démarrer une nouvelle partie
   gameStore.resetGameCompletely()
   missionStore.resetMissionState()
