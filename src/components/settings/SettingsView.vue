@@ -427,11 +427,24 @@ const confirmReset = () => {
   flex: 1;
   -webkit-appearance: none;
   appearance: none;
+  /* Zone interactive réelle (~24px, proche des 44px recommandés) — la piste
+     visuelle reste fine via les pseudo-éléments ci-dessous. */
+  height: 24px;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+}
+
+.range-input::-webkit-slider-runnable-track {
   height: 4px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 2px;
-  outline: none;
-  cursor: pointer;
+}
+
+.range-input::-moz-range-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
 }
 
 .range-input::-webkit-slider-thumb {
@@ -439,6 +452,17 @@ const confirmReset = () => {
   appearance: none;
   width: 14px;
   height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #daa520;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.range-input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
   border-radius: 50%;
   background: #daa520;
   cursor: pointer;
