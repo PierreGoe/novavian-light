@@ -540,6 +540,21 @@ const executeCombat = (movement: TroopMovement, tile: MapTile): MovementUnit[] =
       tile.garrison.regenStartedAt = undefined // Arrêter la régén en cours
     }
     toastStore.showError(report.summary)
+
+    // Une défaite entame le leadership du joueur (le fail-state du jeu repose dessus).
+    // On réutilise la pénalité déjà calculée pour la mission de campagne en cours si
+    // disponible, sinon on retombe sur une pénalité par défaut selon le type de cible.
+    const missionLeadershipPenalty = missionStore.missionState.currentMission?.losePenalty?.leadership
+    const fallbackLeadershipLoss = isStronghold
+      ? Math.floor(Math.random() * 101) + 150 // Forteresse : 150-250
+      : Math.floor(Math.random() * 71) + 50 // Village ennemi : 50-120
+    const leadershipLoss =
+      missionLeadershipPenalty && missionLeadershipPenalty > 0
+        ? missionLeadershipPenalty
+        : fallbackLeadershipLoss
+
+    gameStore.updateLeadership(leadershipLoss, 'lose')
+    toastStore.showError(`👑 -${leadershipLoss} leadership (défaite)`)
   }
 
   // Augmenter l'hostilité de la forteresse responsable après tout combat
@@ -660,6 +675,12 @@ function applyPostVictorySpecialPowers(artifacts: Artifact[], position: { x: num
   }
 }
 
+// Nœuds "élite" (voir mapGenerator.ts) ≈ 3x la récompense en or des combats classiques :
+// la garnison doit être notablement plus forte pour que ce soit un vrai risque/récompense,
+// pas juste de l'or gratuit. Constantes isolées ici pour être faciles à retrouver/ajuster.
+const ELITE_GARRISON_COUNT_MULTIPLIER = 1.6
+const ELITE_GARRISON_STAT_MULTIPLIER = 1.25
+
 /** Génère une garnison ennemie selon le type de case (appelé une seule fois au 1er combat) */
 function generateEnemyGarrison(tile: MapTile): { units: CombatUnit[] } {
   const isStronghold = tile.type === 'stronghold'
@@ -679,6 +700,19 @@ function generateEnemyGarrison(tile: MapTile): { units: CombatUnit[] } {
     )
   } else if (Math.random() > 0.5) {
     units.push({ type: 'archer', count: 1 + variation, attack: 20, defense: 10, health: 70 })
+  }
+
+  const isEliteMission = missionStore.missionState.currentMission?.difficulty === 'elite'
+  if (isEliteMission) {
+    return {
+      units: units.map((u) => ({
+        ...u,
+        count: Math.max(1, Math.round(u.count * ELITE_GARRISON_COUNT_MULTIPLIER)),
+        attack: Math.round(u.attack * ELITE_GARRISON_STAT_MULTIPLIER),
+        defense: Math.round(u.defense * ELITE_GARRISON_STAT_MULTIPLIER),
+        health: Math.round(u.health * ELITE_GARRISON_STAT_MULTIPLIER),
+      })),
+    }
   }
 
   return { units }
