@@ -23,6 +23,7 @@
             :key="index"
             class="slot"
             :class="{ filled: activeArtifacts[index - 1], empty: !activeArtifacts[index - 1] }"
+            v-clickable="!!activeArtifacts[index - 1]"
             @click="activeArtifacts[index - 1] && openDetail(activeArtifacts[index - 1])"
           >
             <template v-if="activeArtifacts[index - 1]">
@@ -196,6 +197,7 @@
             :key="artifact.id"
             class="artifact-card"
             :class="[`rarity-${artifact.rarity}`, { active: isActive(artifact.id) }]"
+            v-clickable
             @click="openDetail(artifact)"
           >
             <!-- Icône et nom -->
