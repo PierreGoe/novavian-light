@@ -67,7 +67,7 @@
           <span class="time-separator">|</span>
           <span class="time-item time-real" title="Heure réelle"> 🕒 {{ formattedRealTime }} </span>
         </div>
-        <!--<button class="btn-exit" @click="exitCampaign">🏠 Retour aux missions</button>-->
+        <button class="btn-exit" @click="exitCampaign">🏠 Retour aux missions</button>
       </div>
     </header>
 
@@ -318,70 +318,6 @@ onUnmounted(() => {
   border-radius: 12px;
   border: 1px solid rgba(218, 165, 32, 0.3);
   overflow: hidden;
-}
-
-.combat-interface {
-  position: fixed;
-  bottom: 2rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.9);
-  border: 2px solid #dc143c;
-  border-radius: 12px;
-  padding: 1.5rem;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-}
-
-.combat-info h3 {
-  margin: 0 0 1rem 0;
-  color: #dc143c;
-  text-align: center;
-}
-
-.combat-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-}
-
-.combat-actions button {
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  font-weight: bold;
-  transition: all 0.3s ease;
-}
-
-.btn-attack {
-  background: #dc143c;
-  color: white;
-}
-
-.btn-attack:hover {
-  background: #b91c1c;
-  transform: translateY(-2px);
-}
-
-.btn-defend {
-  background: #2563eb;
-  color: white;
-}
-
-.btn-defend:hover {
-  background: #1d4ed8;
-  transform: translateY(-2px);
-}
-
-.btn-retreat {
-  background: #f59e0b;
-  color: white;
-}
-
-.btn-retreat:hover {
-  background: #d97706;
-  transform: translateY(-2px);
 }
 
 /* Écran de transition */
