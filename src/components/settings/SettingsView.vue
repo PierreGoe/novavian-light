@@ -81,6 +81,7 @@
               />
               <span class="range-value">{{ settings.rankRevealRange }} cases</span>
             </div>
+            <div class="range-labels"><span>2</span><span>25</span></div>
           </div>
         </div>
       </section>
@@ -107,6 +108,7 @@
               />
               <span class="range-value">{{ settings.enemyBaseInfantry }}</span>
             </div>
+            <div class="range-labels"><span>1</span><span>20</span></div>
           </div>
         </div>
 
@@ -128,6 +130,7 @@
               />
               <span class="range-value">{{ settings.enemyStrongholdInfantry }}</span>
             </div>
+            <div class="range-labels"><span>2</span><span>30</span></div>
           </div>
         </div>
       </section>
@@ -154,6 +157,7 @@
               />
               <span class="range-value">{{ settings.initialResources[res.key] }}</span>
             </div>
+            <div class="range-labels"><span>{{ res.min }}</span><span>{{ res.max }}</span></div>
           </div>
         </div>
       </section>
