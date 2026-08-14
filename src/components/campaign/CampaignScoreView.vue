@@ -41,7 +41,7 @@
             <div class="reward-chip">📜 Accès à la prochaine mission</div>
           </div>
           <div class="victory-actions">
-            <button class="btn-primary" @click="handleComplete">
+            <button class="btn-primary" :disabled="completing" @click="handleComplete">
               🏁 Valider et terminer la campagne
             </button>
             <button v-if="!continuing" class="btn-secondary" @click="continuing = true">
@@ -58,7 +58,9 @@
     <!-- Bouton "Terminer" persistant si le joueur a choisi de continuer -->
     <div v-if="objectiveReached && continuing" class="finish-bar">
       <span>🏆 Objectif atteint — tu joues en mode libre</span>
-      <button class="btn-primary btn-sm" @click="handleComplete">🏁 Terminer la campagne</button>
+      <button class="btn-primary btn-sm" :disabled="completing" @click="handleComplete">
+        🏁 Terminer la campagne
+      </button>
     </div>
 
     <!-- Grille des catégories -->
@@ -241,7 +243,19 @@ function goBack() {
   router.push('/campaign')
 }
 
+const completing = ref(false)
+
 function handleComplete() {
+  if (completing.value) return
+  if (
+    !window.confirm(
+      'Valider et terminer la campagne est définitif : les récompenses seront distribuées et tu retourneras à la carte des missions. Continuer ?',
+    )
+  ) {
+    return
+  }
+  completing.value = true
+
   // Calculer les bonus artefacts actifs AVANT completeCampaign (qui les consomme)
   const equippedArtifacts = gameStore.gameState.inventory.artifacts.filter((a) =>
     gameStore.gameState.inventory.activeArtifacts.includes(a.id),
@@ -287,6 +301,7 @@ function handleComplete() {
 
 function onModalClose() {
   showVictoryModal.value = false
+  completing.value = false
   router.push('/mission-tree')
 }
 
@@ -451,6 +466,10 @@ function formatDate(iso: string): string {
 }
 .btn-primary:active {
   transform: scale(0.98);
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .btn-sm {
   padding: 0.4rem 0.9rem;
