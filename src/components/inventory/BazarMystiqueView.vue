@@ -149,12 +149,22 @@
         <button class="exit-btn" @click="exitBazar">🚪 Quitter le Bazar</button>
       </div>
     </div>
+
+    <ConfirmDialog
+      v-model:open="showSellConfirm"
+      title="Vendre cette relique ?"
+      :message="sellConfirmMessage"
+      confirm-label="Vendre"
+      danger
+      @confirm="confirmSell"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import { useGameStore, type Artifact } from '@/stores/gameStore'
 import {
   SELL_PRICES,
@@ -263,21 +273,36 @@ const buy = (artifact: Artifact) => {
 const allArtifacts = computed(() => gameStore.gameState.inventory.artifacts)
 const isActive = (id: string) => gameStore.gameState.inventory.activeArtifacts.includes(id)
 
-const sell = (artifact: Artifact) => {
-  const needsConfirm = isActive(artifact.id) || artifact.rarity === 'epic' || artifact.rarity === 'legendary'
-  if (needsConfirm) {
-    const activeNote = isActive(artifact.id) ? ' (actuellement équipée)' : ''
-    if (
-      !window.confirm(
-        `Vendre ${artifact.name}${activeNote} ? Cette relique ${rarityLabel(artifact.rarity).toLowerCase()} sera définitivement perdue.`,
-      )
-    ) {
-      return
-    }
-  }
+const showSellConfirm = ref(false)
+const pendingSellArtifact = ref<Artifact | null>(null)
 
+const sellConfirmMessage = computed(() => {
+  const artifact = pendingSellArtifact.value
+  if (!artifact) return ''
+  const activeNote = isActive(artifact.id) ? ' (actuellement équipée)' : ''
+  return `Vendre ${artifact.name}${activeNote} ? Cette relique ${rarityLabel(artifact.rarity).toLowerCase()} sera définitivement perdue.`
+})
+
+const doSell = (artifact: Artifact) => {
   const goldGained = gameStore.sellArtifact(artifact.id)
   toastStore.showSuccess(`🪙 Vendu : ${artifact.name} pour ${goldGained} or.`, { duration: 3000 })
+}
+
+const sell = (artifact: Artifact) => {
+  const needsConfirm =
+    isActive(artifact.id) || artifact.rarity === 'epic' || artifact.rarity === 'legendary'
+  if (needsConfirm) {
+    pendingSellArtifact.value = artifact
+    showSellConfirm.value = true
+    return
+  }
+
+  doSell(artifact)
+}
+
+const confirmSell = () => {
+  if (pendingSellArtifact.value) doSell(pendingSellArtifact.value)
+  pendingSellArtifact.value = null
 }
 
 // ===== Helpers d'affichage =====
