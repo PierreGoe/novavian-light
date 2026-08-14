@@ -109,24 +109,6 @@ const showSettings = () => {
   margin: auto;
 }
 
-.comming-soon {
-  position: relative;
-  pointer-events: none;
-  opacity: 0.6;
-}
-.comming-soon::after {
-  content: 'Bientôt';
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: #daa520;
-  color: #1a0f08;
-  font-size: 0.7rem;
-  padding: 2px 6px;
-  border-radius: 5px;
-  font-weight: bold;
-}
-
 .background-overlay {
   position: absolute;
   top: 0;
