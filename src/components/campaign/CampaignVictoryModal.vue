@@ -360,8 +360,12 @@ function rarityLabel(rarity: Artifact['rarity']): string {
 
 .gain-name {
   flex: 1;
+  min-width: 0;
   font-size: 0.85rem;
   color: #cbd5e1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gain-artifact-info {
@@ -456,5 +460,16 @@ function rarityLabel(rarity: Artifact['rarity']): string {
 .modal-pop-leave-to {
   opacity: 0;
   transform: scale(0.88);
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .modal-body {
+    padding: 14px 16px 18px;
+  }
+
+  .banner-title {
+    font-size: 1.4rem;
+  }
 }
 </style>

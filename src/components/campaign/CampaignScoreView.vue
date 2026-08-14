@@ -166,28 +166,30 @@
         Aucun point de victoire encore gagné. Lance-toi dans la bataille !
       </div>
 
-      <table v-else class="history-table">
-        <thead>
-          <tr>
-            <th scope="col">Type</th>
-            <th scope="col">Action</th>
-            <th scope="col">Date</th>
-            <th scope="col">PV</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="event in history" :key="event.id">
-            <td>
-              <span class="hist-icon" role="img" :aria-label="getTypeLabel(event.type)">{{
-                getTypeIcon(event.type)
-              }}</span>
-            </td>
-            <td class="hist-reason">{{ event.reason }}</td>
-            <td class="hist-date">{{ formatDate(event.date) }}</td>
-            <td class="hist-pts">+{{ event.amount }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-else class="history-table-scroll">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th scope="col">Type</th>
+              <th scope="col">Action</th>
+              <th scope="col">Date</th>
+              <th scope="col">PV</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="event in history" :key="event.id">
+              <td>
+                <span class="hist-icon" role="img" :aria-label="getTypeLabel(event.type)">{{
+                  getTypeIcon(event.type)
+                }}</span>
+              </td>
+              <td class="hist-reason">{{ event.reason }}</td>
+              <td class="hist-date">{{ formatDate(event.date) }}</td>
+              <td class="hist-pts">+{{ event.amount }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
   </div>
 </template>
@@ -654,6 +656,11 @@ function formatDate(iso: string): string {
   padding: 1rem 0;
 }
 
+.history-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .history-table {
   width: 100%;
   border-collapse: collapse;
@@ -708,5 +715,32 @@ function formatDate(iso: string): string {
 .banner-fade-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .score-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .victory-banner,
+  .finish-bar {
+    margin-left: 1rem;
+    margin-right: 1rem;
+  }
+
+  .score-grid,
+  .history-section {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .finish-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>
