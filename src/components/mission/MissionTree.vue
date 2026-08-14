@@ -40,7 +40,7 @@
         </div>
       </div>
 
-      <button class="reset-button" @click="resetMap" title="Nouvelle carte">🔄New Map</button>
+      <button class="reset-button" @click="resetMap" title="Nouvelle carte">🔄 Nouvelle carte</button>
     </header>
 
     <!-- Carte verticale -->
@@ -162,6 +162,12 @@ const resetMap = () => {
   if (!gameStore.gameState.race) {
     toastStore.showError('Aucune race sélectionnée !', { duration: 2000 })
     router.push('/race-selection')
+    return
+  }
+  if (
+    progressPercentage.value > 0 &&
+    !window.confirm('Générer une nouvelle carte effacera votre progression actuelle. Continuer ?')
+  ) {
     return
   }
   gameStore.resetMapOnly()
