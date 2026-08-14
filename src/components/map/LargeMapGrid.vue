@@ -39,6 +39,7 @@
             :key="tile.id"
             class="map-tile"
             :class="getTileClasses(tile)"
+            v-clickable="tile.type !== 'plains' && !isChunkLocked(tile)"
             @click="tile.type !== 'plains' && !isChunkLocked(tile) && selectTile(tile.id)"
           >
             <!-- Icône du terrain visible uniquement si exploré et dans un cadran déverrouillé -->
@@ -83,6 +84,7 @@
             :key="chunk.id"
             class="chunk-locked-bubble"
             :style="getChunkBubbleStyle(chunk)"
+            v-clickable
             @click.stop="emit('unlock-chunk', chunk.id)"
           >
             <div class="chunk-bubble-inner">
