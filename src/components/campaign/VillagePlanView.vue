@@ -52,6 +52,7 @@
           `state-${getBuildingState(def.type)}`,
           { selected: selectedType === def.type },
         ]"
+        v-clickable
         @click="toggleSelect(def.type)"
       >
         <div class="tile-inner">
