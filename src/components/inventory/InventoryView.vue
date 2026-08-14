@@ -57,6 +57,7 @@
                   class="deactivate-btn"
                   @click.stop="deactivate(activeArtifacts[index - 1].id)"
                   title="Retirer du slot"
+                  aria-label="Retirer la relique du slot"
                 >
                   ×
                 </button>
@@ -281,7 +282,7 @@
     <Transition name="modal">
       <div v-if="selectedArtifact" class="modal-overlay" @click.self="closeDetail">
         <div class="modal-card" :class="`rarity-${selectedArtifact.rarity}`">
-          <button class="modal-close" @click="closeDetail">×</button>
+          <button class="modal-close" @click="closeDetail" aria-label="Fermer">×</button>
 
           <div class="modal-header">
             <span class="modal-icon">{{ selectedArtifact.icon }}</span>
@@ -740,16 +741,16 @@ $rarity-legendary: #f59e0b;
 
 .deactivate-btn {
   position: absolute;
-  top: 0.4rem;
-  right: 0.4rem;
+  top: 0.2rem;
+  right: 0.2rem;
   background: rgba(239, 68, 68, 0.5);
   border: none;
   color: white;
-  width: 20px;
-  height: 20px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   line-height: 1;
   display: flex;
   align-items: center;
@@ -1230,16 +1231,16 @@ $rarity-legendary: #f59e0b;
 
   .modal-close {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
+    top: 0.75rem;
+    right: 0.75rem;
     background: rgba(255, 255, 255, 0.1);
     border: none;
     color: #94a3b8;
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 1rem;
+    font-size: 1.1rem;
     display: flex;
     align-items: center;
     justify-content: center;
