@@ -107,6 +107,7 @@ const getNodeDifficultyLabel = (nodeType: MapNode['type']): string => {
   switch (nodeType) {
     case 'combat': return 'Moyenne'
     case 'elite':  return 'Élite'
+    case 'boss':   return 'Boss'
     default:       return ''
   }
 }
