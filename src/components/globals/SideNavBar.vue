@@ -126,6 +126,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
+import { formatNumber } from '@/utils/formatNumber'
 
 // ===============================================================
 // Stores & router
@@ -191,11 +192,6 @@ const leadershipTooltip = computed(() => {
   return `Leadership: ${ls}/200 — ${status.description}`
 })
 
-const formatNumber = (num: number): string => {
-  if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M'
-  if (num >= 1_000) return (num / 1_000).toFixed(1) + 'K'
-  return num.toString()
-}
 
 const goHome = () => router.push('/')
 
