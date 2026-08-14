@@ -3,7 +3,7 @@
     <!-- En-tête -->
     <header class="bazar-header">
       <h1>🔮 Bazar Mystique</h1>
-      <span class="gold-display">💰 {{ currentGold }} or</span>
+      <span class="gold-display">🪙 {{ currentGold }} or</span>
     </header>
 
     <div class="bazar-body">
@@ -27,7 +27,7 @@
               @click="reroll"
               :title="rerollBtnTitle"
             >
-              Renouveler — {{ BAZAR_REROLL_COST }} 💰
+              Renouveler — {{ BAZAR_REROLL_COST }} 🪙
             </button>
           </div>
         </div>
@@ -130,7 +130,7 @@
               </div>
             </div>
             <button class="sell-btn" @click="sell(artifact)">
-              +{{ SELL_PRICES[artifact.rarity] }} 💰
+              +{{ SELL_PRICES[artifact.rarity] }} 🪙
             </button>
           </div>
         </div>
@@ -252,7 +252,7 @@ const isActive = (id: string) => gameStore.gameState.inventory.activeArtifacts.i
 
 const sell = (artifact: Artifact) => {
   const goldGained = gameStore.sellArtifact(artifact.id)
-  toastStore.showSuccess(`💰 Vendu : ${artifact.name} pour ${goldGained} or.`, { duration: 3000 })
+  toastStore.showSuccess(`🪙 Vendu : ${artifact.name} pour ${goldGained} or.`, { duration: 3000 })
 }
 
 // ===== Helpers d'affichage =====
