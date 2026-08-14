@@ -45,11 +45,13 @@ import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 import { useMissionStore } from '@/stores/missionStore'
 import { useMapStore } from '@/stores/mapStore'
+import { useToastStore } from '@/stores/toastStore'
 
 const router = useRouter()
 const gameStore = useGameStore()
 const missionStore = useMissionStore()
 const mapStore = useMapStore()
+const toastStore = useToastStore()
 
 onMounted(() => {
   // Vérifier s'il existe une sauvegarde au montage
@@ -79,12 +81,12 @@ const loadGame = () => {
   // Charger la partie sauvegardée
   const success = gameStore.loadGame()
   if (success) {
-    console.log('Partie chargée avec succès')
+    toastStore.showSuccess('Partie chargée avec succès', { duration: 2000 })
 
     // Naviguer vers la carte des missions
     router.push('/mission-tree')
   } else {
-    console.error('Erreur lors du chargement de la partie')
+    toastStore.showError('Erreur lors du chargement de la partie', { duration: 3000 })
   }
 }
 

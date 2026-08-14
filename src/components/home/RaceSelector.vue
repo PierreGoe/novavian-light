@@ -74,9 +74,11 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore, type Race } from '@/stores/gameStore'
 import { STARTING_ARTIFACTS } from '@/data/artifacts'
+import { useToastStore } from '@/stores/toastStore'
 
 const router = useRouter()
 const gameStore = useGameStore()
+const toastStore = useToastStore()
 const selectedRace = ref<Race | null>(null)
 
 const races: Race[] = [
@@ -123,7 +125,7 @@ const confirmSelection = () => {
   // Démarrer une nouvelle partie avec la race sélectionnée
   gameStore.startNewGame(selectedRace.value)
 
-  console.log('Partie créée avec la race:', selectedRace.value.name)
+  toastStore.showSuccess(`Partie créée avec les ${selectedRace.value.name} !`, { duration: 2500 })
   router.push('/mission-tree')
 }
 </script>
