@@ -99,6 +99,12 @@ body {
   overflow-x: hidden;
 }
 
+/* Élements rendus cliquables au clavier par la directive v-clickable */
+[role='button']:focus-visible {
+  outline: 2px solid #daa520;
+  outline-offset: 2px;
+}
+
 #app {
   min-height: 100vh;
   --sidebar-width: 220px;
