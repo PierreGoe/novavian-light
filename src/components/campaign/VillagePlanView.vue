@@ -4,9 +4,21 @@
       <h3>Plan du Village</h3>
       <span class="hq-badge">QG niv. {{ hqLevel }}</span>
       <!-- Tooltip légende -->
-      <div class="legend-tooltip-wrap">
-        <span class="legend-trigger">ℹ️</span>
-        <div class="legend-tooltip">
+      <div
+        class="legend-tooltip-wrap"
+        @focusout="onLegendFocusOut"
+        @keydown.esc="showLegend = false"
+      >
+        <button
+          class="legend-trigger"
+          type="button"
+          :aria-expanded="showLegend"
+          aria-label="Légende des états de bâtiment"
+          @click="showLegend = !showLegend"
+        >
+          ℹ️
+        </button>
+        <div class="legend-tooltip" v-show="showLegend">
           <div class="legend-item legend-upgradable">⬆️ Améliorable</div>
           <div class="legend-item legend-available">✨ Disponible</div>
           <div class="legend-item legend-waiting">🪙 Ressources insuffisantes</div>
@@ -274,6 +286,15 @@ const town = computed(() => missionStore.town.value)
 
 const hqLevel = computed(() => getHQLevel(town.value?.buildings ?? []))
 
+// Légende des états de bâtiment — accessible au clic/clavier, pas seulement au survol
+const showLegend = ref(false)
+const onLegendFocusOut = (e: FocusEvent) => {
+  const nextTarget = e.relatedTarget as Node | null
+  if (!nextTarget || !(e.currentTarget as HTMLElement).contains(nextTarget)) {
+    showLegend.value = false
+  }
+}
+
 // Bâtiment sélectionné pour le panneau de détails
 const selectedType = ref<BuildingType | null>(null)
 
@@ -475,18 +496,26 @@ const quickAction = (type: BuildingType) => {
 }
 
 .legend-trigger {
+  background: none;
+  border: none;
+  padding: 0;
   font-size: 0.9rem;
-  cursor: help;
+  cursor: pointer;
   opacity: 0.6;
   transition: opacity 0.15s;
   user-select: none;
 }
-.legend-trigger:hover {
+.legend-trigger:hover,
+.legend-trigger[aria-expanded='true'] {
   opacity: 1;
+}
+.legend-trigger:focus-visible {
+  outline: 2px solid #daa520;
+  outline-offset: 2px;
 }
 
 .legend-tooltip {
-  display: none;
+  display: flex;
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
@@ -499,10 +528,6 @@ const quickAction = (type: BuildingType) => {
   flex-direction: column;
   gap: 0.35rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-}
-
-.legend-tooltip-wrap:hover .legend-tooltip {
-  display: flex;
 }
 
 .legend-item {
