@@ -70,27 +70,27 @@
       <div class="legends">
         <div class="legend">
           <div class="legend-item">
-            <span class="legend-icon" style="color: #dc143c">⚔️</span>
+            <span class="legend-icon" style="color: var(--node-combat)">⚔️</span>
             <span>Combat</span>
           </div>
           <div class="legend-item">
-            <span class="legend-icon" style="color: #ffd700">👑</span>
+            <span class="legend-icon" style="color: var(--node-elite)">👑</span>
             <span>Élite</span>
           </div>
           <div class="legend-item">
-            <span class="legend-icon" style="color: #32cd32">🏪</span>
+            <span class="legend-icon" style="color: var(--node-shop)">🏪</span>
             <span>Magasin</span>
           </div>
           <div class="legend-item">
-            <span class="legend-icon" style="color: #9932cc">❓</span>
+            <span class="legend-icon" style="color: var(--node-event)">❓</span>
             <span>Événement</span>
           </div>
           <div class="legend-item">
-            <span class="legend-icon" style="color: #4169e1">🏕️</span>
+            <span class="legend-icon" style="color: var(--node-rest)">🏕️</span>
             <span>Repos</span>
           </div>
           <div class="legend-item">
-            <span class="legend-icon" style="color: #8b0000">💀</span>
+            <span class="legend-icon" style="color: var(--node-boss)">💀</span>
             <span>Boss</span>
           </div>
         </div>
