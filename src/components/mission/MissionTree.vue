@@ -171,10 +171,8 @@ const resetMap = () => {
     return
   }
   gameStore.resetMapOnly()
-  setTimeout(() => {
-    gameStore.initializeMapIfNeeded()
-    toastStore.showSuccess('Nouvelle carte générée !', { duration: 2000 })
-  }, 200)
+  gameStore.initializeMapIfNeeded()
+  toastStore.showSuccess('Nouvelle carte générée !', { duration: 2000 })
 }
 
 const getConnectionX = (connectionId: string) => {
