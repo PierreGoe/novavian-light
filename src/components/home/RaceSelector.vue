@@ -14,6 +14,7 @@
         :key="race.id"
         class="race-card"
         :class="{ selected: selectedRace?.id === race.id }"
+        v-clickable
         @click="selectRace(race)"
       >
         <div class="race-banner">
