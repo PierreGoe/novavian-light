@@ -230,13 +230,23 @@
         <span class="saved-hint">✓ Paramètres sauvegardés automatiquement</span>
       </div>
     </div>
+
+    <ConfirmDialog
+      v-model:open="showResetConfirm"
+      title="Réinitialiser les paramètres ?"
+      message="Tous les réglages reviendront à leurs valeurs par défaut."
+      confirm-label="Réinitialiser"
+      danger
+      @confirm="doReset"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { gameSettings, resetGameSettings } from '@/stores/gameSettingsStore'
 import { useToastStore } from '@/stores/toastStore'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 
 const settings = gameSettings
 const toastStore = useToastStore()
@@ -256,11 +266,13 @@ const fogEnabled = computed({
   },
 })
 
+const showResetConfirm = ref(false)
 const confirmReset = () => {
-  if (confirm('Réinitialiser tous les paramètres aux valeurs par défaut ?')) {
-    resetGameSettings()
-    toastStore.showSuccess('Paramètres réinitialisés', { duration: 2000 })
-  }
+  showResetConfirm.value = true
+}
+const doReset = () => {
+  resetGameSettings()
+  toastStore.showSuccess('Paramètres réinitialisés', { duration: 2000 })
 }
 </script>
 
