@@ -175,14 +175,6 @@ const resetMap = () => {
   toastStore.showSuccess('Nouvelle carte générée !', { duration: 2000 })
 }
 
-const getConnectionX = (connectionId: string) => {
-  const targetNode = allNodes.value.find((n) => n.id === connectionId)
-  if (targetNode) {
-    return (targetNode.col + 0.5) * 120
-  }
-  return 60
-}
-
 const goHome = () => {
   router.push('/')
 }
@@ -393,39 +385,6 @@ onMounted(() => {
   bottom: 0;
   z-index: 100;
   backdrop-filter: blur(10px);
-}
-
-.paths-legend {
-  display: flex;
-  gap: 2rem;
-  margin-bottom: 1rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(218, 165, 32, 0.3);
-}
-
-.path-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.9rem;
-}
-
-.path-line {
-  width: 40px;
-  height: 4px;
-  border-radius: 2px;
-}
-
-.military-path {
-  background: linear-gradient(90deg, #dc143c, #ff6b6b);
-}
-
-.balanced-path {
-  background: linear-gradient(90deg, #daa520, #ffd700);
-}
-
-.economic-path {
-  background: linear-gradient(90deg, #32cd32, #98fb98);
 }
 
 .legend {
