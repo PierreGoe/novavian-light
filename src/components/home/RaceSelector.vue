@@ -33,13 +33,25 @@
               <span class="artifact-name">{{ startingArtifact(race).name }}</span>
               <span class="artifact-desc">{{ startingArtifact(race).description }}</span>
               <div class="artifact-effects">
-                <span v-if="startingArtifact(race).effects.economy" class="fx-badge economy">
+                <span
+                  v-if="startingArtifact(race).effects.economy"
+                  class="fx-badge economy"
+                  title="Bonus économique : production de ressources"
+                >
                   📈 +{{ startingArtifact(race).effects.economy }}% Éco
                 </span>
-                <span v-if="startingArtifact(race).effects.military" class="fx-badge military">
+                <span
+                  v-if="startingArtifact(race).effects.military"
+                  class="fx-badge military"
+                  title="Bonus militaire : force d'attaque des troupes"
+                >
                   ⚔️ +{{ startingArtifact(race).effects.military }}% Mil
                 </span>
-                <span v-if="startingArtifact(race).effects.defense" class="fx-badge defense">
+                <span
+                  v-if="startingArtifact(race).effects.defense"
+                  class="fx-badge defense"
+                  title="Bonus défensif : résistance des troupes"
+                >
                   🛡️ +{{ startingArtifact(race).effects.defense }}% Déf
                 </span>
                 <span v-if="startingArtifact(race).effects.resourceBonus?.wood" class="fx-badge resource">
