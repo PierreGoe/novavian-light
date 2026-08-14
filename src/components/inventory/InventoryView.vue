@@ -815,24 +815,24 @@ $rarity-legendary: #f59e0b;
   font-weight: 600;
 
   &.economy {
-    background: rgba(34, 197, 94, 0.2);
-    color: #86efac;
-    border: 1px solid rgba(34, 197, 94, 0.3);
+    background: rgba(var(--fx-economy-rgb), 0.2);
+    color: var(--fx-economy);
+    border: 1px solid rgba(var(--fx-economy-rgb), 0.3);
   }
   &.military {
-    background: rgba(239, 68, 68, 0.2);
-    color: #fca5a5;
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: rgba(var(--fx-military-rgb), 0.2);
+    color: var(--fx-military);
+    border: 1px solid rgba(var(--fx-military-rgb), 0.3);
   }
   &.defense {
-    background: rgba(59, 130, 246, 0.2);
-    color: #93c5fd;
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    background: rgba(var(--fx-defense-rgb), 0.2);
+    color: var(--fx-defense);
+    border: 1px solid rgba(var(--fx-defense-rgb), 0.3);
   }
   &.resource {
-    background: rgba(245, 158, 11, 0.2);
-    color: #fcd34d;
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: rgba(var(--fx-resource-rgb), 0.2);
+    color: var(--fx-resource);
+    border: 1px solid rgba(var(--fx-resource-rgb), 0.3);
   }
   &.special {
     background: rgba(139, 92, 246, 0.2);
@@ -1104,20 +1104,20 @@ $rarity-legendary: #f59e0b;
   font-weight: 600;
 
   &.economy {
-    background: rgba(34, 197, 94, 0.2);
-    color: #86efac;
+    background: rgba(var(--fx-economy-rgb), 0.2);
+    color: var(--fx-economy);
   }
   &.military {
-    background: rgba(239, 68, 68, 0.2);
-    color: #fca5a5;
+    background: rgba(var(--fx-military-rgb), 0.2);
+    color: var(--fx-military);
   }
   &.defense {
-    background: rgba(59, 130, 246, 0.2);
-    color: #93c5fd;
+    background: rgba(var(--fx-defense-rgb), 0.2);
+    color: var(--fx-defense);
   }
   &.resource {
-    background: rgba(245, 158, 11, 0.2);
-    color: #fcd34d;
+    background: rgba(var(--fx-resource-rgb), 0.2);
+    color: var(--fx-resource);
   }
 }
 
