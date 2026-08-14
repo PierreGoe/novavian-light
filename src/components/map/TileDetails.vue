@@ -71,7 +71,7 @@
         <span class="zone-title">
           {{ tile.type === 'stronghold' ? "Zone d'influence" : 'Sous contrôle ennemi' }}
         </span>
-        <span class="zone-hostility-badge" :class="`badge-${tileZone.hostilityState}`">
+        <span class="zone-hostility-badge" :class="`zone-badge-${tileZone.hostilityState}`">
           {{ HOSTILITY_LABELS[tileZone.hostilityState] }}
         </span>
       </div>
@@ -869,15 +869,15 @@ const getResourceIcon = (resource: string) => {
   letter-spacing: 0.05em;
 }
 
-.badge-neutral {
+.zone-badge-neutral {
   background: rgba(100, 200, 100, 0.2);
   color: #86efac;
 }
-.badge-warned {
+.zone-badge-warned {
   background: rgba(251, 146, 60, 0.2);
   color: #fdba74;
 }
-.badge-hostile {
+.zone-badge-hostile {
   background: rgba(239, 68, 68, 0.25);
   color: #fca5a5;
 }
