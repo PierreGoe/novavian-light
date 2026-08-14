@@ -101,6 +101,28 @@
   </nav>
 
   <!-- =========================================================
+       Barre de stats compacte mobile (or/leadership + accueil),
+       masquée sur desktop — au-dessus de la bottom nav
+       ========================================================= -->
+  <div v-if="!isFullscreenRoute && isInGame" class="bottom-stats">
+    <div class="bottom-stat-item">
+      <span class="bottom-stat-icon">🪙</span>
+      <span class="bottom-stat-value">{{ formatNumber(gold) }}</span>
+    </div>
+    <div
+      class="bottom-stat-item"
+      :class="`leadership-${leadershipStatus}`"
+      :title="leadershipTooltip"
+    >
+      <span class="bottom-stat-icon">👑</span>
+      <span class="bottom-stat-value">{{ leadership }}</span>
+    </div>
+    <button class="bottom-stat-home" @click="goHome" title="Menu principal" aria-label="Menu principal">
+      🏠
+    </button>
+  </div>
+
+  <!-- =========================================================
        Bottom nav mobile (visible seulement sur mobile)
        ========================================================= -->
   <nav
@@ -617,6 +639,54 @@ $mobile-breakpoint: 768px;
     align-items: stretch;
     justify-content: space-around;
   }
+}
+
+.bottom-stats {
+  display: none;
+
+  @media (max-width: $mobile-breakpoint) {
+    display: flex;
+    position: fixed;
+    bottom: 64px;
+    left: 0;
+    right: 0;
+    height: 34px;
+    background: rgba(0, 0, 0, 0.55);
+    border-top: 1px solid $nav-border;
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 0 0.75rem;
+  }
+}
+
+.bottom-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: $text-color;
+}
+
+.bottom-stat-icon {
+  font-size: 0.9rem;
+}
+
+.bottom-stat-item.leadership-critical {
+  color: #ff6b6b;
+  animation: leadershipAlert 2s infinite;
+}
+
+.bottom-stat-home {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: $text-color;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.2rem;
+  line-height: 1;
 }
 
 .bottom-nav-link {

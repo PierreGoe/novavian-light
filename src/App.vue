@@ -116,11 +116,12 @@ body {
   min-height: 100vh;
 }
 
-/* Mobile : pas de décalage latéral, padding en bas pour la bottom nav */
+/* Mobile : pas de décalage latéral, padding en bas pour la bottom nav
+   (+ la barre de stats compacte au-dessus, affichée seulement en jeu) */
 @media (max-width: 768px) {
   .app-content {
     margin-left: 0;
-    padding-bottom: 64px;
+    padding-bottom: 98px;
   }
 }
 
