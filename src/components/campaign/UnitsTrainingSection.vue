@@ -93,6 +93,13 @@
               </div>
             </div>
             <div class="clock-name">{{ UNIT_DEFINITIONS[trainingQueue[0].type].name }}</div>
+            <button
+              class="clock-cancel"
+              @click="handleCancel(trainingQueue[0])"
+              title="Annuler 1 unité et récupérer les ressources"
+            >
+              ✕
+            </button>
           </div>
 
           <!-- Groupes en attente (#2+) : petits chronos -->

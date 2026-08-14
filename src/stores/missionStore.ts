@@ -743,8 +743,7 @@ export const useMissionStore = () => {
   const cancelQueueEntry = (entryId: string): boolean => {
     const queue = missionState.town.trainingQueue
     const index = queue.findIndex((e) => e.id === entryId)
-    // Refus si non trouvée ou si c'est l'entrée en cours (#1)
-    if (index <= 0) return false
+    if (index === -1) return false
 
     const entry = queue[index]
     const def = UNIT_DEFINITIONS[entry.type]
