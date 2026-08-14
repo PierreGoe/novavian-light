@@ -265,12 +265,12 @@ const getRewardIcon = (type: string): string => {
 }
 
 /* ─── Couleurs par type ─────────────────────────────────── */
-.node-combat { border-color: #dc143c; }
-.node-elite  { border-color: #ffd700; }
-.node-shop   { border-color: #32cd32; }
-.node-event  { border-color: #9932cc; }
-.node-rest   { border-color: #4169e1; }
-.node-boss   { border-color: #8b0000; border-width: 3px; }
+.node-combat { border-color: var(--node-combat); }
+.node-elite  { border-color: var(--node-elite); }
+.node-shop   { border-color: var(--node-shop); }
+.node-event  { border-color: var(--node-event); }
+.node-rest   { border-color: var(--node-rest); }
+.node-boss   { border-color: var(--node-boss); border-width: 3px; }
 
 /* ─── États ─────────────────────────────────────────────── */
 .node-accessible {
