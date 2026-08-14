@@ -10,6 +10,7 @@
     <main class="content-section">
       <div class="game-options">
         <div class="option-card new-game" @click="startNewGame">
+          <span class="new-game-badge">Commencer</span>
           <div class="card-icon">⚔️</div>
           <h3>Nouvelle Partie</h3>
           <p>Commencez votre conquête</p>
@@ -178,6 +179,7 @@ const showSettings = () => {
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
+  position: relative;
 }
 
 .option-card:hover:not(.disabled) {
@@ -190,6 +192,31 @@ const showSettings = () => {
 .option-card.disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.option-card.new-game {
+  background: rgba(218, 165, 32, 0.18);
+  border-color: #ffd700;
+  box-shadow: 0 0 24px rgba(218, 165, 32, 0.25);
+}
+
+.option-card.new-game:hover {
+  box-shadow: 0 12px 34px rgba(218, 165, 32, 0.45);
+}
+
+.new-game-badge {
+  position: absolute;
+  top: -0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(45deg, #daa520, #ffd700);
+  color: #1a0f08;
+  font-size: 0.7rem;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+  padding: 0.25rem 0.8rem;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .card-icon {
