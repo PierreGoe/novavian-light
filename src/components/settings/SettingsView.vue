@@ -574,4 +574,21 @@ const confirmReset = () => {
   font-size: 0.72rem;
   color: #374151;
 }
+
+/* ---- Responsive ---- */
+@media (max-width: 480px) {
+  .settings-view {
+    padding: 1.25rem 1rem;
+  }
+
+  .setting-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+
+  .setting-control {
+    min-width: 0;
+  }
+}
 </style>
