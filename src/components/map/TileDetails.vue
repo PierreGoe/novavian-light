@@ -290,11 +290,12 @@
       <button
         v-if="canTradeTile(tile)"
         class="action-btn trade-btn"
-        @click="$emit('tradeTile', tile.id)"
+        disabled
+        title="Fonctionnalité pas encore disponible"
       >
         <span class="action-icon">🤝</span>
         <span class="action-label">Commerce</span>
-        <span class="action-sub">Négocier des ressources</span>
+        <span class="action-sub">Bientôt disponible</span>
       </button>
     </div>
   </div>
@@ -1284,6 +1285,16 @@ const getResourceIcon = (resource: string) => {
 .action-btn:active {
   transform: translateY(0);
   filter: brightness(0.95);
+}
+
+.action-btn:disabled {
+  cursor: not-allowed;
+  filter: grayscale(70%) brightness(0.8);
+  opacity: 0.7;
+}
+
+.action-btn:disabled:hover {
+  transform: none;
 }
 
 .action-icon {
