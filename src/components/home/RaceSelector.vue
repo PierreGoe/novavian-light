@@ -26,38 +26,35 @@
         </div>
 
         <div class="race-bonuses">
-          <h4>Avantages :</h4>
-          <ul>
-            <li v-for="bonus in race.bonuses" :key="bonus">{{ bonus }}</li>
-          </ul>
-        </div>
-
-        <div class="race-stats">
-          <div class="stat">
-            <span class="stat-label">Économie :</span>
-            <div class="stat-bar">
-              <div
-                class="stat-fill economy"
-                :style="{ width: race.stats.economy * 20 + '%' }"
-              ></div>
-            </div>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Militaire :</span>
-            <div class="stat-bar">
-              <div
-                class="stat-fill military"
-                :style="{ width: race.stats.military * 20 + '%' }"
-              ></div>
-            </div>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Défense :</span>
-            <div class="stat-bar">
-              <div
-                class="stat-fill defense"
-                :style="{ width: race.stats.defense * 20 + '%' }"
-              ></div>
+          <h4>Équipement de départ :</h4>
+          <div class="starting-artifact">
+            <span class="artifact-icon">{{ startingArtifact(race).icon }}</span>
+            <div class="artifact-details">
+              <span class="artifact-name">{{ startingArtifact(race).name }}</span>
+              <span class="artifact-desc">{{ startingArtifact(race).description }}</span>
+              <div class="artifact-effects">
+                <span v-if="startingArtifact(race).effects.economy" class="fx-badge economy">
+                  📈 +{{ startingArtifact(race).effects.economy }}% Éco
+                </span>
+                <span v-if="startingArtifact(race).effects.military" class="fx-badge military">
+                  ⚔️ +{{ startingArtifact(race).effects.military }}% Mil
+                </span>
+                <span v-if="startingArtifact(race).effects.defense" class="fx-badge defense">
+                  🛡️ +{{ startingArtifact(race).effects.defense }}% Déf
+                </span>
+                <span v-if="startingArtifact(race).effects.resourceBonus?.wood" class="fx-badge resource">
+                  🪵 +{{ startingArtifact(race).effects.resourceBonus?.wood }}% Bois
+                </span>
+                <span v-if="startingArtifact(race).effects.resourceBonus?.stone" class="fx-badge resource">
+                  🪨 +{{ startingArtifact(race).effects.resourceBonus?.stone }}% Pierre
+                </span>
+                <span v-if="startingArtifact(race).effects.resourceBonus?.iron" class="fx-badge resource">
+                  ⚒️ +{{ startingArtifact(race).effects.resourceBonus?.iron }}% Fer
+                </span>
+                <span v-if="startingArtifact(race).effects.resourceBonus?.crop" class="fx-badge resource">
+                  🌾 +{{ startingArtifact(race).effects.resourceBonus?.crop }}% Céréales
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -76,6 +73,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore, type Race } from '@/stores/gameStore'
+import { STARTING_ARTIFACTS } from '@/data/artifacts'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -88,16 +86,6 @@ const races: Race[] = [
     icon: '🏛️',
     description:
       'Empire discipliné et organisé. Les Romains excellent dans la construction et la stratégie militaire. Leurs légions sont redoutables et leur économie bien structurée.',
-    bonuses: [
-      '+25% vitesse de construction',
-      "+20% force des unités d'infanterie",
-      'Coût réduit des routes et aqueducs',
-    ],
-    stats: {
-      economy: 4,
-      military: 4,
-      defense: 3,
-    },
   },
   {
     id: 'gauls',
@@ -105,16 +93,6 @@ const races: Race[] = [
     icon: '🛡️',
     description:
       'Peuple fier et défensif, maître de la résistance. Les Gaulois sont experts en défense et bénéficient de bonus pour protéger leurs terres.',
-    bonuses: [
-      '+30% solidité des fortifications',
-      '+20% efficacité des pièges',
-      'Bonus défensif en territoire ami',
-    ],
-    stats: {
-      economy: 3,
-      military: 3,
-      defense: 5,
-    },
   },
   {
     id: 'germans',
@@ -122,14 +100,11 @@ const races: Race[] = [
     icon: '⚔️',
     description:
       "Guerriers sauvages et impitoyables. Les Germains privilégient l'attaque rapide et la pillage. Leurs raids sont dévastateurs.",
-    bonuses: ["+35% vitesse d'attaque", '+25% butin des raids', 'Unités de cavalerie améliorées'],
-    stats: {
-      economy: 2,
-      military: 5,
-      defense: 2,
-    },
   },
 ]
+
+/** Artefact de départ réel de la race — seule source de vérité pour ses bonus */
+const startingArtifact = (race: Race) => STARTING_ARTIFACTS[race.id]
 
 const selectRace = (race: Race) => {
   selectedRace.value = race
@@ -283,66 +258,67 @@ const confirmSelection = () => {
   font-size: 1rem;
 }
 
-.race-bonuses ul {
-  margin: 0;
-  padding-left: 1.2rem;
-  list-style: none;
-}
-
-.race-bonuses li {
-  margin-bottom: 0.3rem;
-  font-size: 0.9rem;
-  opacity: 0.8;
-  position: relative;
-}
-
-.race-bonuses li:before {
-  content: '✓';
-  color: #daa520;
-  position: absolute;
-  left: -1.2rem;
-}
-
-.race-stats {
+.starting-artifact {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
   border-top: 1px solid rgba(218, 165, 32, 0.3);
   padding-top: 1rem;
 }
 
-.stat {
+.starting-artifact .artifact-icon {
+  font-size: 1.8rem;
+  flex-shrink: 0;
+}
+
+.artifact-details {
   display: flex;
-  align-items: center;
-  margin-bottom: 0.5rem;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
-.stat-label {
-  width: 80px;
-  font-size: 0.9rem;
+.artifact-name {
+  font-weight: 700;
+  color: #daa520;
+  font-size: 0.95rem;
+}
+
+.artifact-desc {
+  font-size: 0.82rem;
   opacity: 0.8;
+  line-height: 1.4;
 }
 
-.stat-bar {
-  flex: 1;
-  height: 8px;
-  background: rgba(0, 0, 0, 0.3);
+.artifact-effects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+}
+
+.fx-badge {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
   border-radius: 4px;
-  overflow: hidden;
-  margin-left: 0.5rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.stat-fill {
-  height: 100%;
-  transition: width 0.5s ease;
-  border-radius: 4px;
+.fx-badge.economy {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
 }
-
-.stat-fill.economy {
-  background: linear-gradient(90deg, #228b22, #32cd32);
+.fx-badge.military {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
 }
-.stat-fill.military {
-  background: linear-gradient(90deg, #dc143c, #ff6347);
+.fx-badge.defense {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
 }
-.stat-fill.defense {
-  background: linear-gradient(90deg, #4169e1, #87ceeb);
+.fx-badge.resource {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fcd34d;
 }
 
 .selector-footer {
