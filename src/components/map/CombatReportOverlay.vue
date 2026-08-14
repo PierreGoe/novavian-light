@@ -1,6 +1,14 @@
 <template>
   <Transition name="slide-fade">
-    <section v-if="report" class="combat-report-panel">
+    <div
+      v-if="report"
+      ref="backdropRef"
+      class="combat-report-backdrop"
+      tabindex="-1"
+      @click.self="emit('close')"
+      @keydown.esc="emit('close')"
+    >
+    <section class="combat-report-panel">
       <!-- Bannière hero victoire / défaite -->
       <div class="hero-banner" :class="playerVictory ? 'banner-victory' : 'banner-defeat'">
         <div class="banner-particles">
@@ -141,15 +149,28 @@
         <button class="report-close-btn" @click="emit('close')">Fermer</button>
       </div>
     </section>
+    </div>
   </Transition>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import type { CombatReport, SavedBattleReport } from '../../combat/types'
 import { UNIT_DEFINITIONS } from '../../stores/missionStore'
 
 const props = defineProps<{ report: CombatReport | SavedBattleReport | null }>()
+
+// Focus posé sur le fond dès l'ouverture, pour que la touche Échap soit captée
+const backdropRef = ref<HTMLElement | null>(null)
+watch(
+  () => props.report,
+  async (report) => {
+    if (report) {
+      await nextTick()
+      backdropRef.value?.focus()
+    }
+  },
+)
 const emit = defineEmits<{ close: [] }>()
 
 /** Vrai si le joueur est le défenseur dans ce rapport */
@@ -221,11 +242,19 @@ const lootTotal = computed(() => {
 </script>
 
 <style scoped>
-.combat-report-panel {
+.combat-report-backdrop {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 1rem;
+  outline: none;
+}
+
+.combat-report-panel {
   background: linear-gradient(160deg, #1a2540, #0f172a);
   border: 2px solid #334155;
   border-radius: 20px;
@@ -234,11 +263,11 @@ const lootTotal = computed(() => {
   max-width: 95vw;
   max-height: 90vh;
   overflow-y: auto;
-  z-index: 1100;
   box-shadow:
     0 24px 80px rgba(0, 0, 0, 0.8),
     0 0 60px rgba(59, 130, 246, 0.08);
   color: #e2e8f0;
+  transition: transform 0.3s ease;
 }
 
 /* ── Bannière hero ── */
@@ -633,8 +662,12 @@ const lootTotal = computed(() => {
 
 .slide-fade-enter-from,
 .slide-fade-leave-to {
-  transform: translate(-50%, -50%) scale(0.95);
   opacity: 0;
+}
+
+.slide-fade-enter-from .combat-report-panel,
+.slide-fade-leave-to .combat-report-panel {
+  transform: scale(0.95);
 }
 
 /* ── Section butin ── */
