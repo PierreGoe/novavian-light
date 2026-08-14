@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="toast-container">
+    <div class="toast-container" role="status" aria-live="polite">
       <TransitionGroup name="toast" tag="div">
         <div
           v-for="toast in toastStore.activeToasts.value"
@@ -22,7 +22,7 @@
 
           <button
             class="toast-close"
-            @click="toastStore.removeToast(toast.id)"
+            @click.stop="toastStore.removeToast(toast.id)"
             aria-label="Fermer la notification"
           >
             ✕
@@ -61,6 +61,8 @@ function handleToastClick(toast: Toast) {
   z-index: 9999;
   pointer-events: none;
   max-width: 400px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
 }
 
 .toast {
@@ -225,6 +227,7 @@ function handleToastClick(toast: Toast) {
     left: 10px;
     max-width: none;
     top: 80px;
+    max-height: calc(100vh - 100px);
   }
 
   .toast {

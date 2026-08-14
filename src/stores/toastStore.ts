@@ -13,6 +13,9 @@ export interface Toast {
 const toasts = ref<Toast[]>([])
 let nextId = 1
 
+/** Nombre max de toasts non-persistants affichés simultanément — évite l'empilement en rafale */
+const MAX_ACTIVE_TOASTS = 4
+
 export const useToastStore = () => {
   // Getters
   const allToasts = computed(() => toasts.value)
@@ -39,6 +42,12 @@ export const useToastStore = () => {
     }
 
     toasts.value.push(toast)
+
+    // Plafonner les toasts non-persistants : en rafale, on retire les plus anciens
+    const nonPersistentActive = () => activeToasts.value.filter((t) => !t.persistent)
+    while (nonPersistentActive().length > MAX_ACTIVE_TOASTS) {
+      removeToast(nonPersistentActive()[0].id)
+    }
 
     // Auto-remove si pas persistant
     if (!options.persistent && duration > 0) {
