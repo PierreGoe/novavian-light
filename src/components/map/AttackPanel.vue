@@ -104,6 +104,16 @@
             >
               −
             </button>
+            <input
+              class="ap-qty-input"
+              type="number"
+              min="0"
+              :max="unit.count"
+              :value="composition[unit.type] ?? 0"
+              :disabled="unit.count === 0"
+              :aria-label="`Nombre de ${unitLabel(unit.type)} à envoyer`"
+              @change="setCount(unit.type, ($event.target as HTMLInputElement).valueAsNumber || 0)"
+            />
             <button
               class="ap-qty-btn"
               @click="increment(unit.type)"
@@ -555,6 +565,8 @@ const confirm = () => {
 
 .ap-unit-controls {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 2px;
 }
 
@@ -580,6 +592,31 @@ const confirm = () => {
 .ap-qty-btn:disabled {
   opacity: 0.25;
   cursor: default;
+}
+
+.ap-qty-input {
+  width: 30px;
+  height: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #ddd;
+  font-size: 0.68em;
+  text-align: center;
+  padding: 0;
+  /* Masque les flèches natives du input[type=number] : les boutons -/+ suffisent */
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.ap-qty-input::-webkit-outer-spin-button,
+.ap-qty-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.ap-qty-input:disabled {
+  opacity: 0.25;
 }
 
 .ap-qty-max {
