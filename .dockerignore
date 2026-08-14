@@ -1,0 +1,7 @@
+node_modules
+dist
+dist-ssr
+.git
+.vscode
+*.log
+npm-debug.log*

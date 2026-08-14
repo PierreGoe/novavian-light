@@ -1,0 +1,23 @@
+services:
+  app:
+    build: .
+    container_name: novavian-light
+    restart: unless-stopped
+    ports:
+      - '5173:5173'
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+
+  proxy:
+    image: caddy:2-alpine
+    container_name: novavian-proxy
+    restart: unless-stopped
+    ports:
+      - '8880:80'
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - app

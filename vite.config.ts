@@ -14,4 +14,8 @@ export default defineConfig({
     },
   },
   base: '/novavian-light/', // TODO https://www.youtube.com/watch?v=U2nRRXhhrd4
+  server: {
+    // Autorise l'accès via le nom d'hôte local utilisé par le reverse-proxy Docker (docker-compose.yml).
+    allowedHosts: ['local.novavian'],
+  },
 })
