@@ -242,8 +242,14 @@ const buy = (artifact: Artifact) => {
 
   toastStore.showSuccess(`🔮 Acquis : ${artifact.name} !`, { duration: 4000 })
 
-  // Remplacer la carte achetée par une nouvelle offre si des tirages restent
-  bazarOffer.value = bazarOffer.value.filter((a) => a.id !== artifact.id)
+  // Remplacer la carte achetée par une nouvelle offre de même rareté (garde les "6 offres" promises)
+  const otherNames = bazarOffer.value.filter((a) => a.id !== artifact.id).map((a) => a.name)
+  const rarity = artifact.rarity as 'common' | 'rare' | 'epic'
+  const replacement = gameStore.generateBazarReplacement(rarity, [...otherNames, artifact.name])
+
+  bazarOffer.value = replacement
+    ? bazarOffer.value.map((a) => (a.id === artifact.id ? replacement : a))
+    : bazarOffer.value.filter((a) => a.id !== artifact.id)
 }
 
 // ===== Vente =====
@@ -251,6 +257,18 @@ const allArtifacts = computed(() => gameStore.gameState.inventory.artifacts)
 const isActive = (id: string) => gameStore.gameState.inventory.activeArtifacts.includes(id)
 
 const sell = (artifact: Artifact) => {
+  const needsConfirm = isActive(artifact.id) || artifact.rarity === 'epic' || artifact.rarity === 'legendary'
+  if (needsConfirm) {
+    const activeNote = isActive(artifact.id) ? ' (actuellement équipée)' : ''
+    if (
+      !window.confirm(
+        `Vendre ${artifact.name}${activeNote} ? Cette relique ${rarityLabel(artifact.rarity).toLowerCase()} sera définitivement perdue.`,
+      )
+    ) {
+      return
+    }
+  }
+
   const goldGained = gameStore.sellArtifact(artifact.id)
   toastStore.showSuccess(`🪙 Vendu : ${artifact.name} pour ${goldGained} or.`, { duration: 3000 })
 }

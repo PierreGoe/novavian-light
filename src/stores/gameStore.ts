@@ -1243,6 +1243,21 @@ export const useGameStore = () => {
     return [...pick('common', 2), ...pick('rare', 2), ...pick('epic', 2)]
   }
 
+  /**
+   * Génère un artefact de remplacement de même rareté pour le Bazar, après l'achat
+   * d'une des 6 offres — évite de reproposer un nom déjà présent dans l'offre courante.
+   * Retourne null si le pool de cette rareté est épuisé (aucun nom disponible restant).
+   */
+  const generateBazarReplacement = (
+    rarity: 'common' | 'rare' | 'epic',
+    excludeNames: string[],
+  ): Artifact | null => {
+    const candidates = getPoolByRarity(rarity).filter((t) => !excludeNames.includes(t.name))
+    if (candidates.length === 0) return null
+    const template = candidates[Math.floor(Math.random() * candidates.length)]
+    return instantiateArtifact(template, 'Bazar Mystique')
+  }
+
   /** Forge un artefact d'une rareté précise (coût en or géré par l'appelant) */
   const giveRandomArtifactOfRarity = (rarity: 'common' | 'rare' | 'epic'): Artifact => {
     const candidates = getPoolByRarity(rarity)
@@ -1322,6 +1337,7 @@ export const useGameStore = () => {
     destroyDestructiblesOnCampaignLoss,
     sellArtifact,
     generateBazarOffer,
+    generateBazarReplacement,
 
     // Points de victoire
     addVictoryPoints,
