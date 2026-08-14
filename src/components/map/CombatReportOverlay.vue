@@ -699,4 +699,17 @@ const lootTotal = computed(() => {
   color: #fb923c;
   font-weight: 600;
 }
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .report-details {
+    flex-direction: column;
+  }
+
+  .report-divider {
+    width: auto;
+    height: 2px;
+    background: linear-gradient(to right, transparent, #475569, transparent);
+  }
+}
 </style>

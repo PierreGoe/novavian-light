@@ -709,4 +709,11 @@ const confirm = () => {
   border: none;
   margin: 4px 0;
 }
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .ap-quick {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 </style>
