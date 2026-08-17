@@ -13,25 +13,15 @@
         class="clock-item"
         :class="item.kind === 'done' ? 'clock-item--done' : 'clock-item--active'"
       >
-        <!-- Anneau SVG -->
-        <div class="clock-ring">
-          <svg viewBox="0 0 60 60" class="clock-svg">
-            <circle class="clock-track" cx="30" cy="30" r="26" />
-            <circle
-              v-if="item.kind !== 'done'"
-              class="clock-progress"
-              cx="30"
-              cy="30"
-              r="26"
-              :stroke-dasharray="163.36"
-              :stroke-dashoffset="163.36 * (1 - item.progress / 100)"
-            />
-          </svg>
-          <div class="clock-inner">
-            <span class="clock-icon">{{ item.icon }}</span>
-            <span class="clock-time">{{ item.eta }}</span>
-          </div>
-        </div>
+        <TimerClock
+          :size="64"
+          :progress="item.kind !== 'done' ? item.progress / 100 : undefined"
+          :icon="item.icon"
+          :done="item.kind === 'done'"
+          progress-color="#ef4444"
+        >
+          <span class="clock-time">{{ item.eta }}</span>
+        </TimerClock>
         <!-- Destination -->
         <div class="clock-label">{{ item.label }}</div>
         <!-- Badges unités -->
@@ -50,6 +40,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMissionStore } from '../../stores/missionStore'
 import { useMapStore, type TroopMovement } from '../../stores/mapStore'
 import { formatDuration } from '../../utils/formatDuration'
+import TimerClock from '@/components/ui/TimerClock.vue'
 
 const missionStore = useMissionStore()
 const mapStore = useMapStore()
@@ -219,61 +210,9 @@ const allItems = computed((): MovementItem[] => {
   position: relative;
 }
 
-/* Anneau SVG + contenu superposé */
-.clock-ring {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.clock-svg {
-  display: block;
-  width: 64px;
-  height: 64px;
-}
-
-/* Piste de fond */
-.clock-track {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.08);
-  stroke-width: 3;
-}
-
-/* Arc de progression */
-.clock-progress {
-  fill: none;
-  stroke: #ef4444;
-  stroke-width: 3;
-  stroke-linecap: round;
-  transform: rotate(-90deg);
-  transform-origin: center;
-  transition: stroke-dashoffset 1s linear;
-}
-
-/* Mouvement terminé : piste en pointillés, opacité réduite */
+/* Mouvement terminé : opacité réduite (le style de piste "arrivé" est géré par TimerClock) */
 .clock-item--done {
   opacity: 0.55;
-}
-
-.clock-item--done .clock-track {
-  stroke: rgba(34, 197, 94, 0.25);
-  stroke-dasharray: 4 4;
-}
-
-/* Contenu au centre du cercle */
-.clock-inner {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  pointer-events: none;
-}
-
-.clock-icon {
-  font-size: 1.4rem;
-  line-height: 1;
 }
 
 .clock-time {

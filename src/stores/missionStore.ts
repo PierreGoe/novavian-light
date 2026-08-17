@@ -301,6 +301,12 @@ const missionState = reactive<MissionState>({ ...initialState })
 // Variable pour déclencher les recalculs d'affichage
 const displayTrigger = reactive({ timestamp: Date.now() })
 
+// Auto-save et affichage temps réel — au niveau module pour que la garde de
+// démarrage protège contre un double appel de startAllServices() peu importe
+// le composant appelant (useMissionStore() est une factory, pas un singleton Pinia).
+let autoSaveInterval: number | null = null
+let displayUpdateInterval: number | null = null
+
 // Actions du store
 export const useMissionStore = () => {
   // Getters
@@ -984,10 +990,6 @@ export const useMissionStore = () => {
     Object.assign(missionState, freshInitialState)
     localStorage.removeItem('minitravian-missions')
   }
-
-  // Auto-save et affichage temps réel
-  let autoSaveInterval: number | null = null
-  let displayUpdateInterval: number | null = null
 
   const startAutoSave = () => {
     if (autoSaveInterval) return

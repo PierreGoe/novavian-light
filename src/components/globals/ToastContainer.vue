@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div class="toast-container" role="status" aria-live="polite">
-      <TransitionGroup name="toast" tag="div">
+      <TransitionGroup name="toast" tag="div" class="toast-list">
         <div
           v-for="toast in toastStore.activeToasts.value"
           :key="toast.id"
@@ -54,15 +54,23 @@ function handleToastClick(toast: Toast) {
 </script>
 
 <style scoped>
+/* Ancré en bas, centré horizontalement — les nouveaux toasts s'empilent vers la droite
+   depuis ce point central (voir .toast-list), plutôt que de tout re-centrer à chaque ajout. */
 .toast-container {
   position: fixed;
-  top: 100px;
-  right: 20px;
+  bottom: 20px;
+  left: 50%;
   z-index: 9999;
   pointer-events: none;
-  max-width: 400px;
-  max-height: calc(100vh - 160px);
-  overflow-y: auto;
+  max-width: calc(100vw - 40px);
+}
+
+.toast-list {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap-reverse;
+  align-items: flex-end;
+  gap: 0.75rem;
 }
 
 .toast {
@@ -70,7 +78,6 @@ function handleToastClick(toast: Toast) {
   align-items: flex-start;
   gap: 0.75rem;
   padding: 1rem;
-  margin-bottom: 0.75rem;
   border-radius: 12px;
   background: rgba(26, 15, 8, 0.95);
   border: 1px solid;
@@ -197,12 +204,12 @@ function handleToastClick(toast: Toast) {
 }
 
 .toast-enter-from {
-  transform: translateX(100%);
+  transform: translateY(20px);
   opacity: 0;
 }
 
 .toast-leave-to {
-  transform: translateX(100%);
+  transform: translateY(20px);
   opacity: 0;
 }
 
@@ -220,20 +227,24 @@ function handleToastClick(toast: Toast) {
   }
 }
 
-/* Responsive */
+/* Responsive — pleine largeur, empilement vertical (le plus récent en bas) plutôt
+   qu'horizontal, pas assez de place pour grandir vers la droite sur mobile. */
 @media (max-width: 768px) {
   .toast-container {
-    right: 10px;
     left: 10px;
+    right: 10px;
+    bottom: 10px;
     max-width: none;
-    top: 80px;
-    max-height: calc(100vh - 100px);
+  }
+
+  .toast-list {
+    flex-direction: column-reverse;
+    align-items: stretch;
   }
 
   .toast {
     min-width: auto;
     max-width: none;
-    margin-bottom: 0.5rem;
     padding: 0.8rem;
   }
 

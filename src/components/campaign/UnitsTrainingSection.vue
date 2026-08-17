@@ -84,23 +84,13 @@
         <div v-else class="queue-clocks">
           <!-- Entrée en cours (#1) : grand chronomètre circulaire -->
           <div class="clock-item clock-item--active">
-            <div class="clock-ring">
-              <svg viewBox="0 0 60 60" class="clock-svg">
-                <circle class="clock-track" cx="30" cy="30" r="26" />
-                <circle
-                  class="clock-progress"
-                  cx="30"
-                  cy="30"
-                  r="26"
-                  :stroke-dasharray="163.36"
-                  :stroke-dashoffset="163.36 * (1 - getEntryProgress(trainingQueue[0]) / 100)"
-                />
-              </svg>
-              <div class="clock-inner">
-                <span class="clock-icon">{{ UNIT_DEFINITIONS[trainingQueue[0].type].icon }}</span>
-                <span class="clock-time">{{ getRemainingTime(trainingQueue[0]) }}</span>
-              </div>
-            </div>
+            <TimerClock
+              :size="64"
+              :progress="getEntryProgress(trainingQueue[0]) / 100"
+              :icon="UNIT_DEFINITIONS[trainingQueue[0].type].icon"
+            >
+              <span class="clock-time">{{ getRemainingTime(trainingQueue[0]) }}</span>
+            </TimerClock>
             <div class="clock-name">{{ UNIT_DEFINITIONS[trainingQueue[0].type].name }}</div>
             <button
               class="clock-cancel"
@@ -117,15 +107,12 @@
             :key="group.firstEntry.id"
             class="clock-item clock-item--waiting"
           >
-            <div class="clock-ring">
-              <svg viewBox="0 0 44 44" class="clock-svg">
-                <circle class="clock-track" cx="22" cy="22" r="18" />
-              </svg>
-              <div class="clock-inner">
-                <span class="clock-icon">{{ UNIT_DEFINITIONS[group.type].icon }}</span>
-              </div>
-              <span v-if="group.count > 1" class="clock-badge">×{{ group.count }}</span>
-            </div>
+            <TimerClock
+              :size="46"
+              dashed
+              :icon="UNIT_DEFINITIONS[group.type].icon"
+              :count-badge="group.count"
+            />
             <div class="clock-name">{{ getRemainingTime(group.lastEntry) }}</div>
             <button
               class="clock-cancel"
@@ -146,6 +133,7 @@ import { computed } from 'vue'
 import { useMissionStore, UNIT_DEFINITIONS, getTrainingTime } from '@/stores/missionStore'
 import type { MilitaryUnit, TrainingQueueEntry } from '@/stores/missionStore'
 import { useToastStore } from '@/stores/toastStore'
+import TimerClock from '@/components/ui/TimerClock.vue'
 
 const missionStore = useMissionStore()
 const toastStore = useToastStore()
@@ -493,57 +481,6 @@ const getEntryProgress = (entry: TrainingQueueEntry): number => {
   position: relative;
 }
 
-/* Anneau SVG + contenu superposé */
-.clock-ring {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.clock-svg {
-  display: block;
-}
-
-/* Cercle de fond (piste) */
-.clock-track {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.08);
-  stroke-width: 3;
-}
-
-/* Arc de progression (entrée active) */
-.clock-progress {
-  fill: none;
-  stroke: #daa520;
-  stroke-width: 3;
-  stroke-linecap: round;
-  transform: rotate(-90deg);
-  transform-origin: center;
-  transition: stroke-dashoffset 1s linear;
-}
-
-/* Contenu au centre du cercle */
-.clock-inner {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  pointer-events: none;
-}
-
-/* Taille du cercle actif (SVG 60px) */
-.clock-item--active .clock-svg {
-  width: 64px;
-  height: 64px;
-}
-
-.clock-item--active .clock-icon {
-  font-size: 1.4rem;
-  line-height: 1;
-}
-
 .clock-item--active .clock-time {
   font-size: 0.62rem;
   color: #f4e4bc;
@@ -561,43 +498,11 @@ const getEntryProgress = (entry: TrainingQueueEntry): number => {
   text-overflow: ellipsis;
 }
 
-/* Taille des cercles en attente (SVG 44px) */
-.clock-item--waiting .clock-svg {
-  width: 46px;
-  height: 46px;
-}
-
-.clock-item--waiting .clock-track {
-  stroke: rgba(255, 255, 255, 0.06);
-  stroke-width: 2;
-  stroke-dasharray: 4 4;
-}
-
-.clock-item--waiting .clock-icon {
-  font-size: 1rem;
-  line-height: 1;
-}
-
 .clock-item--waiting .clock-name {
   font-size: 0.65rem;
   color: #888;
   text-align: center;
   white-space: nowrap;
-}
-
-/* Badge de quantité (×N) */
-.clock-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  font-size: 0.6rem;
-  font-weight: bold;
-  color: #1a1209;
-  background: #daa520;
-  border-radius: 8px;
-  padding: 0.05rem 0.3rem;
-  line-height: 1.4;
-  pointer-events: none;
 }
 
 /* Bouton d'annulation flottant */

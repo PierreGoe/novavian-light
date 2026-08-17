@@ -10,14 +10,7 @@
     aria-label="Navigation principale"
   >
     <!-- Bouton toggle collapse / expand -->
-    <button
-      class="nav-toggle"
-      @click="toggleCollapsed"
-      :title="isCollapsed ? 'Déployer le menu' : 'Réduire le menu'"
-      :aria-expanded="!isCollapsed"
-    >
-      <span class="toggle-icon">{{ isCollapsed ? '›' : '‹' }}</span>
-    </button>
+    <NavToggleButton :collapsed="isCollapsed" side="left" @toggle="toggleCollapsed" />
 
     <!-- Logo -->
     <router-link to="/mission-tree" class="nav-logo" title="Accueil">
@@ -29,24 +22,39 @@
 
     <!-- Liens de navigation -->
     <div class="nav-links">
-      <router-link
-        v-for="link in visibleNavLinks"
-        :key="link.to"
-        :to="link.to"
-        class="nav-link"
-        :title="isCollapsed ? link.label : ''"
-        active-class="nav-link--active"
-      >
-        <span class="nav-icon">
-          {{ link.icon }}
-          <span v-if="link.to === '/reports' && unreadReportsCount > 0" class="nav-badge">{{
-            unreadReportsCount
-          }}</span>
-        </span>
-        <Transition name="fade-text">
-          <span v-if="!isCollapsed" class="nav-label">{{ link.label }}</span>
-        </Transition>
-      </router-link>
+      <template v-for="link in visibleNavLinks" :key="link.to">
+        <router-link
+          :to="link.to"
+          class="nav-link"
+          :class="{ 'nav-link--active': isChildRouteActive(link) }"
+          :title="isCollapsed ? link.label : ''"
+          active-class="nav-link--active"
+        >
+          <span class="nav-icon">
+            {{ link.icon }}
+            <span v-if="link.to === '/reports' && unreadReportsCount > 0" class="nav-badge">{{
+              unreadReportsCount
+            }}</span>
+          </span>
+          <Transition name="fade-text">
+            <span v-if="!isCollapsed" class="nav-label">{{ link.label }}</span>
+          </Transition>
+        </router-link>
+
+        <!-- Sous-menu (ex. Campagne → Carte / Village) — masqué quand la sidebar est réduite -->
+        <div v-if="link.children && !isCollapsed" class="nav-submenu">
+          <router-link
+            v-for="child in link.children"
+            :key="child.to"
+            :to="child.to"
+            class="nav-sublink"
+            active-class="nav-sublink--active"
+          >
+            <span class="nav-icon">{{ child.icon }}</span>
+            <span class="nav-label">{{ child.label }}</span>
+          </router-link>
+        </div>
+      </template>
     </div>
 
     <!-- Séparateur -->
@@ -160,6 +168,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 import { useMissionStore } from '@/stores/missionStore'
 import { formatNumber } from '@/utils/formatNumber'
+import NavToggleButton from './NavToggleButton.vue'
 
 // ===============================================================
 // Stores & router
@@ -196,11 +205,21 @@ interface NavLink {
   icon: string
   label: string
   requireGame?: boolean
+  children?: { to: string; icon: string; label: string }[]
 }
 
 const NAV_LINKS: NavLink[] = [
   { to: '/mission-tree', icon: '🗺️', label: 'Missions', requireGame: true },
-  { to: '/campaign', icon: '⚔️', label: 'Campagne', requireGame: true },
+  {
+    to: '/campaign',
+    icon: '⚔️',
+    label: 'Campagne',
+    requireGame: true,
+    children: [
+      { to: '/campaign/map', icon: '🗺️', label: 'Carte' },
+      { to: '/campaign/village', icon: '🏛️', label: 'Village' },
+    ],
+  },
   { to: '/reports', icon: '📜', label: 'Rapports', requireGame: true },
   { to: '/inventory', icon: '🎒', label: 'Inventaire', requireGame: true },
   { to: '/bazar', icon: '🛒', label: 'Bazar Mystique', requireGame: true },
@@ -212,6 +231,11 @@ const isInGame = computed(() => gameStore.gameState.currentStatus === 'in-progre
 const visibleNavLinks = computed(() =>
   NAV_LINKS.filter((link) => !link.requireGame || isInGame.value),
 )
+
+// Sous-menu "Campagne" (Carte / Village) — déplié automatiquement quand une route enfant
+// est active, pas de persistance séparée (un seul sous-menu existe, inutile de complexifier).
+const isChildRouteActive = (link: NavLink) =>
+  !!link.children && route.path.startsWith(link.to + '/')
 
 // Badge "non lus" affiché uniquement sur le lien Rapports
 const unreadReportsCount = computed(() => missionStore.unreadReportsCount.value)
@@ -335,37 +359,6 @@ $mobile-breakpoint: 768px;
   }
 }
 
-// Bouton collapse / expand
-.nav-toggle {
-  align-self: flex-end;
-  margin: 0.75rem 0.5rem 0.25rem;
-  width: 28px;
-  height: 28px;
-  border: 1px solid $nav-border;
-  border-radius: 6px;
-  background: rgba(218, 165, 32, 0.1);
-  color: $gold-color;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  line-height: 1;
-  transition:
-    background $transition,
-    border-color $transition;
-  flex-shrink: 0;
-
-  &:hover {
-    background: rgba(218, 165, 32, 0.25);
-    border-color: $gold-color;
-  }
-
-  .toggle-icon {
-    display: block;
-    transform: translateY(-1px);
-  }
-}
 
 // Logo
 .nav-logo {
@@ -447,6 +440,48 @@ $mobile-breakpoint: 768px;
   .nav-label {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+}
+
+// Sous-menu (ex. Campagne → Carte / Village)
+.nav-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-left: 1.75rem;
+  margin: 0.1rem 0 0.35rem;
+}
+
+.nav-sublink {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  color: rgba(244, 228, 188, 0.75);
+  text-decoration: none;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    background $transition,
+    color $transition;
+
+  &:hover {
+    background: rgba(218, 165, 32, 0.1);
+    color: $gold-color;
+  }
+
+  &--active {
+    background: rgba(218, 165, 32, 0.16);
+    color: $gold-color;
+    font-weight: 600;
+  }
+
+  .nav-icon {
+    font-size: 1rem;
+    width: 1.25rem;
+    text-align: center;
   }
 }
 

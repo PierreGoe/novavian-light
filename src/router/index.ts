@@ -2,7 +2,9 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeScreen from '@/components/home/HomeScreen.vue'
 import RaceSelector from '@/components/home/RaceSelector.vue'
 import MissionTree from '@/components/mission/MissionTree.vue'
-import CampaignView from '@/components/campaign/CampaignView.vue'
+import CampaignLayout from '@/components/campaign/CampaignLayout.vue'
+import TownView from '@/components/campaign/TownView.vue'
+import LargeMapExplorationView from '@/components/map/LargeMapExplorationView.vue'
 import CampaignScoreView from '@/components/campaign/CampaignScoreView.vue'
 import GameOverScreen from '@/components/home/GameOverScreen.vue'
 import InventoryView from '@/components/inventory/InventoryView.vue'
@@ -30,8 +32,12 @@ const router = createRouter({
     },
     {
       path: '/campaign',
-      name: 'campaign',
-      component: CampaignView,
+      component: CampaignLayout,
+      children: [
+        { path: '', redirect: { name: 'campaign-map' } },
+        { path: 'map', name: 'campaign-map', component: LargeMapExplorationView },
+        { path: 'village', name: 'campaign-village', component: TownView },
+      ],
     },
     {
       path: '/campaign-score',

@@ -1,5 +1,5 @@
 <template>
-  <div class="campaign-view">
+  <div class="campaign-view" :style="{ '--timers-panel-width': timersPanelWidth }">
     <!-- Écran de transition/chargement -->
     <Transition name="fade">
       <div v-if="missionStore.isTransitioning.value" class="transition-overlay">
@@ -60,18 +60,18 @@
       </div>
     </header>
 
-    <!-- Zone principale divisée en 2 parties -->
+    <!-- Zone principale : sous-vue Village ou Carte (routée) -->
     <main class="campaign-content">
-      <!-- Vue de la ville (gauche) -->
-      <section class="town-section">
-        <TownView />
-      </section>
-
-      <!-- Vue de la carte/combat (droite) -->
-      <section class="map-section">
-        <LargeMapExplorationView />
-      </section>
+      <div class="campaign-router-view">
+        <router-view />
+      </div>
     </main>
+
+    <!-- Panneau de timers — sidebar fixe côté droit, symétrique à SideNavBar -->
+    <TimersPanel />
+
+    <!-- Rapport de combat (overlay) — vit ici pour s'ouvrir peu importe la sous-vue active -->
+    <CombatReportOverlay :report="combatReport" @close="combatReport = null" />
   </div>
 </template>
 
@@ -79,18 +79,20 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMissionStore, getResourceCapacity } from '@/stores/missionStore'
-import { useToastStore } from '@/stores/toastStore'
+import { useMapStore } from '@/stores/mapStore'
 import { getHQLevel } from '@/data/buildings'
 import { TRAVIAN_RESOURCES, TRAVIAN_RESOURCE_ORDER } from '@/data/resources'
 import { formatNumber } from '@/utils/formatNumber'
-import TownView from './TownView.vue'
+import { useExplorationTicker } from '@/composables/useExplorationTicker'
 import VictoryPointsDisplay from './VictoryPointsDisplay.vue'
-import LargeMapExplorationView from '../map/LargeMapExplorationView.vue'
+import TimersPanel from './TimersPanel.vue'
+import CombatReportOverlay from '../map/CombatReportOverlay.vue'
 import ResourceCounter from '@/components/globals/ResourceCounter.vue'
 
 const router = useRouter()
 const missionStore = useMissionStore()
-const toastStore = useToastStore()
+const mapStore = useMapStore()
+const { combatReport, start: startTicker, stop: stopTicker } = useExplorationTicker()
 
 // Computed
 const currentMission = computed(() => missionStore.currentMission.value)
@@ -136,16 +138,33 @@ const exitCampaign = () => {
   router.push('/mission-tree')
 }
 
-// Lifecycle
+// Largeur réservée au panneau de timers (sidebar fixe côté droit) — locale à ce composant
+// (le panneau n'existe que sur cette route), synchronisée avec son état collapse stocké
+// dans localStorage par TimersPanel.vue. Les valeurs 260px/64px reprennent celles de la
+// sidebar de navigation (SideNavBar.vue) pour une largeur collapsed symétrique.
+const TIMERS_STORAGE_KEY = 'timers-panel-collapsed'
+const timersPanelWidth = ref(localStorage.getItem(TIMERS_STORAGE_KEY) === 'true' ? '64px' : '260px')
+const onTimersPanelToggle = (e: Event) => {
+  timersPanelWidth.value = (e as CustomEvent<boolean>).detail ? '64px' : '260px'
+}
+
+// Lifecycle — ce composant reste monté tant que le joueur est dans la Campagne (Village ou
+// Carte), c'est donc l'unique point de démarrage des services de fond (production, file de
+// construction/entraînement, résolution des mouvements/combats/raids).
 onMounted(() => {
-  // Charger l'état des missions et démarrer les systèmes
   missionStore.loadMissionState()
   missionStore.startAllServices()
+  mapStore.loadMapState()
+  startTicker()
+  window.addEventListener('timers-panel-toggle', onTimersPanelToggle)
 })
 
 onUnmounted(() => {
   clearInterval(resourceIntervalId)
   missionStore.stopAllServices()
+  stopTicker()
+  mapStore.saveMapState()
+  window.removeEventListener('timers-panel-toggle', onTimersPanelToggle)
 })
 </script>
 
@@ -156,6 +175,19 @@ onUnmounted(() => {
   color: #f4e4bc;
   display: flex;
   flex-direction: column;
+  /* Le panneau de timers est une sidebar fixe (TimersPanel.vue) — on réserve l'espace à
+     droite sur tout le layout (header inclus), comme App.vue le fait à gauche pour la
+     sidebar de navigation (--sidebar-width). Variable locale : le panneau n'existe que
+     sur cette route, inutile de la remonter globalement dans App.vue. */
+  padding-right: var(--timers-panel-width, 260px);
+  transition: padding-right 0.25s ease;
+}
+
+@media (max-width: 768px) {
+  /* Le panneau de timers se masque au même palier que la sidebar de navigation. */
+  .campaign-view {
+    padding-right: 0;
+  }
 }
 
 .campaign-header {
@@ -299,22 +331,12 @@ onUnmounted(() => {
 }
 
 .campaign-content {
-  display: flex;
   flex: 1;
-  gap: 2rem;
   padding: 2rem;
 }
 
-.town-section {
-  flex: 1;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 12px;
-  border: 1px solid rgba(218, 165, 32, 0.3);
-  overflow: hidden;
-}
-
-.map-section {
-  flex: 1;
+.campaign-router-view {
+  height: 100%;
   background: rgba(0, 0, 0, 0.2);
   border-radius: 12px;
   border: 1px solid rgba(218, 165, 32, 0.3);
@@ -381,11 +403,6 @@ onUnmounted(() => {
 
 /* Responsive */
 @media (max-width: 1024px) {
-  .campaign-content {
-    flex-direction: column;
-    gap: 1rem;
-  }
-
   .campaign-header {
     flex-direction: column;
     gap: 1rem;
@@ -396,4 +413,5 @@ onUnmounted(() => {
     gap: 1rem;
   }
 }
+
 </style>
