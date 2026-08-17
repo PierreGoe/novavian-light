@@ -25,14 +25,12 @@ const VALID_TYPES = ['weapon', 'armor', 'accessory', 'relic'] as const
 
 // Pouvoirs spéciaux valides
 const VALID_SPECIAL_POWERS = [
-  'scout_range_bonus',
   'fog_reveal_on_victory',
   'gold_on_victory',
   'leadership_on_victory',
   'first_strike',
   'siege_bonus',
   'healing_after_combat',
-  'double_scout_speed',
 ] as const
 
 // ─────────────────────────────────────────────────────────────────────────────

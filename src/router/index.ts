@@ -8,6 +8,7 @@ import GameOverScreen from '@/components/home/GameOverScreen.vue'
 import InventoryView from '@/components/inventory/InventoryView.vue'
 import BazarMystiqueView from '@/components/inventory/BazarMystiqueView.vue'
 import SettingsView from '@/components/settings/SettingsView.vue'
+import ReportsView from '@/components/reports/ReportsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -56,6 +57,11 @@ const router = createRouter({
       path: '/settings',
       name: 'settings',
       component: SettingsView,
+    },
+    {
+      path: '/reports',
+      name: 'reports',
+      component: ReportsView,
     },
   ],
 })

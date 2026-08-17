@@ -7,7 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_ENEMY_STRONGHOLD_INFANTRY: string
   readonly VITE_SCOUT_MISSION_DURATION_MS: string
   readonly VITE_AUTOSAVE_INTERVAL_MS: string
-  readonly VITE_PRODUCTION_INTERVAL_MS: string
+  readonly VITE_BASE_RESOURCE_CAPACITY: string
+  readonly VITE_CAPACITY_PER_HQ_LEVEL: string
   readonly VITE_DISABLE_FOG_OF_WAR: string
   readonly VITE_RANK_REVEAL_RANGE: string
   readonly VITE_CHEAT_RESOURCES: string

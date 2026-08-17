@@ -3,7 +3,6 @@
     <!-- En-tête minimal -->
     <header class="town-header">
       <span class="town-name">{{ town?.name || 'Camp de Base' }}</span>
-      <span class="town-pop">👥 {{ town?.population || 0 }}</span>
     </header>
 
     <!-- Navigation par onglets -->
@@ -33,11 +32,12 @@
       <!-- Ressources -->
       <div v-else-if="activeTab === 'resources'" class="resources-tab">
         <div class="res-grid">
-          <div class="res-row" v-for="r in RESOURCES" :key="r.key">
-            <span class="res-icon">{{ r.icon }}</span>
-            <span class="res-name">{{ r.label }}</span>
-            <ResourceCounter class="res-amount" :value="town?.resources?.[r.key] || 0" />
-            <span class="res-rate">+{{ Math.floor(town?.production?.[r.key] || 0) }}/min</span>
+          <div class="res-row" v-for="key in TRAVIAN_RESOURCE_ORDER" :key="key">
+            <span class="res-icon">{{ TRAVIAN_RESOURCES[key].emoji }}</span>
+            <span class="res-name">{{ TRAVIAN_RESOURCES[key].label }}</span>
+            <ResourceCounter class="res-amount" :value="missionStore.displayResources.value[key]" />
+            <span class="res-cap">/{{ formatNumber(capacity) }}</span>
+            <span class="res-rate">+{{ Math.floor(town?.production?.[key] || 0) }}/min</span>
           </div>
         </div>
 
@@ -66,15 +66,19 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useMissionStore } from '@/stores/missionStore'
-import { BUILDING_DEFINITIONS } from '@/data/buildings'
+import { useMissionStore, getResourceCapacity } from '@/stores/missionStore'
+import { BUILDING_DEFINITIONS, getHQLevel } from '@/data/buildings'
 import type { BuildingType } from '@/data/buildings'
+import { TRAVIAN_RESOURCES, TRAVIAN_RESOURCE_ORDER } from '@/data/resources'
+import { formatNumber } from '@/utils/formatNumber'
 import VillagePlanView from './VillagePlanView.vue'
 import UnitsTrainingSection from './UnitsTrainingSection.vue'
 import ResourceCounter from '@/components/globals/ResourceCounter.vue'
 
 const missionStore = useMissionStore()
 const town = computed(() => missionStore.town.value)
+const hqLevel = computed(() => getHQLevel(town.value?.buildings ?? []))
+const capacity = computed(() => getResourceCapacity(hqLevel.value))
 
 type TabId = 'village' | 'resources' | 'military'
 const activeTab = ref<TabId>('village')
@@ -90,20 +94,6 @@ const TABS = computed(() => [
   },
 ])
 
-const RESOURCES = [
-  { key: 'wood' as const, icon: '🪵', label: 'Bois' },
-  { key: 'clay' as const, icon: '🧱', label: 'Argile' },
-  { key: 'iron' as const, icon: '⚒️', label: 'Fer' },
-  { key: 'crop' as const, icon: '🌾', label: 'Céréales' },
-]
-
-const RESOURCE_ICONS: Record<string, string> = {
-  wood: '🪵',
-  clay: '🧱',
-  iron: '⚒️',
-  crop: '🌾',
-}
-
 // Bâtiments qui ont une production active
 const productionBuildings = computed(() => {
   return (town.value?.buildings ?? [])
@@ -116,7 +106,7 @@ const productionBuildings = computed(() => {
         icon: def.icon,
         name: def.name,
         level: b.level,
-        resourceIcon: RESOURCE_ICONS[prod.resource] ?? '',
+        resourceIcon: TRAVIAN_RESOURCES[prod.resource]?.emoji ?? '',
         production: prod.amount * b.level,
       }
     })
@@ -146,11 +136,6 @@ const productionBuildings = computed(() => {
   font-weight: 700;
   color: #daa520;
   letter-spacing: 0.03em;
-}
-
-.town-pop {
-  font-size: 0.75rem;
-  color: #6b7280;
 }
 
 /* ---- Onglets ---- */
@@ -230,7 +215,7 @@ const productionBuildings = computed(() => {
 
 .res-row {
   display: grid;
-  grid-template-columns: 1.5rem 1fr auto auto;
+  grid-template-columns: 1.5rem 1fr auto auto auto;
   align-items: center;
   gap: 0.6rem;
   padding: 0.6rem 0.9rem;
@@ -262,6 +247,13 @@ const productionBuildings = computed(() => {
   color: #f4e4bc;
   text-align: right;
   min-width: 3.5rem;
+}
+
+.res-cap {
+  font-size: 0.72rem;
+  color: #6b7280;
+  text-align: right;
+  min-width: 3rem;
 }
 
 .res-rate {

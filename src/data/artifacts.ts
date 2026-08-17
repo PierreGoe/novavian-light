@@ -168,6 +168,11 @@ export const ARTIFACT_POOL: ArtifactTemplate[] = [
     icon: '💍',
     description: 'Un anneau qui renforce la discipline militaire et la cohésion défensive.',
     effects: { military: 4, defense: 2 },
+    specialPower: {
+      type: 'leadership_on_victory',
+      value: 5,
+      description: '+5 leadership par victoire de campagne',
+    },
     rarity: 'rare',
     durability: 'permanent',
     destructible: false,

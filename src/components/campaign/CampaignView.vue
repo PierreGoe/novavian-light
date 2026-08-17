@@ -23,37 +23,26 @@
           >
             {{ missionDifficulty.toUpperCase() }}
           </span>
-          <span class="population">👥 Population: {{ town?.population || 0 }}</span>
         </div>
       </div>
       <!-- Ressources Travian -->
       <div class="resources-display">
-        <div class="resource-item wood" aria-label="Bois">
-          <span class="resource-icon" aria-hidden="true">🪵</span>
-          <ResourceCounter class="resource-amount" :value="town?.resources?.wood || 0" />
+        <div
+          v-for="key in TRAVIAN_RESOURCE_ORDER"
+          :key="key"
+          class="resource-item"
+          :aria-label="TRAVIAN_RESOURCES[key].label"
+        >
+          <span class="resource-icon" aria-hidden="true">{{ TRAVIAN_RESOURCES[key].emoji }}</span>
+          <span class="resource-values">
+            <ResourceCounter
+              class="resource-amount"
+              :value="missionStore.displayResources.value[key]"
+            />
+            <span class="resource-cap">/{{ formatNumber(capacity) }}</span>
+          </span>
           <span class="resource-production"
-            >+{{ Math.floor(town?.production?.wood || 0) }}/min</span
-          >
-        </div>
-        <div class="resource-item clay" aria-label="Argile">
-          <span class="resource-icon" aria-hidden="true">🧱</span>
-          <ResourceCounter class="resource-amount" :value="town?.resources?.clay || 0" />
-          <span class="resource-production"
-            >+{{ Math.floor(town?.production?.clay || 0) }}/min</span
-          >
-        </div>
-        <div class="resource-item iron" aria-label="Fer">
-          <span class="resource-icon" aria-hidden="true">⚒️</span>
-          <ResourceCounter class="resource-amount" :value="town?.resources?.iron || 0" />
-          <span class="resource-production"
-            >+{{ Math.floor(town?.production?.iron || 0) }}/min</span
-          >
-        </div>
-        <div class="resource-item crop" aria-label="Céréales">
-          <span class="resource-icon" aria-hidden="true">🌾</span>
-          <ResourceCounter class="resource-amount" :value="town?.resources?.crop || 0" />
-          <span class="resource-production"
-            >+{{ Math.floor(town?.production?.crop || 0) }}/min</span
+            >+{{ Math.floor(town?.production?.[key] || 0) }}/min</span
           >
         </div>
       </div>
@@ -89,8 +78,11 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useMissionStore } from '@/stores/missionStore'
+import { useMissionStore, getResourceCapacity } from '@/stores/missionStore'
 import { useToastStore } from '@/stores/toastStore'
+import { getHQLevel } from '@/data/buildings'
+import { TRAVIAN_RESOURCES, TRAVIAN_RESOURCE_ORDER } from '@/data/resources'
+import { formatNumber } from '@/utils/formatNumber'
 import TownView from './TownView.vue'
 import VictoryPointsDisplay from './VictoryPointsDisplay.vue'
 import LargeMapExplorationView from '../map/LargeMapExplorationView.vue'
@@ -103,6 +95,8 @@ const toastStore = useToastStore()
 // Computed
 const currentMission = computed(() => missionStore.currentMission.value)
 const town = computed(() => missionStore.town.value)
+const hqLevel = computed(() => getHQLevel(town.value?.buildings ?? []))
+const capacity = computed(() => getResourceCapacity(hqLevel.value))
 const missionName = computed(() => currentMission.value?.name || 'Camp de Base')
 const missionDifficulty = computed(() => currentMission.value?.difficulty)
 
@@ -212,43 +206,50 @@ onUnmounted(() => {
   color: white;
 }
 
-.population {
-  font-size: 0.9rem;
-  color: #f4e4bc;
-}
-
 .resources-display {
   display: flex;
-  gap: 1.5rem;
+  gap: 0.5rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .resource-item {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: 0.5rem;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
   background: rgba(139, 69, 19, 0.2);
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid rgba(218, 165, 32, 0.3);
-  min-width: 80px;
+  line-height: 1.1;
 }
 
 .resource-icon {
-  font-size: 1.2rem;
-  margin-bottom: 0.25rem;
+  font-size: 1rem;
+}
+
+.resource-values {
+  display: flex;
+  align-items: baseline;
+  gap: 0.1rem;
 }
 
 .resource-amount {
   font-weight: bold;
-  font-size: 1rem;
+  font-size: 0.88rem;
   color: #f4e4bc;
 }
 
-.resource-production {
+.resource-cap {
   font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.resource-production {
+  font-size: 0.68rem;
   color: #22c55e;
-  opacity: 0.8;
+  opacity: 0.85;
+  white-space: nowrap;
 }
 
 .header-actions {

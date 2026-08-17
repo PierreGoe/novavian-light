@@ -54,14 +54,6 @@
             <div class="current-marker" :style="{ fontSize: tileIconFontSize }" v-if="tile.current">
               📍
             </div>
-            <!-- Indicateur : troupes en route vers cette tuile -->
-            <div
-              class="troops-en-route"
-              :style="{ fontSize: tileIconFontSize }"
-              v-if="hasTroopsEnRoute(tile.id)"
-            >
-              🪖
-            </div>
             <!-- Indicateur : garnison en reconstitution -->
             <div
               class="garrison-regen-badge"
@@ -94,6 +86,87 @@
             </div>
           </div>
         </div>
+
+        <!-- Overlay des troupes en marche — icône interpolée entre case source et cible -->
+        <div class="map-movement-overlay">
+          <!-- Trajets (départ → arrivée) : troupes du joueur + menaces ennemies -->
+          <svg class="map-path-svg">
+            <defs>
+              <marker
+                id="map-arrow-outgoing"
+                markerWidth="8"
+                markerHeight="8"
+                refX="6"
+                refY="4"
+                orient="auto-start-reverse"
+              >
+                <path d="M0,0 L8,4 L0,8 z" fill="#ff2d2d" />
+              </marker>
+              <marker
+                id="map-arrow-returning"
+                markerWidth="8"
+                markerHeight="8"
+                refX="6"
+                refY="4"
+                orient="auto-start-reverse"
+              >
+                <path d="M0,0 L8,4 L0,8 z" fill="#10b981" />
+              </marker>
+              <marker
+                id="map-arrow-enemy"
+                markerWidth="8"
+                markerHeight="8"
+                refX="6"
+                refY="4"
+                orient="auto-start-reverse"
+              >
+                <path d="M0,0 L8,4 L0,8 z" fill="#ff6a00" />
+              </marker>
+            </defs>
+            <path
+              v-for="path in attackPaths"
+              :key="`path-${path.id}`"
+              :d="path.d"
+              class="path-line"
+              :class="`path-line--${path.variant}`"
+              :marker-end="`url(#map-arrow-${path.variant})`"
+            >
+              <title>{{ path.variant === 'returning' ? 'Retour vers le village' : 'Attaque en cours' }}</title>
+            </path>
+            <path
+              v-for="threat in enemyThreats"
+              :key="`threat-${threat.id}`"
+              :d="threat.d"
+              class="path-line path-line--enemy"
+              marker-end="url(#map-arrow-enemy)"
+            >
+              <title>Attaque ennemie dans {{ Math.ceil(threat.msRemaining / 1000) }}s</title>
+            </path>
+          </svg>
+
+          <!-- Badge des troupes du joueur en marche -->
+          <div
+            v-for="marker in marchingMarkers"
+            :key="marker.id"
+            class="march-marker"
+            :class="{ 'march-marker--returning': marker.isReturning }"
+            :style="markerStyle(marker)"
+            :title="marker.isReturning ? 'Retour vers le village' : 'Troupes en marche'"
+          >
+            <span class="march-marker-badge">{{ marker.isReturning ? '↩️' : '🪖' }}</span>
+          </div>
+
+          <!-- Badge des menaces ennemies en approche -->
+          <div
+            v-for="threat in enemyThreats"
+            :key="`threat-badge-${threat.id}`"
+            class="march-marker march-marker--enemy"
+            :style="markerStyle(threat)"
+            :title="`Attaque ennemie dans ${Math.ceil(threat.msRemaining / 1000)}s`"
+          >
+            <span class="march-marker-badge">💀</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -123,7 +196,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useMapStore, type MapTile, MAP_CONFIG, type HostilityState } from '../../stores/mapStore'
+import {
+  useMapStore,
+  type MapTile,
+  MAP_CONFIG,
+  type HostilityState,
+  HOSTILE_ATTACK_INTERVAL_MS,
+} from '../../stores/mapStore'
 import { useMapViewport, ZOOM_PRESETS } from '../../composables/useMapViewport'
 import { gameSettings } from '../../stores/gameSettingsStore'
 import { GARRISON_REGEN_DURATION_MS } from '../../config'
@@ -165,6 +244,10 @@ const mapViewportRef = ref<HTMLElement | null>(null)
 const viewportPixelHeight = ref(600)
 let viewportResizeObserver: ResizeObserver | null = null
 
+// Horloge dédiée à l'animation de marche — découplée du tick de résolution de combat (1s)
+const marchNow = ref(Date.now())
+let marchInterval: ReturnType<typeof setInterval> | null = null
+
 onMounted(() => {
   if (!mapViewportRef.value) return
   viewportResizeObserver = new ResizeObserver((entries) => {
@@ -174,8 +257,15 @@ onMounted(() => {
   viewportResizeObserver.observe(mapViewportRef.value)
 })
 
+onMounted(() => {
+  marchInterval = setInterval(() => {
+    marchNow.value = Date.now()
+  }, 200)
+})
+
 onUnmounted(() => {
   viewportResizeObserver?.disconnect()
+  if (marchInterval) clearInterval(marchInterval)
 })
 
 // Dimensions réelles du viewport après clamping aux bords de la carte
@@ -231,6 +321,140 @@ const gridStyle = computed(() => {
   }
 })
 
+// Doit refléter le CSS : .map-grid-large { padding: 20px } et gridStyle.gap ('2px')
+const GRID_PADDING_PX = 20
+const GRID_GAP_PX = 2
+
+interface MarchingMarker {
+  id: string
+  x: number
+  y: number
+  isReturning: boolean
+}
+
+/** Position interpolée de chaque mouvement de troupes actif, entre sa case source et sa case cible */
+const marchingMarkers = computed<MarchingMarker[]>(() => {
+  const now = marchNow.value
+  const result: MarchingMarker[] = []
+  for (const movement of mapStore.mapState.activeMovements) {
+    const source = mapStore.getTileById(movement.sourceTileId)
+    const target = mapStore.getTileById(movement.targetTileId)
+    if (!source || !target) continue
+
+    const duration = movement.arrivalTime - movement.departureTime
+    const progress =
+      duration <= 0 ? 1 : Math.min(1, Math.max(0, (now - movement.departureTime) / duration))
+
+    result.push({
+      id: movement.id,
+      x: source.position.x + (target.position.x - source.position.x) * progress,
+      y: source.position.y + (target.position.y - source.position.y) * progress,
+      isReturning: !!movement.isReturning,
+    })
+  }
+  return result
+})
+
+/** Style pixel d'un marqueur de marche, aligné sur la même grille que les tuiles */
+const markerStyle = (marker: { x: number; y: number }) => {
+  const { startX, startY } = viewportDimensions.value
+  const step = tileSizeAdaptive.value + GRID_GAP_PX
+  const size = tileSizeAdaptive.value
+  return {
+    left: `${GRID_PADDING_PX + (marker.x - startX) * step}px`,
+    top: `${GRID_PADDING_PX + (marker.y - startY) * step}px`,
+    width: `${size}px`,
+    height: `${size}px`,
+    fontSize: tileIconFontSize.value,
+  }
+}
+
+/** Centre en pixels d'une case (coordonnée carte), pour tracer les traits de trajet */
+const tileCenterPx = (x: number, y: number) => {
+  const { startX, startY } = viewportDimensions.value
+  const step = tileSizeAdaptive.value + GRID_GAP_PX
+  const half = tileSizeAdaptive.value / 2
+  return {
+    cx: GRID_PADDING_PX + (x - startX) * step + half,
+    cy: GRID_PADDING_PX + (y - startY) * step + half,
+  }
+}
+
+/** Chemin SVG en léger arc entre deux cases (aspect "flèche de carte" plutôt qu'un trait droit) */
+const curvedPathD = (x1: number, y1: number, x2: number, y2: number): string => {
+  const { cx: cx1, cy: cy1 } = tileCenterPx(x1, y1)
+  const { cx: cx2, cy: cy2 } = tileCenterPx(x2, y2)
+  const dx = cx2 - cx1
+  const dy = cy2 - cy1
+  const dist = Math.hypot(dx, dy)
+  if (dist === 0) return `M ${cx1} ${cy1} L ${cx2} ${cy2}`
+  const bulge = Math.min(dist * 0.15, 40)
+  const midX = (cx1 + cx2) / 2 - (dy / dist) * bulge
+  const midY = (cy1 + cy2) / 2 + (dx / dist) * bulge
+  return `M ${cx1} ${cy1} Q ${midX} ${midY} ${cx2} ${cy2}`
+}
+
+interface AttackPath {
+  id: string
+  d: string
+  variant: 'outgoing' | 'returning'
+}
+
+/** Un trait départ → arrivée par mouvement de troupes actif du joueur */
+const attackPaths = computed<AttackPath[]>(() => {
+  const result: AttackPath[] = []
+  for (const movement of mapStore.mapState.activeMovements) {
+    const source = mapStore.getTileById(movement.sourceTileId)
+    const target = mapStore.getTileById(movement.targetTileId)
+    if (!source || !target) continue
+    result.push({
+      id: movement.id,
+      d: curvedPathD(source.position.x, source.position.y, target.position.x, target.position.y),
+      variant: movement.isReturning ? 'returning' : 'outgoing',
+    })
+  }
+  return result
+})
+
+interface EnemyThreat {
+  id: string
+  x: number
+  y: number
+  isReturning: boolean
+  d: string
+  msRemaining: number
+}
+
+/**
+ * Attaques ennemies imminentes : une forteresse hostile avec un `nextAttackAt` planifié.
+ * Le trajet (forteresse → village du joueur) et la progression sont reconstitués à partir
+ * de la fenêtre de temps HOSTILE_ATTACK_INTERVAL_MS, pour donner au joueur un avertissement
+ * visuel avant que le raid ne se résolve (résolution abstraite, sans déplacement réel côté jeu).
+ */
+const enemyThreats = computed<EnemyThreat[]>(() => {
+  const now = marchNow.value
+  const home = mapStore.mapState.currentPosition
+  const result: EnemyThreat[] = []
+  for (const zone of Object.values(mapStore.mapState.fortressZones)) {
+    if (zone.hostilityState !== 'hostile' || !zone.nextAttackAt) continue
+    const fortress = mapStore.getTileById(zone.fortressTileId)
+    if (!fortress) continue
+
+    const departureTime = zone.nextAttackAt - HOSTILE_ATTACK_INTERVAL_MS
+    const progress = Math.min(1, Math.max(0, (now - departureTime) / HOSTILE_ATTACK_INTERVAL_MS))
+
+    result.push({
+      id: zone.fortressTileId,
+      x: fortress.position.x + (home.x - fortress.position.x) * progress,
+      y: fortress.position.y + (home.y - fortress.position.y) * progress,
+      isReturning: false,
+      d: curvedPathD(fortress.position.x, fortress.position.y, home.x, home.y),
+      msRemaining: Math.max(0, zone.nextAttackAt - now),
+    })
+  }
+  return result
+})
+
 /** Taille des emojis adaptée à la taille des tuiles */
 const tileIconFontSize = computed(() => {
   const size = tileSizeAdaptive.value
@@ -270,10 +494,6 @@ const getChunkIdForTile = (tile: MapTile): string =>
 
 /** Retourne true si la tuile appartient à un cadran encore verrouillé */
 const isChunkLocked = (tile: MapTile): boolean => !mapStore.isChunkUnlocked(getChunkIdForTile(tile))
-
-/** Retourne true si des troupes du joueur sont en route vers cette tuile */
-/** Retourne true si des troupes du joueur sont en route vers cette tuile */
-const hasTroopsEnRoute = (tileId: string): boolean => mapStore.getMovementsToTile(tileId).length > 0
 
 /** Vrai si la garnison est en cours de reconstitution (< 100%) */
 const isGarrisonRegenerating = (tile: MapTile): boolean => {
@@ -598,15 +818,6 @@ const influenceZoneMap = computed(() => {
   z-index: 4;
 }
 
-.troops-en-route {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  font-size: clamp(9px, 1.3vw, 13px);
-  z-index: 4;
-  animation: pulse-troop 1s ease-in-out infinite;
-}
-
 /* Badge "en reconstitution" — garnison vaincue en train de régénérer */
 .garrison-regen-badge {
   position: absolute;
@@ -636,15 +847,6 @@ const influenceZoneMap = computed(() => {
   }
 }
 
-@keyframes pulse-troop {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
 
 /* Overlay cadrans : même grille CSS, superposée au-dessus */
 .map-chunk-overlay {
@@ -654,6 +856,108 @@ const influenceZoneMap = computed(() => {
   width: 100%;
   height: 100%;
   pointer-events: none; /* laisse passer les clics vers les tuiles */
+}
+
+/* Overlay des troupes en marche — positionnement pixel libre, superposé à tout le reste */
+.map-movement-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.march-marker {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    left 0.2s linear,
+    top 0.2s linear;
+  z-index: 2;
+}
+
+/* Badge circulaire autour de l'icône — la rend lisible sur n'importe quel fond de tuile */
+.march-marker-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 78%;
+  height: 78%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #4a3420, #1a0f08 85%);
+  border: 2px solid var(--node-combat, #dc143c);
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.6),
+    0 0 8px rgba(220, 20, 60, 0.55);
+}
+
+.march-marker--returning .march-marker-badge {
+  border-color: var(--fx-economy, #10b981);
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.6),
+    0 0 8px rgba(16, 185, 129, 0.55);
+}
+
+/* Menace ennemie en approche — distincte des troupes du joueur (orange/rouge, pulsation d'alerte) */
+.march-marker--enemy .march-marker-badge {
+  border-color: #ff6a00;
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.6),
+    0 0 10px rgba(255, 106, 0, 0.65);
+  animation: enemy-pulse 1s ease-in-out infinite;
+}
+
+@keyframes enemy-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+/* Trajets départ → arrivée, en arc, façon flèche de carte */
+.map-path-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 1;
+}
+
+.path-line {
+  fill: none;
+  stroke-width: 2.5;
+}
+
+.path-line--outgoing {
+  stroke: #ff2d2d;
+  stroke-dasharray: none;
+}
+
+.path-line--returning {
+  stroke: #10b981;
+  stroke-dasharray: 5 4;
+  opacity: 0.85;
+}
+
+.path-line--enemy {
+  stroke: #ff6a00;
+  stroke-dasharray: 4 5;
+  animation: enemy-path-pulse 1s ease-in-out infinite;
+}
+
+@keyframes enemy-path-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Couche rouge transparente sur les tuiles en zone d'influence */
@@ -682,7 +986,7 @@ const influenceZoneMap = computed(() => {
 
 /* Zone hostile — rouge intense avec pulse */
 .map-tile.tile-influence--hostile::after {
-  background: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.5);
   border: 1px solid rgba(239, 68, 68, 0.8);
   animation: hostile-pulse 2s ease-in-out infinite;
 }
@@ -690,10 +994,10 @@ const influenceZoneMap = computed(() => {
 @keyframes hostile-pulse {
   0%,
   100% {
-    background: rgba(239, 68, 68, 0.35);
+    opacity: 0.7;
   }
   50% {
-    background: rgba(239, 68, 68, 0.6);
+    opacity: 1;
   }
 }
 

@@ -21,6 +21,7 @@
         <div class="legend-tooltip" v-show="showLegend">
           <div class="legend-item legend-upgradable">⬆️ Améliorable</div>
           <div class="legend-item legend-available">✨ Disponible</div>
+          <div class="legend-item legend-constructing">🏗️ En chantier</div>
           <div class="legend-item legend-waiting">🪙 Ressources insuffisantes</div>
           <div class="legend-item legend-locked">🔒 Verrouillé (QG requis)</div>
           <div class="legend-item legend-maxed">✅ Niveau maximum</div>
@@ -56,16 +57,37 @@
         @click="toggleSelect(def.type)"
       >
         <div class="tile-inner">
-          <!-- Icône + badge niveau -->
+          <!-- Icône + badge niveau + anneau de progression du chantier -->
           <div class="tile-icon-wrap">
+            <svg
+              v-if="getBuildingState(def.type) === 'constructing'"
+              viewBox="0 0 48 48"
+              class="tile-progress-svg"
+              aria-hidden="true"
+            >
+              <circle class="tile-progress-track" cx="24" cy="24" r="19" />
+              <circle
+                class="tile-progress-ring"
+                cx="24"
+                cy="24"
+                r="19"
+                :stroke-dasharray="tileRingCircumference"
+                :stroke-dashoffset="
+                  tileRingCircumference * (1 - getConstructionProgress(def.type) / 100)
+                "
+              />
+            </svg>
             <span
               class="tile-icon"
-              :class="{ 'tile-icon--locked': getBuildingState(def.type) === 'locked' }"
+              :class="{
+                'tile-icon--locked': getBuildingState(def.type) === 'locked',
+                'tile-icon--constructing': getBuildingState(def.type) === 'constructing',
+              }"
             >
               {{ def.icon }}
             </span>
             <span
-              v-if="getBuilding(def.type)"
+              v-if="getBuilding(def.type) && getBuilding(def.type)!.level > 0"
               class="level-badge"
               :class="{ 'level-badge--maxed': getBuildingState(def.type) === 'maxed' }"
             >
@@ -80,6 +102,9 @@
               >QG {{ def.hqLevelRequired }}</template
             >
             <template v-else-if="getBuildingState(def.type) === 'available'">construire</template>
+            <template v-else-if="getBuildingState(def.type) === 'constructing'"
+              >🏗️ {{ getRemainingConstructionTime(def.type) }}</template
+            >
             <template v-else-if="getBuildingState(def.type) === 'upgradable'">▲ améliorer</template>
             <template v-else-if="getBuildingState(def.type) === 'waiting'">⏳ ressources</template>
             <template v-else-if="getBuildingState(def.type) === 'maxed'">max</template>
@@ -172,94 +197,113 @@
 
         <!-- Bâtiment construit -->
         <template v-else-if="selectedBuilding">
-          <!-- Production actuelle -->
-          <div v-if="getProductionGain(selectedDef.type)" class="detail-production">
-            <span class="production-label">Production actuelle</span>
-            <span class="production-value">
-              {{ getProductionIcon(selectedDef.type) }}
-              +{{ getProductionGain(selectedDef.type)! * selectedBuilding.level }}/min
-            </span>
+          <!-- Chantier en cours -->
+          <div v-if="selectedState === 'constructing'" class="detail-constructing-info">
+            <div class="constructing-message">
+              🏗️ Chantier en cours — niveau {{ selectedBuilding.level + 1 }}
+            </div>
+            <div class="construction-progress-bar">
+              <div
+                class="construction-progress-fill"
+                :style="{ width: getConstructionProgress(selectedDef.type) + '%' }"
+              ></div>
+            </div>
+            <div class="construction-eta">
+              ⏱️ Terminé dans {{ getRemainingConstructionTime(selectedDef.type) }}
+            </div>
+            <button class="upgrade-btn" disabled>🏗️ Chantier en cours…</button>
           </div>
 
-          <!-- Niveau max atteint -->
-          <div v-if="selectedState === 'maxed'" class="detail-maxed">
-            <span>✅ Niveau maximum ({{ selectedDef.maxLevel }}) atteint</span>
-          </div>
-
-          <!-- Section amélioration -->
-          <div v-else class="detail-upgrade">
-            <div class="upgrade-header">
-              <span class="upgrade-label">⬆️ Niveau {{ selectedBuilding.level + 1 }}</span>
-              <span v-if="getProductionGain(selectedDef.type)" class="upgrade-gain">
+          <template v-else>
+            <!-- Production actuelle -->
+            <div v-if="getProductionGain(selectedDef.type)" class="detail-production">
+              <span class="production-label">Production actuelle</span>
+              <span class="production-value">
                 {{ getProductionIcon(selectedDef.type) }}
-                {{ getProductionGain(selectedDef.type)! * selectedBuilding.level }}
-                <span class="gain-arrow">→</span>
-                {{ getProductionGain(selectedDef.type)! * (selectedBuilding.level + 1) }}/min
+                +{{ getProductionGain(selectedDef.type)! * selectedBuilding.level }}/min
               </span>
             </div>
 
-            <div class="upgrade-costs">
-              <span
-                class="cost-chip"
-                :class="{
-                  insufficient:
-                    (town?.resources?.wood || 0) <
-                    getUpgradeCost(selectedDef.type, selectedBuilding.level).wood,
-                }"
-              >
-                🪵 {{ getUpgradeCost(selectedDef.type, selectedBuilding.level).wood }}
-              </span>
-              <span
-                class="cost-chip"
-                :class="{
-                  insufficient:
-                    (town?.resources?.clay || 0) <
-                    getUpgradeCost(selectedDef.type, selectedBuilding.level).clay,
-                }"
-              >
-                🧱 {{ getUpgradeCost(selectedDef.type, selectedBuilding.level).clay }}
-              </span>
-              <span
-                class="cost-chip"
-                :class="{
-                  insufficient:
-                    (town?.resources?.iron || 0) <
-                    getUpgradeCost(selectedDef.type, selectedBuilding.level).iron,
-                }"
-              >
-                ⚒️ {{ getUpgradeCost(selectedDef.type, selectedBuilding.level).iron }}
-              </span>
-              <span
-                class="cost-chip"
-                :class="{
-                  insufficient:
-                    (town?.resources?.crop || 0) <
-                    getUpgradeCost(selectedDef.type, selectedBuilding.level).crop,
-                }"
-              >
-                🌾 {{ getUpgradeCost(selectedDef.type, selectedBuilding.level).crop }}
-              </span>
+            <!-- Niveau max atteint -->
+            <div v-if="selectedState === 'maxed'" class="detail-maxed">
+              <span>✅ Niveau maximum ({{ selectedDef.maxLevel }}) atteint</span>
             </div>
 
-            <!-- Temps estimé si ressources insuffisantes -->
-            <div v-if="selectedState === 'waiting' && getTimeUntilUpgrade()" class="upgrade-eta">
-              ⏱️ Disponible dans {{ getTimeUntilUpgrade() }}
-            </div>
+            <!-- Section amélioration -->
+            <div v-else class="detail-upgrade">
+              <div class="upgrade-header">
+                <span class="upgrade-label">⬆️ Niveau {{ selectedBuilding.level + 1 }}</span>
+                <span v-if="getProductionGain(selectedDef.type)" class="upgrade-gain">
+                  {{ getProductionIcon(selectedDef.type) }}
+                  {{ getProductionGain(selectedDef.type)! * selectedBuilding.level }}
+                  <span class="gain-arrow">→</span>
+                  {{ getProductionGain(selectedDef.type)! * (selectedBuilding.level + 1) }}/min
+                </span>
+              </div>
 
-            <!-- Bouton améliorer -->
-            <button
-              class="upgrade-btn"
-              :class="{ 'upgrade-btn-ready': selectedState === 'upgradable' }"
-              :disabled="selectedState !== 'upgradable'"
-              @click="doUpgrade()"
-            >
-              {{
-                selectedState === 'upgradable'
-                  ? `Améliorer → Niv. ${selectedBuilding.level + 1}`
-                  : 'Ressources insuffisantes'
-              }}
-            </button>
-          </div>
+              <div class="upgrade-costs">
+                <span
+                  class="cost-chip"
+                  :class="{
+                    insufficient:
+                      (town?.resources?.wood || 0) <
+                      getUpgradeCost(selectedDef.type, selectedBuilding.level).wood,
+                  }"
+                >
+                  🪵 {{ getUpgradeCost(selectedDef.type, selectedBuilding.level).wood }}
+                </span>
+                <span
+                  class="cost-chip"
+                  :class="{
+                    insufficient:
+                      (town?.resources?.clay || 0) <
+                      getUpgradeCost(selectedDef.type, selectedBuilding.level).clay,
+                  }"
+                >
+                  🧱 {{ getUpgradeCost(selectedDef.type, selectedBuilding.level).clay }}
+                </span>
+                <span
+                  class="cost-chip"
+                  :class="{
+                    insufficient:
+                      (town?.resources?.iron || 0) <
+                      getUpgradeCost(selectedDef.type, selectedBuilding.level).iron,
+                  }"
+                >
+                  ⚒️ {{ getUpgradeCost(selectedDef.type, selectedBuilding.level).iron }}
+                </span>
+                <span
+                  class="cost-chip"
+                  :class="{
+                    insufficient:
+                      (town?.resources?.crop || 0) <
+                      getUpgradeCost(selectedDef.type, selectedBuilding.level).crop,
+                  }"
+                >
+                  🌾 {{ getUpgradeCost(selectedDef.type, selectedBuilding.level).crop }}
+                </span>
+              </div>
+
+              <!-- Temps estimé si ressources insuffisantes -->
+              <div v-if="selectedState === 'waiting' && getTimeUntilUpgrade()" class="upgrade-eta">
+                ⏱️ Disponible dans {{ getTimeUntilUpgrade() }}
+              </div>
+
+              <!-- Bouton améliorer -->
+              <button
+                class="upgrade-btn"
+                :class="{ 'upgrade-btn-ready': selectedState === 'upgradable' }"
+                :disabled="selectedState !== 'upgradable'"
+                @click="doUpgrade()"
+              >
+                {{
+                  selectedState === 'upgradable'
+                    ? `Améliorer → Niv. ${selectedBuilding.level + 1}`
+                    : 'Ressources insuffisantes'
+                }}
+              </button>
+            </div>
+          </template>
         </template>
       </div>
     </Transition>
@@ -267,7 +311,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMissionStore } from '@/stores/missionStore'
 import { useToastStore } from '@/stores/toastStore'
 import {
@@ -284,6 +328,23 @@ const ALL_BUILDINGS = Object.values(BUILDING_DEFINITIONS)
 const missionStore = useMissionStore()
 const toastStore = useToastStore()
 const town = computed(() => missionStore.town.value)
+
+// Horloge locale rafraîchie chaque seconde, pour que les anneaux/temps restants de
+// chantier se mettent à jour en direct (même pattern que UnitsTrainingSection).
+const now = ref(Date.now())
+let tickInterval: number | null = null
+onMounted(() => {
+  tickInterval = window.setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
+})
+onUnmounted(() => {
+  if (tickInterval) clearInterval(tickInterval)
+})
+
+// Anneau de progression sur les tuiles (rayon 19 sur un viewBox 48x48)
+const TILE_RING_RADIUS = 19
+const tileRingCircumference = 2 * Math.PI * TILE_RING_RADIUS
 
 const hqLevel = computed(() => getHQLevel(town.value?.buildings ?? []))
 
@@ -313,8 +374,8 @@ const getBuilding = (type: BuildingType) =>
 const getTileLabel = (type: BuildingType): string =>
   type === 'headquarters' ? 'QG' : BUILDING_DEFINITIONS[type].name
 
-// État d'un bâtiment : locked | available | upgradable | waiting | maxed
-type BuildingState = 'locked' | 'available' | 'upgradable' | 'waiting' | 'maxed'
+// État d'un bâtiment : locked | available | constructing | upgradable | waiting | maxed
+type BuildingState = 'locked' | 'available' | 'constructing' | 'upgradable' | 'waiting' | 'maxed'
 
 const getBuildingState = (type: BuildingType): BuildingState => {
   const def = BUILDING_DEFINITIONS[type]
@@ -322,6 +383,9 @@ const getBuildingState = (type: BuildingType): BuildingState => {
 
   const building = getBuilding(type)
   if (!building) return 'available'
+
+  // Chantier en cours (construction initiale ou amélioration) — un seul à la fois
+  if (building.isUnderConstruction) return 'constructing'
 
   if (building.level >= def.maxLevel) return 'maxed'
 
@@ -402,12 +466,45 @@ const getTimeUntilUpgrade = (): string | null => {
   return s === 0 ? `${m}min` : `${m}min ${s}s`
 }
 
+// --- Progression du chantier (construction / amélioration en cours) ---
+// La durée totale du chantier n'est pas stockée : on la retrouve depuis la table de coûts
+// (getBuildingUpgrade(type, level).buildTime), le niveau actuel étant celui d'AVANT le
+// chantier tant qu'il n'est pas finalisé par processConstructionQueue().
+const getConstructionDurationMs = (type: BuildingType, levelBeforeUpgrade: number): number =>
+  getBuildingUpgrade(type, levelBeforeUpgrade).buildTime * 1000
+
+const getConstructionProgress = (type: BuildingType): number => {
+  const building = getBuilding(type)
+  if (!building?.isUnderConstruction || !building.constructionEndTime) return 0
+  const duration = getConstructionDurationMs(type, building.level)
+  if (duration <= 0) return 100
+  const startedAt = building.constructionEndTime - duration
+  const elapsed = now.value - startedAt
+  return Math.min(100, Math.max(0, Math.round((elapsed / duration) * 100)))
+}
+
+const formatConstructionDuration = (seconds: number): string => {
+  if (seconds < 60) return `${seconds}s`
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  if (h > 0) return `${h}h ${m}min`
+  return s > 0 ? `${m}min ${s}s` : `${m}min`
+}
+
+const getRemainingConstructionTime = (type: BuildingType): string => {
+  const building = getBuilding(type)
+  if (!building?.constructionEndTime) return ''
+  const remaining = Math.max(0, Math.ceil((building.constructionEndTime - now.value) / 1000))
+  return formatConstructionDuration(remaining)
+}
+
 // --- Action ---
 const doUpgrade = () => {
   if (!selectedBuilding.value || !selectedDef.value) return
   const newLevel = selectedBuilding.value.level + 1
   if (missionStore.upgradeBuilding(selectedBuilding.value.id)) {
-    toastStore.showSuccess(`🏗️ ${selectedDef.value.name} amélioré au niveau ${newLevel} !`, {
+    toastStore.showSuccess(`🏗️ Chantier lancé : ${selectedDef.value.name} → niveau ${newLevel}`, {
       duration: 2500,
     })
   } else {
@@ -429,7 +526,7 @@ const canAffordBuild = computed(() => {
 const doBuild = () => {
   if (!selectedDef.value) return
   if (missionStore.constructBuilding(selectedDef.value.type)) {
-    toastStore.showSuccess(`${selectedDef.value.name} construit !`, { duration: 2000 })
+    toastStore.showSuccess(`🏗️ Chantier de ${selectedDef.value.name} lancé !`, { duration: 2000 })
   } else {
     toastStore.showError('Construction impossible', { duration: 2000 })
   }
@@ -443,7 +540,7 @@ const quickAction = (type: BuildingType) => {
     const building = getBuilding(type)
     const newLevel = building ? building.level + 1 : 0
     if (building && missionStore.upgradeBuilding(building.id)) {
-      toastStore.showSuccess(`🏗️ ${def.name} amélioré au niveau ${newLevel} !`, {
+      toastStore.showSuccess(`🏗️ Chantier lancé : ${def.name} → niveau ${newLevel}`, {
         duration: 2500,
       })
     } else {
@@ -451,7 +548,7 @@ const quickAction = (type: BuildingType) => {
     }
   } else if (state === 'available') {
     if (missionStore.constructBuilding(type)) {
-      toastStore.showSuccess(`${def.name} construit !`, { duration: 2000 })
+      toastStore.showSuccess(`🏗️ Chantier de ${def.name} lancé !`, { duration: 2000 })
     } else {
       toastStore.showError('Ressources insuffisantes', { duration: 2000 })
     }
@@ -548,6 +645,11 @@ const quickAction = (type: BuildingType) => {
   background: rgba(96, 165, 250, 0.12);
   border-color: rgba(96, 165, 250, 0.4);
   color: #93c5fd;
+}
+.legend-constructing {
+  background: rgba(218, 165, 32, 0.12);
+  border-color: rgba(218, 165, 32, 0.4);
+  color: #daa520;
 }
 .legend-waiting {
   background: rgba(245, 158, 11, 0.12);
@@ -707,6 +809,14 @@ const quickAction = (type: BuildingType) => {
   background: rgba(38, 26, 8, 0.68);
 }
 
+.state-constructing {
+  border-color: rgba(218, 165, 32, 0.5);
+  background: rgba(40, 30, 8, 0.72);
+}
+.state-constructing .tile-status {
+  color: #daa520;
+}
+
 .state-locked {
   border-color: rgba(60, 60, 60, 0.25);
   background: rgba(10, 10, 10, 0.6);
@@ -746,6 +856,37 @@ const quickAction = (type: BuildingType) => {
 
 .tile-icon--locked {
   filter: grayscale(1) opacity(0.45);
+}
+
+.tile-icon--constructing {
+  filter: grayscale(0.35) opacity(0.8);
+}
+
+/* Anneau de progression du chantier, superposé derrière l'icône */
+.tile-progress-svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 48px;
+  height: 48px;
+  pointer-events: none;
+}
+
+.tile-progress-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 3;
+}
+
+.tile-progress-ring {
+  fill: none;
+  stroke: #daa520;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 1s linear;
 }
 
 .tile-headquarters .tile-icon {
@@ -876,6 +1017,9 @@ const quickAction = (type: BuildingType) => {
 .detail-state-available {
   border-color: rgba(96, 165, 250, 0.4);
 }
+.detail-state-constructing {
+  border-color: rgba(218, 165, 32, 0.45);
+}
 .detail-state-waiting {
   border-color: rgba(245, 158, 11, 0.4);
 }
@@ -985,6 +1129,43 @@ const quickAction = (type: BuildingType) => {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+
+/* Chantier en cours */
+.detail-constructing-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.constructing-message {
+  font-size: 0.82rem;
+  color: #daa520;
+  line-height: 1.5;
+}
+
+.construction-progress-bar {
+  width: 100%;
+  height: 8px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.construction-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #b8860b, #daa520);
+  transition: width 1s linear;
+}
+
+.construction-eta {
+  font-size: 0.78rem;
+  color: #daa520;
+  background: rgba(218, 165, 32, 0.08);
+  border: 1px solid rgba(218, 165, 32, 0.25);
+  border-radius: 5px;
+  padding: 0.3rem 0.5rem;
+  text-align: center;
 }
 
 /* Production */

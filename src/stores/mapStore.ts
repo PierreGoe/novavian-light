@@ -7,6 +7,7 @@ import { GARRISON_REGEN_DURATION_MS, RECENT_PILLAGE_THRESHOLD_MS } from '@/confi
 import { gameSettings } from '@/stores/gameSettingsStore'
 import { computePillage } from '@/combat/loot'
 import { TERRAIN_BONUS } from '@/data/resources'
+import { debounce } from '@/utils/debounce'
 export type { EnemyLootStock, PillageResult } from '@/combat/loot'
 
 // ====================================================================
@@ -1017,7 +1018,11 @@ export const useMapStore = () => {
   }
 
   // Sauvegarde et chargement
-  const saveMapState = () => {
+  //
+  // La sérialisation ci-dessous porte sur la grille complète (jusqu'à 2500 tuiles) et peut
+  // être déclenchée très souvent (déplacement de la vue, combats, raids...). On la debounce
+  // pour éviter d'empiler des JSON.stringify synchrones coûteux sur le thread principal.
+  const writeMapState = () => {
     // PROTECTION: Ne jamais sauvegarder une carte vide
     // Cela évite d'écraser une carte valide existante avec des données vides
     if (mapState.mapTiles.length === 0) {
@@ -1037,6 +1042,13 @@ export const useMapStore = () => {
 
     localStorage.setItem('novavian-map', JSON.stringify(data))
   }
+
+  const debouncedWriteMapState = debounce(writeMapState, 400)
+
+  const saveMapState = () => debouncedWriteMapState()
+
+  /** Force l'écriture immédiate d'une sauvegarde en attente (fermeture/masquage de l'onglet). */
+  const flushMapState = () => debouncedWriteMapState.flush()
 
   const loadMapState = (): boolean => {
     try {
@@ -1462,6 +1474,7 @@ export const useMapStore = () => {
 
     // Persistance
     saveMapState,
+    flushMapState,
     loadMapState,
     resetMapState,
   }

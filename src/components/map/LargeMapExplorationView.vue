@@ -68,9 +68,6 @@
 
       <!-- Mouvements (éclaireurs + troupes en transit) -->
       <MovementsPanel />
-
-      <!-- Historique des rapports -->
-      <BattleReportsPanel @view-report="openCombatReport" />
     </template>
 
     <!-- VUE DÉTAILS (remplace la carte) -->
@@ -122,7 +119,6 @@ import { useToastStore } from '../../stores/toastStore'
 import LargeMapGrid from './LargeMapGrid.vue'
 import TileDetails from './TileDetails.vue'
 import MovementsPanel from './MovementsPanel.vue'
-import BattleReportsPanel from './BattleReportsPanel.vue'
 import CombatReportOverlay from './CombatReportOverlay.vue'
 
 // Stores
@@ -188,13 +184,6 @@ const nextHostileRaidLocation = computed(() => {
 
 /** Formate un nombre de secondes en "5m 23s" ou "45s" */
 const formatCountdown = (seconds: number): string => formatDuration(seconds * 1000)
-
-const openCombatReport = (report: SavedBattleReport) => {
-  combatReport.value = null
-  requestAnimationFrame(() => {
-    combatReport.value = report
-  })
-}
 
 /** Ferme la vue détails et revient à la carte */
 const closeDetails = () => {

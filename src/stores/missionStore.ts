@@ -1,11 +1,25 @@
 import { reactive, computed, ref } from 'vue'
+import { debounce } from '@/utils/debounce'
 import { useGameStore } from './gameStore'
 import { useMapStore, TERRAIN_MOVE_COST } from './mapStore'
 import type { SavedBattleReport } from '../combat/types'
 import { BUILDING_DEFINITIONS, getBuildingUpgrade, getHQLevel } from '../data/buildings'
 import type { BuildingType } from '../data/buildings'
-import { MAX_OFFLINE_MS, AUTOSAVE_INTERVAL_MS, PRODUCTION_INTERVAL_MS } from '../config'
+import {
+  MAX_OFFLINE_MS,
+  AUTOSAVE_INTERVAL_MS,
+  BASE_RESOURCE_CAPACITY,
+  CAPACITY_PER_HQ_LEVEL,
+} from '../config'
 import { gameSettings } from './gameSettingsStore'
+import { useToastStore } from './toastStore'
+
+/**
+ * Capacité de stockage par ressource selon le niveau du Bâtiment Principal.
+ * Voir config.ts pour le choix des constantes (BASE_RESOURCE_CAPACITY / CAPACITY_PER_HQ_LEVEL).
+ */
+export const getResourceCapacity = (hqLevel: number): number =>
+  BASE_RESOURCE_CAPACITY + hqLevel * CAPACITY_PER_HQ_LEVEL
 
 // Ré-export pour compatibilité avec les imports existants
 export { MAX_OFFLINE_MS }
@@ -149,7 +163,6 @@ export interface MissionTown {
   buildings: MissionBuilding[]
   units: MilitaryUnit[]
   trainingQueue: TrainingQueueEntry[]
-  population: number
 }
 
 // État global des missions
@@ -275,7 +288,6 @@ const initialState: MissionState = {
     buildings: createStartingBuildings(),
     units: createStartingUnits(),
     trainingQueue: [],
-    population: 10,
   },
   lastUpdateTime: Date.now(),
   gameElapsedMs: 0,
@@ -307,21 +319,25 @@ export const useMissionStore = () => {
     const lastUpdate = missionState.lastUpdateTime || now
     const timeElapsed = (now - lastUpdate) / 1000 / 60 // Minutes écoulées
 
+    // Le compteur affiché en direct ne doit jamais dépasser la capacité de stockage,
+    // même entre deux ticks de production (voir getResourceCapacity).
+    const cap = getResourceCapacity(getHQLevel(missionState.town.buildings))
+
     if (timeElapsed <= 0) {
       return {
-        wood: Math.floor(missionState.town.resources.wood),
-        clay: Math.floor(missionState.town.resources.clay),
-        iron: Math.floor(missionState.town.resources.iron),
-        crop: Math.floor(missionState.town.resources.crop),
+        wood: Math.min(cap, Math.floor(missionState.town.resources.wood)),
+        clay: Math.min(cap, Math.floor(missionState.town.resources.clay)),
+        iron: Math.min(cap, Math.floor(missionState.town.resources.iron)),
+        crop: Math.min(cap, Math.floor(missionState.town.resources.crop)),
       }
     }
 
     const production = missionState.town.production
     return {
-      wood: Math.floor(missionState.town.resources.wood + production.wood * timeElapsed),
-      clay: Math.floor(missionState.town.resources.clay + production.clay * timeElapsed),
-      iron: Math.floor(missionState.town.resources.iron + production.iron * timeElapsed),
-      crop: Math.floor(missionState.town.resources.crop + production.crop * timeElapsed),
+      wood: Math.min(cap, Math.floor(missionState.town.resources.wood + production.wood * timeElapsed)),
+      clay: Math.min(cap, Math.floor(missionState.town.resources.clay + production.clay * timeElapsed)),
+      iron: Math.min(cap, Math.floor(missionState.town.resources.iron + production.iron * timeElapsed)),
+      crop: Math.min(cap, Math.floor(missionState.town.resources.crop + production.crop * timeElapsed)),
     }
   })
 
@@ -335,11 +351,42 @@ export const useMissionStore = () => {
   })
 
   // Actions pour les ressources
+
+  /** Throttle du toast d'avertissement de plafond de stockage (évite le spam à chaque tick) */
+  let lastCapacityToastAt = 0
+  const CAPACITY_TOAST_THROTTLE_MS = 30_000
+
+  /**
+   * Applique un delta de ressources en le plafonnant à la capacité de stockage courante
+   * (voir getResourceCapacity). Ne sauvegarde PAS — utilisé par le tick de production
+   * (appelé chaque seconde) pour éviter un JSON.stringify + localStorage.setItem à chaque
+   * tick ; addResources() (ci-dessous) ajoute la sauvegarde pour les appels ponctuels
+   * (récompenses de mission, etc.).
+   * Retourne true si le plafond a effectivement tronqué une partie du delta.
+   */
+  const applyResourceDelta = (resources: Partial<TravianResources>): boolean => {
+    const cap = getResourceCapacity(getHQLevel(missionState.town.buildings))
+    let clamped = false
+
+    const applyOne = (key: keyof TravianResources, delta: number | undefined) => {
+      if (!delta) return
+      const current = missionState.town.resources[key]
+      const desired = current + delta
+      const next = Math.min(cap, desired)
+      if (next < desired) clamped = true
+      missionState.town.resources[key] = next
+    }
+
+    applyOne('wood', resources.wood)
+    applyOne('clay', resources.clay)
+    applyOne('iron', resources.iron)
+    applyOne('crop', resources.crop)
+
+    return clamped
+  }
+
   const addResources = (resources: Partial<TravianResources>) => {
-    if (resources.wood) missionState.town.resources.wood += resources.wood
-    if (resources.clay) missionState.town.resources.clay += resources.clay
-    if (resources.iron) missionState.town.resources.iron += resources.iron
-    if (resources.crop) missionState.town.resources.crop += resources.crop
+    applyResourceDelta(resources)
     saveMissionState()
   }
 
@@ -373,10 +420,22 @@ export const useMissionStore = () => {
     if (timeElapsed > 0) {
       const production = missionState.town.production
 
-      missionState.town.resources.wood += production.wood * timeElapsed
-      missionState.town.resources.clay += production.clay * timeElapsed
-      missionState.town.resources.iron += production.iron * timeElapsed
-      missionState.town.resources.crop += production.crop * timeElapsed
+      // applyResourceDelta() plafonne à la capacité de stockage (getResourceCapacity) et
+      // ne sauvegarde pas à chaque tick — voir sa doc plus haut.
+      const clamped = applyResourceDelta({
+        wood: production.wood * timeElapsed,
+        clay: production.clay * timeElapsed,
+        iron: production.iron * timeElapsed,
+        crop: production.crop * timeElapsed,
+      })
+
+      if (clamped && now - lastCapacityToastAt > CAPACITY_TOAST_THROTTLE_MS) {
+        lastCapacityToastAt = now
+        useToastStore().showInfo(
+          '⚠️ Stockage plein — améliorez votre Bâtiment Principal pour augmenter la capacité !',
+          { duration: 3000 },
+        )
+      }
 
       // Avancer le temps in-game (plafondé)
       missionState.gameElapsedMs += cappedDeltaMs
@@ -433,6 +492,25 @@ export const useMissionStore = () => {
     const r = pendingReportToOpen.value
     pendingReportToOpen.value = null
     return r
+  }
+
+  /** Marque tous les rapports comme lus (action groupée depuis la page Rapports) */
+  const markAllReportsRead = () => {
+    let changed = false
+    for (const report of missionState.battleReports) {
+      if (!report.read) {
+        report.read = true
+        changed = true
+      }
+    }
+    if (changed) saveMissionState()
+  }
+
+  /** Supprime tous les rapports de bataille (action groupée depuis la page Rapports) */
+  const deleteAllBattleReports = () => {
+    if (missionState.battleReports.length === 0) return
+    missionState.battleReports = []
+    saveMissionState()
   }
 
   // Fonctions auxiliaires
@@ -563,9 +641,18 @@ export const useMissionStore = () => {
   }
 
   // Actions pour les bâtiments
+  /**
+   * Lance l'amélioration d'un bâtiment existant. Ne bascule PLUS le niveau instantanément :
+   * les ressources sont déduites immédiatement, puis le bâtiment passe en
+   * `isUnderConstruction` jusqu'à `constructionEndTime` (voir processConstructionQueue).
+   * Un seul chantier à la fois par bâtiment (pas de file empilable comme pour les unités).
+   */
   const upgradeBuilding = (buildingId: string): boolean => {
     const building = missionState.town.buildings.find((b) => b.id === buildingId)
     if (!building) return false
+
+    // Un chantier est déjà en cours sur ce bâtiment
+    if (building.isUnderConstruction) return false
 
     const def = BUILDING_DEFINITIONS[building.type as BuildingType]
     if (!def) return false
@@ -580,15 +667,79 @@ export const useMissionStore = () => {
     const upgradeCost = getBuildingUpgrade(building.type as BuildingType, building.level)
 
     if (spendResources(upgradeCost)) {
+      building.isUnderConstruction = true
+      building.constructionEndTime = Date.now() + upgradeCost.buildTime * 1000
+
+      saveMissionState()
+      return true
+    }
+
+    return false
+  }
+
+  // Construire un nouveau bâtiment (niveau 0 → 1, via chantier temporisé)
+  const constructBuilding = (type: BuildingType): boolean => {
+    const def = BUILDING_DEFINITIONS[type]
+    if (!def) return false
+
+    // Vérifier que le bâtiment n'existe pas déjà (ou n'est pas déjà en chantier)
+    const exists = missionState.town.buildings.some((b) => b.type === type)
+    if (exists) return false
+
+    // Vérifier le prérequis HQ
+    const hqLevel = getHQLevel(missionState.town.buildings)
+    if (hqLevel < def.hqLevelRequired) return false
+
+    // Coût de construction (niveau 0 → 1)
+    const buildCost = getBuildingUpgrade(type, 0)
+
+    if (spendResources(buildCost)) {
+      // Le bâtiment existe en base de données dès l'achat (niveau 0, en chantier) —
+      // il devient niveau 1 (avec sa production) quand processConstructionQueue le finalise.
+      missionState.town.buildings.push({
+        id: `${type}-${Date.now()}`,
+        type,
+        level: 0,
+        position: { x: 0, y: 0 },
+        isUnderConstruction: true,
+        constructionEndTime: Date.now() + buildCost.buildTime * 1000,
+      })
+
+      saveMissionState()
+      return true
+    }
+
+    return false
+  }
+
+  /**
+   * Traite le chantier de tous les bâtiments : finalise ceux dont le timer est écoulé
+   * (bump de niveau + application de la production), symétrique à processTrainingQueue().
+   * Appelée à chaque tick de l'intervalle d'affichage (voir startDisplayUpdates).
+   */
+  const processConstructionQueue = (): void => {
+    const now = Date.now()
+    let changed = false
+
+    for (const building of missionState.town.buildings) {
+      if (!building.isUnderConstruction) continue
+      if (!building.constructionEndTime || building.constructionEndTime > now) continue
+
+      const def = BUILDING_DEFINITIONS[building.type as BuildingType]
+
       building.level += 1
+      building.isUnderConstruction = false
+      building.constructionEndTime = undefined
+      changed = true
 
       // Mise à jour de la production si applicable
-      if (def.productionPerLevel) {
+      if (def?.productionPerLevel) {
         const { resource, amount } = def.productionPerLevel
         missionState.town.production[resource] += amount
       }
 
-      // Déblocage automatique de la mine et de la carrière au niveau 4 du HQ
+      // Déblocage automatique de la mine et de la carrière au niveau 4 du HQ — cadeau
+      // gratuit et instantané, ne passe pas par le chantier temporisé (voir plan Chantier C).
       if (building.type === 'headquarters' && building.level === 4) {
         const hasQuarry = missionState.town.buildings.some((b) => b.type === 'quarry')
         const hasMine = missionState.town.buildings.some((b) => b.type === 'mine')
@@ -615,49 +766,9 @@ export const useMissionStore = () => {
           missionState.town.production.iron += BUILDING_DEFINITIONS.mine.productionPerLevel!.amount
         }
       }
-
-      saveMissionState()
-      return true
     }
 
-    return false
-  }
-
-  // Construire un nouveau bâtiment (niveau 0 → 1)
-  const constructBuilding = (type: BuildingType): boolean => {
-    const def = BUILDING_DEFINITIONS[type]
-    if (!def) return false
-
-    // Vérifier que le bâtiment n'existe pas déjà
-    const exists = missionState.town.buildings.some((b) => b.type === type)
-    if (exists) return false
-
-    // Vérifier le prérequis HQ
-    const hqLevel = getHQLevel(missionState.town.buildings)
-    if (hqLevel < def.hqLevelRequired) return false
-
-    // Coût de construction (niveau 0 → 1)
-    const buildCost = getBuildingUpgrade(type, 0)
-
-    if (spendResources(buildCost)) {
-      missionState.town.buildings.push({
-        id: `${type}-${Date.now()}`,
-        type,
-        level: 1,
-        position: { x: 0, y: 0 },
-      })
-
-      // Ajouter la production initiale si applicable
-      if (def.productionPerLevel) {
-        const { resource, amount } = def.productionPerLevel
-        missionState.town.production[resource] += amount
-      }
-
-      saveMissionState()
-      return true
-    }
-
-    return false
+    if (changed) saveMissionState()
   }
 
   // Actions pour les unités
@@ -779,7 +890,11 @@ export const useMissionStore = () => {
   }
 
   // Sauvegarde et chargement
-  const saveMissionState = () => {
+  //
+  // saveMissionState() est appelée à chaque gain/dépense de ressource, changement de file
+  // de construction/entraînement, etc. On debounce l'écriture réelle pour éviter d'empiler
+  // des JSON.stringify synchrones quand plusieurs mutations arrivent coup sur coup.
+  const writeMissionState = () => {
     const data = {
       isInMission: missionState.isInMission,
       currentMission: missionState.currentMission,
@@ -793,6 +908,13 @@ export const useMissionStore = () => {
     }
     localStorage.setItem('minitravian-missions', JSON.stringify(data))
   }
+
+  const debouncedWriteMissionState = debounce(writeMissionState, 400)
+
+  const saveMissionState = () => debouncedWriteMissionState()
+
+  /** Force l'écriture immédiate d'une sauvegarde en attente (fermeture/masquage de l'onglet). */
+  const flushMissionState = () => debouncedWriteMissionState.flush()
 
   const loadMissionState = () => {
     const saved = localStorage.getItem('minitravian-missions')
@@ -852,7 +974,6 @@ export const useMissionStore = () => {
         buildings: freshBuildings,
         units: createStartingUnits(),
         trainingQueue: [],
-        population: 10,
       },
       lastUpdateTime: Date.now(),
       gameElapsedMs: 0,
@@ -864,9 +985,8 @@ export const useMissionStore = () => {
     localStorage.removeItem('minitravian-missions')
   }
 
-  // Auto-save, production et affichage temps réel
+  // Auto-save et affichage temps réel
   let autoSaveInterval: number | null = null
-  let productionInterval: number | null = null
   let displayUpdateInterval: number | null = null
 
   const startAutoSave = () => {
@@ -881,24 +1001,16 @@ export const useMissionStore = () => {
     }
   }
 
-  const startResourceProduction = () => {
-    if (productionInterval) return
-    productionInterval = window.setInterval(updateResourceProduction, PRODUCTION_INTERVAL_MS)
-  }
-
-  const stopResourceProduction = () => {
-    if (productionInterval) {
-      clearInterval(productionInterval)
-      productionInterval = null
-    }
-  }
-
-  // Timer pour l'affichage en temps réel — inclut la production pour un compteur fluide
+  // Timer pour l'affichage en temps réel — inclut la production pour un compteur fluide.
+  // NOTE : c'est l'UNIQUE tick qui appelle updateResourceProduction() — un second
+  // setInterval(updateResourceProduction, PRODUCTION_INTERVAL_MS) existait ici auparavant
+  // et doublait l'application de la production (bug de duplication de tick), il a été retiré.
   const startDisplayUpdates = () => {
     if (displayUpdateInterval) return
     displayUpdateInterval = window.setInterval(() => {
       updateResourceProduction()
       processTrainingQueue()
+      processConstructionQueue()
     }, 1000)
   }
 
@@ -917,7 +1029,6 @@ export const useMissionStore = () => {
 
   const stopAllServices = () => {
     stopAutoSave()
-    stopResourceProduction()
     stopDisplayUpdates()
   }
 
@@ -948,6 +1059,7 @@ export const useMissionStore = () => {
     // Actions bâtiments
     upgradeBuilding,
     constructBuilding,
+    processConstructionQueue,
 
     // Actions unités
     trainUnit,
@@ -969,17 +1081,18 @@ export const useMissionStore = () => {
     pendingReportToOpen,
     requestOpenReport,
     consumePendingReport,
+    markAllReportsRead,
+    deleteAllBattleReports,
 
     // Sauvegarde
     saveMissionState,
+    flushMissionState,
     loadMissionState,
     resetMissionState,
 
-    // Auto-save, production et affichage
+    // Auto-save et affichage
     startAutoSave,
     stopAutoSave,
-    startResourceProduction,
-    stopResourceProduction,
     startDisplayUpdates,
     stopDisplayUpdates,
     startAllServices,

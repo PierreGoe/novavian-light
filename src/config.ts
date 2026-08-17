@@ -50,11 +50,27 @@ export const GAME_SPEED_MULTIPLIER = parseNumber(import.meta.env.VITE_GAME_SPEED
 /** Intervalle d'auto-save (ms) */
 export const AUTOSAVE_INTERVAL_MS = parseNumber(import.meta.env.VITE_AUTOSAVE_INTERVAL_MS, 30_000)
 
-/** Intervalle de mise à jour de la production (ms) */
-export const PRODUCTION_INTERVAL_MS = parseNumber(
-  import.meta.env.VITE_PRODUCTION_INTERVAL_MS,
-  60_000,
+// ------------------------------------
+// Ressources & stockage
+// ------------------------------------
+
+/**
+ * Capacité de stockage de base par ressource (avant bonus de niveau du Bâtiment Principal).
+ * Ordre de grandeur choisi par rapport aux coûts de bâtiments.ts : suffisant pour stocker
+ * le coût d'une amélioration de milieu de partie sans forcer le joueur à dépenser en
+ * continu, tout en restant assez bas pour que le plafond soit ressenti tôt.
+ */
+export const BASE_RESOURCE_CAPACITY = parseNumber(
+  import.meta.env.VITE_BASE_RESOURCE_CAPACITY,
+  2_000,
 )
+
+/**
+ * Capacité de stockage additionnelle par ressource, par niveau de Bâtiment Principal.
+ * Au niveau 10 (max), cela porte la capacité à 2 000 + 10 × 800 = 10 000, du même ordre
+ * de grandeur que les coûts d'amélioration les plus élevés (~3 900 pour les Casernes niv. 10).
+ */
+export const CAPACITY_PER_HQ_LEVEL = parseNumber(import.meta.env.VITE_CAPACITY_PER_HQ_LEVEL, 800)
 
 // ------------------------------------
 // Débogage / outils de développement

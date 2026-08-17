@@ -7,6 +7,7 @@ import { useMapStore } from '@/stores/mapStore'
 import SideNavBar from '@/components/globals/SideNavBar.vue'
 import ToastContainer from '@/components/globals/ToastContainer.vue'
 import PerformanceMonitor from '@/components/globals/PerformanceMonitor.vue'
+import OnboardingOverlay from '@/components/onboarding/OnboardingOverlay.vue'
 
 const isDev = import.meta.env.DEV
 
@@ -36,12 +37,17 @@ const onSidebarToggle = (e: Event) => {
   sidebarWidth.value = collapsed ? '64px' : '220px'
 }
 
-// Sauvegarde d'urgence — garantit 0 perte de données à la fermeture/switch d'onglet
+// Sauvegarde d'urgence — garantit 0 perte de données à la fermeture/switch d'onglet.
+// Les saveXxx() du jeu sont debouncées (voir stores), donc on force ici une écriture
+// immédiate via flushXxx() pour ne pas perdre une sauvegarde encore en attente.
 const saveAll = () => {
   missionStore.updateResourceProduction()
   missionStore.saveMissionState()
   mapStore.saveMapState()
   gameStore.saveGame()
+  missionStore.flushMissionState()
+  mapStore.flushMapState()
+  gameStore.flushGame()
 }
 
 const onBeforeUnload = () => saveAll()
@@ -78,6 +84,7 @@ onUnmounted(() => {
     <div class="app-content">
       <RouterView />
       <ToastContainer />
+      <OnboardingOverlay />
       <PerformanceMonitor v-if="isDev" />
     </div>
   </div>

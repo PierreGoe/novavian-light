@@ -37,7 +37,12 @@
         :title="isCollapsed ? link.label : ''"
         active-class="nav-link--active"
       >
-        <span class="nav-icon">{{ link.icon }}</span>
+        <span class="nav-icon">
+          {{ link.icon }}
+          <span v-if="link.to === '/reports' && unreadReportsCount > 0" class="nav-badge">{{
+            unreadReportsCount
+          }}</span>
+        </span>
         <Transition name="fade-text">
           <span v-if="!isCollapsed" class="nav-label">{{ link.label }}</span>
         </Transition>
@@ -138,7 +143,12 @@
       class="bottom-nav-link"
       active-class="bottom-nav-link--active"
     >
-      <span class="bottom-nav-icon">{{ link.icon }}</span>
+      <span class="bottom-nav-icon">
+        {{ link.icon }}
+        <span v-if="link.to === '/reports' && unreadReportsCount > 0" class="nav-badge nav-badge--bottom">{{
+          unreadReportsCount
+        }}</span>
+      </span>
       <span class="bottom-nav-label">{{ link.label }}</span>
     </router-link>
   </nav>
@@ -148,12 +158,14 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
+import { useMissionStore } from '@/stores/missionStore'
 import { formatNumber } from '@/utils/formatNumber'
 
 // ===============================================================
 // Stores & router
 // ===============================================================
 const gameStore = useGameStore()
+const missionStore = useMissionStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -189,6 +201,7 @@ interface NavLink {
 const NAV_LINKS: NavLink[] = [
   { to: '/mission-tree', icon: '🗺️', label: 'Missions', requireGame: true },
   { to: '/campaign', icon: '⚔️', label: 'Campagne', requireGame: true },
+  { to: '/reports', icon: '📜', label: 'Rapports', requireGame: true },
   { to: '/inventory', icon: '🎒', label: 'Inventaire', requireGame: true },
   { to: '/bazar', icon: '🛒', label: 'Bazar Mystique', requireGame: true },
   { to: '/settings', icon: '⚙️', label: 'Paramètres' },
@@ -199,6 +212,9 @@ const isInGame = computed(() => gameStore.gameState.currentStatus === 'in-progre
 const visibleNavLinks = computed(() =>
   NAV_LINKS.filter((link) => !link.requireGame || isInGame.value),
 )
+
+// Badge "non lus" affiché uniquement sur le lien Rapports
+const unreadReportsCount = computed(() => missionStore.unreadReportsCount.value)
 
 // ===============================================================
 // Données joueur
@@ -420,6 +436,8 @@ $mobile-breakpoint: 768px;
   }
 
   .nav-icon {
+    position: relative;
+    display: inline-flex;
     font-size: 1.2rem;
     flex-shrink: 0;
     width: 1.5rem;
@@ -547,6 +565,8 @@ $mobile-breakpoint: 768px;
   }
 
   .nav-icon {
+    position: relative;
+    display: inline-flex;
     font-size: 1.2rem;
     flex-shrink: 0;
     width: 1.5rem;
@@ -711,6 +731,8 @@ $mobile-breakpoint: 768px;
   }
 
   .bottom-nav-icon {
+    position: relative;
+    display: inline-flex;
     font-size: 1.4rem;
     line-height: 1;
   }
@@ -722,6 +744,31 @@ $mobile-breakpoint: 768px;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 60px;
+  }
+}
+
+// Badge "non lus" sur l'icône Rapports (desktop + mobile)
+.nav-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1;
+  border: 1px solid #1a0f08;
+
+  &--bottom {
+    top: -3px;
+    right: -8px;
   }
 }
 </style>

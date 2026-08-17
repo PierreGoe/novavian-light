@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { reactive, computed } from 'vue'
 import { generateMap } from '@/utils'
+import { debounce } from '@/utils/debounce'
 import router from '@/router'
 import { useMissionStore } from '@/stores/missionStore'
 import { useMapStore } from '@/stores/mapStore'
@@ -335,7 +336,10 @@ export const useGameStore = () => {
     return false
   }
 
-  const saveGame = () => {
+  // saveGame() est appelée depuis une trentaine de points du store (chaque gain d'or,
+  // de PV, de leadership...) ; on debounce l'écriture réelle pour éviter d'empiler des
+  // JSON.stringify synchrones quand plusieurs mutations arrivent coup sur coup.
+  const writeGame = () => {
     try {
       const gameData = {
         currentStatus: gameState.currentStatus,
@@ -367,6 +371,13 @@ export const useGameStore = () => {
       console.error('Error saving game:', error)
     }
   }
+
+  const debouncedWriteGame = debounce(writeGame, 400)
+
+  const saveGame = () => debouncedWriteGame()
+
+  /** Force l'écriture immédiate d'une sauvegarde en attente (fermeture/masquage de l'onglet). */
+  const flushGame = () => debouncedWriteGame.flush()
 
   // Reset complet - le joueur doit resélectionner une race
   const resetGameCompletely = () => {
@@ -550,6 +561,8 @@ export const useGameStore = () => {
           `\u2694\uFE0F Raid ennemi ! La forteresse ${loc} a pill\u00e9 ${total} ressources \u2014 aucune troupe pour d\u00e9fendre !`,
           { duration: 12000 },
         )
+        // L'hostilit\u00e9 retombe apr\u00E8s le raid, qu'il ait \u00e9t\u00e9 d\u00e9fendu ou non
+        mapStore.reduceHostility(zone.fortressTileId, HOSTILITY_REDUCE_RAID_REPELLED)
         continue
       }
 
@@ -601,6 +614,8 @@ export const useGameStore = () => {
             },
           },
         )
+        // L'hostilit\u00e9 retombe apr\u00e8s le raid, qu'il ait \u00e9t\u00e9 d\u00e9fendu ou non
+        mapStore.reduceHostility(zone.fortressTileId, HOSTILITY_REDUCE_RAID_REPELLED)
       } else {
         // D\u00e9fense r\u00e9ussie \u2014 r\u00e9duction de l'hostilit\u00e9
         mapStore.reduceHostility(zone.fortressTileId, HOSTILITY_REDUCE_RAID_REPELLED)
@@ -1300,6 +1315,7 @@ export const useGameStore = () => {
     startNewGame,
     loadGame,
     saveGame,
+    flushGame,
     resetGameCompletely,
     resetMapOnly,
     startAutoSave,
