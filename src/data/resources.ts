@@ -15,7 +15,7 @@
 // ---------------------------------------------------------------------------
 
 export type TravianResourceKey = 'wood' | 'clay' | 'iron' | 'crop'
-export type PlayerResourceKey = 'gold' | 'leadership'
+export type PlayerResourceKey = 'gold' | 'leadership' | 'mapFragment'
 /** Clés utilisables dans resourceBonus des artefacts (inclut stone, absent de la prod ville) */
 export type ArtifactBonusKey = TravianResourceKey | 'stone'
 /** Stats globales des artefacts */
@@ -78,6 +78,12 @@ export const PLAYER_RESOURCES: Record<PlayerResourceKey, ResourceDef> = {
     label: 'Leadership',
     emoji: '👑',
     color: '#a855f7',
+  },
+  mapFragment: {
+    key: 'mapFragment',
+    label: 'Fragments de carte',
+    emoji: '🗺️',
+    color: '#0ea5e9',
   },
 }
 
@@ -175,4 +181,4 @@ export function formatResource(key: ResourceKey, value: number): string {
 // ---------------------------------------------------------------------------
 
 export const TRAVIAN_RESOURCE_ORDER: TravianResourceKey[] = ['wood', 'clay', 'iron', 'crop']
-export const PLAYER_RESOURCE_ORDER: PlayerResourceKey[] = ['gold', 'leadership']
+export const PLAYER_RESOURCE_ORDER: PlayerResourceKey[] = ['gold', 'leadership', 'mapFragment']

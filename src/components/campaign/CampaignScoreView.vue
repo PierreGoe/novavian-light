@@ -20,7 +20,7 @@
     />
     <!-- Header -->
     <header class="score-header">
-      <button class="btn-back" @click="goBack">← Retour à la campagne</button>
+      <Button variant="secondary" size="sm" @click="goBack">← Retour à la campagne</Button>
       <h1>⚔️ Points de Victoire</h1>
     </header>
 
@@ -36,25 +36,22 @@
             missions, ou continue à jouer librement.
           </p>
           <div class="victory-rewards">
-            <div
-              v-if="currentNodeReward?.reward?.type === 'relic'"
-              class="reward-chip reward-chip--relic"
-            >
+            <Badge v-if="currentNodeReward?.reward?.type === 'relic'" tone="epic">
               💎 Relique {{ currentNodeReward.type === 'elite' ? 'rare' : 'commune' }} garantie
-            </div>
-            <div v-else-if="currentNodeReward?.reward?.type === 'gold'" class="reward-chip">
+            </Badge>
+            <Badge v-else-if="currentNodeReward?.reward?.type === 'gold'" tone="accent">
               💰 +{{ currentNodeReward.reward.amount }} or (récompense du node)
-            </div>
-            <div class="reward-chip">🏆 Node de mission validé</div>
-            <div class="reward-chip">📜 Accès à la prochaine mission</div>
+            </Badge>
+            <Badge tone="accent">🏆 Node de mission validé</Badge>
+            <Badge tone="accent">📜 Accès à la prochaine mission</Badge>
           </div>
           <div class="victory-actions">
-            <button class="btn-primary" :disabled="completing" @click="handleComplete">
+            <Button :disabled="completing" @click="handleComplete">
               🏁 Valider et terminer la campagne
-            </button>
-            <button v-if="!continuing" class="btn-secondary" @click="continuing = true">
+            </Button>
+            <Button v-if="!continuing" variant="secondary" @click="continuing = true">
               ⚔️ Continuer quand même
-            </button>
+            </Button>
             <span v-else class="continuing-note">
               Mode libre activé — reviens ici quand tu veux terminer.
             </span>
@@ -66,15 +63,20 @@
     <!-- Bouton "Terminer" persistant si le joueur a choisi de continuer -->
     <div v-if="objectiveReached && continuing" class="finish-bar">
       <span>🏆 Objectif atteint — tu joues en mode libre</span>
-      <button class="btn-primary btn-sm" :disabled="completing" @click="handleComplete">
+      <Button size="sm" :disabled="completing" @click="handleComplete">
         🏁 Terminer la campagne
-      </button>
+      </Button>
     </div>
 
     <!-- Grille des catégories -->
     <section class="score-grid">
       <!-- Combat -->
-      <div class="score-card" :class="{ 'score-card--done': combatDone }">
+      <!--
+        score-card-header volontairement custom, pas de SectionHeader : le sous-titre
+        s'affiche SOUS le titre ici, alors que le slot par défaut de SectionHeader
+        s'affiche à côté du titre — mise en page incompatible.
+      -->
+      <StateCard :state="combatDone ? 'done' : 'neutral'">
         <div class="score-card-header">
           <span class="score-card-icon">⚔️</span>
           <div>
@@ -87,25 +89,30 @@
         </div>
 
         <div class="score-bar-wrap">
-          <div class="score-bar">
-            <div
-              class="score-bar-fill"
-              :class="{ 'fill--done': combatDone }"
-              :style="{ width: `${Math.min((totalCombatVP / COMBAT_VP_GOAL) * 100, 100)}%` }"
-            />
-          </div>
+          <ProgressBar
+            class="score-bar"
+            tone="danger"
+            :value="(totalCombatVP / COMBAT_VP_GOAL) * 100"
+            :done="combatDone"
+          />
           <span class="score-bar-label">{{ totalCombatVP }} / {{ COMBAT_VP_GOAL }}</span>
         </div>
 
         <ul class="score-sources">
           <li class="src-capped">
             <span class="src-icon">⚔️</span>
-            <span class="src-label">Victoire en combat <em class="src-cap">(max {{ COMBAT_VICTORY_VP_CAP }} PV au total)</em></span>
+            <span class="src-label"
+              >Victoire en combat
+              <em class="src-cap">(max {{ COMBAT_VICTORY_VP_CAP }} PV au total)</em></span
+            >
             <span class="src-pts">+1 PV</span>
           </li>
           <li class="src-capped">
             <span class="src-icon">🏚️</span>
-            <span class="src-label">Village ennemi détruit <em class="src-cap">(max {{ VILLAGE_VP_CAP }} PV au total)</em></span>
+            <span class="src-label"
+              >Village ennemi détruit
+              <em class="src-cap">(max {{ VILLAGE_VP_CAP }} PV au total)</em></span
+            >
             <span class="src-pts">+2 PV</span>
           </li>
           <li>
@@ -134,10 +141,10 @@
             <span class="src-pts">+12 PV</span>
           </li>
         </ul>
-      </div>
+      </StateCard>
 
       <!-- Futures catégories (placeholder) -->
-      <div class="score-card score-card--locked">
+      <StateCard state="locked">
         <div class="score-card-header">
           <span class="score-card-icon">🔬</span>
           <div>
@@ -146,12 +153,10 @@
           </div>
           <span class="score-card-total locked-label">Bientôt</span>
         </div>
-        <div class="score-locked-msg">
-          Cette catégorie sera disponible dans une prochaine version.
-        </div>
-      </div>
+        <EmptyState message="Cette catégorie sera disponible dans une prochaine version." />
+      </StateCard>
 
-      <div class="score-card score-card--locked">
+      <StateCard state="locked">
         <div class="score-card-header">
           <span class="score-card-icon">🪙</span>
           <div>
@@ -160,44 +165,31 @@
           </div>
           <span class="score-card-total locked-label">Bientôt</span>
         </div>
-        <div class="score-locked-msg">
-          Cette catégorie sera disponible dans une prochaine version.
-        </div>
-      </div>
+        <EmptyState message="Cette catégorie sera disponible dans une prochaine version." />
+      </StateCard>
     </section>
 
     <!-- Historique complet -->
     <section class="history-section">
       <h2>📜 Historique des gains</h2>
 
-      <div v-if="history.length === 0" class="history-empty">
-        Aucun point de victoire encore gagné. Lance-toi dans la bataille !
-      </div>
+      <EmptyState
+        v-if="history.length === 0"
+        message="Aucun point de victoire encore gagné. Lance-toi dans la bataille !"
+      />
 
-      <div v-else class="history-table-scroll">
-        <table class="history-table">
-          <thead>
-            <tr>
-              <th scope="col">Type</th>
-              <th scope="col">Action</th>
-              <th scope="col">Date</th>
-              <th scope="col">PV</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="event in history" :key="event.id">
-              <td>
-                <span class="hist-icon" role="img" :aria-label="getTypeLabel(event.type)">{{
-                  getTypeIcon(event.type)
-                }}</span>
-              </td>
-              <td class="hist-reason">{{ event.reason }}</td>
-              <td class="hist-date">{{ formatDate(event.date) }}</td>
-              <td class="hist-pts">+{{ event.amount }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <DataTable v-else :headers="['Type', 'Action', 'Date', 'PV']">
+        <tr v-for="event in history" :key="event.id">
+          <td>
+            <span class="hist-icon" role="img" :aria-label="getTypeLabel(event.type)">{{
+              getTypeIcon(event.type)
+            }}</span>
+          </td>
+          <td class="hist-reason">{{ event.reason }}</td>
+          <td class="hist-date">{{ formatDate(event.date) }}</td>
+          <td class="hist-pts">+{{ event.amount }}</td>
+        </tr>
+      </DataTable>
     </section>
   </div>
 </template>
@@ -205,11 +197,22 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useGameStore, COMBAT_VP_GOAL, VILLAGE_VP_CAP, COMBAT_VICTORY_VP_CAP } from '@/stores/gameStore'
+import {
+  useGameStore,
+  COMBAT_VP_GOAL,
+  VILLAGE_VP_CAP,
+  COMBAT_VICTORY_VP_CAP,
+} from '@/stores/gameStore'
 import type { VictoryPointType, Artifact } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
 import CampaignVictoryModal from './CampaignVictoryModal.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
+import Button from '@/components/ui/Button.vue'
+import Badge from '@/components/ui/Badge.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import StateCard from '@/components/ui/StateCard.vue'
+import DataTable from '@/components/ui/DataTable.vue'
 
 const CAMPAIGN_BONUS_GOLD = 100
 
@@ -336,8 +339,8 @@ function formatDate(iso: string): string {
 /* ── Layout global ── */
 .score-view {
   min-height: 100vh;
-  background: linear-gradient(135deg, #2c1810 0%, #1a0f08 100%);
-  color: #f4e4bc;
+  background: var(--gradient-canvas);
+  color: var(--color-text);
   padding-bottom: 4rem;
 }
 
@@ -347,8 +350,8 @@ function formatDate(iso: string): string {
   align-items: center;
   gap: 1.5rem;
   padding: 1.2rem 2rem;
-  background: rgba(0, 0, 0, 0.35);
-  border-bottom: 1px solid rgba(218, 165, 32, 0.25);
+  background: rgba(var(--color-white-rgb), 0.7);
+  border-bottom: 1px solid rgba(var(--color-accent-rgb), 0.25);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -357,37 +360,30 @@ function formatDate(iso: string): string {
 .score-header h1 {
   margin: 0;
   font-size: 1.5rem;
-  color: #daa520;
+  color: var(--color-accent-ink);
 }
-.btn-back {
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #c9a96e;
-  padding: 0.45rem 0.9rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.88rem;
-  transition: background 0.15s;
-  white-space: nowrap;
-}
-.btn-back:hover {
-  background: rgba(255, 255, 255, 0.13);
-}
-
 /* ── Bannière victoire ── */
 .victory-banner {
   position: relative;
   margin: 1.5rem 2rem;
   padding: 1.75rem 2rem;
-  background: linear-gradient(135deg, rgba(218, 165, 32, 0.14), rgba(139, 69, 19, 0.3));
-  border: 1px solid rgba(218, 165, 32, 0.45);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--color-accent-rgb), 0.14),
+    rgba(184, 134, 11, 0.16)
+  );
+  border: 1px solid rgba(var(--color-accent-rgb), 0.45);
   border-radius: 16px;
   overflow: hidden;
 }
 .victory-glow {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at top left, rgba(218, 165, 32, 0.12) 0%, transparent 60%);
+  background: radial-gradient(
+    ellipse at top left,
+    rgba(var(--color-accent-rgb), 0.1) 0%,
+    transparent 60%
+  );
   pointer-events: none;
 }
 .victory-content {
@@ -396,12 +392,12 @@ function formatDate(iso: string): string {
 .victory-banner h2 {
   margin: 0 0 0.6rem;
   font-size: 1.4rem;
-  color: #daa520;
+  color: var(--color-accent-ink);
 }
 .victory-banner p {
   margin: 0 0 1rem;
   font-size: 0.92rem;
-  color: #f4e4bc;
+  color: var(--color-text);
   line-height: 1.6;
   max-width: 640px;
 }
@@ -412,21 +408,6 @@ function formatDate(iso: string): string {
   flex-wrap: wrap;
   margin-bottom: 1.25rem;
 }
-.reward-chip {
-  font-size: 0.85rem;
-  padding: 0.35rem 0.85rem;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(218, 165, 32, 0.35);
-  border-radius: 20px;
-  color: #daa520;
-}
-
-.reward-chip--relic {
-  border-color: rgba(139, 92, 246, 0.5);
-  background: rgba(139, 92, 246, 0.15);
-  color: #c4b5fd;
-  font-weight: 600;
-}
 
 .victory-actions {
   display: flex;
@@ -436,7 +417,7 @@ function formatDate(iso: string): string {
 }
 .continuing-note {
   font-size: 0.82rem;
-  color: #888;
+  color: var(--color-text-faint);
   font-style: italic;
 }
 
@@ -448,57 +429,11 @@ function formatDate(iso: string): string {
   gap: 1rem;
   margin: 0 2rem 0.5rem;
   padding: 0.75rem 1.25rem;
-  background: rgba(218, 165, 32, 0.1);
-  border: 1px solid rgba(218, 165, 32, 0.25);
+  background: rgba(var(--color-accent-rgb), 0.1);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.25);
   border-radius: 10px;
   font-size: 0.88rem;
-  color: #daa520;
-}
-
-/* ── Boutons ── */
-.btn-primary {
-  padding: 0.65rem 1.4rem;
-  background: linear-gradient(135deg, #daa520, #b8860b);
-  color: #1a0f08;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.92rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    opacity 0.15s,
-    transform 0.1s;
-  white-space: nowrap;
-}
-.btn-primary:hover {
-  opacity: 0.88;
-}
-.btn-primary:active {
-  transform: scale(0.98);
-}
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.btn-sm {
-  padding: 0.4rem 0.9rem;
-  font-size: 0.8rem;
-}
-
-.btn-secondary {
-  padding: 0.65rem 1.2rem;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #c9a96e;
-  border-radius: 8px;
-  font-size: 0.92rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-  white-space: nowrap;
-}
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.13);
+  color: var(--color-accent-ink);
 }
 
 /* ── Grille catégories ── */
@@ -507,24 +442,6 @@ function formatDate(iso: string): string {
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1.25rem;
   padding: 1.5rem 2rem;
-}
-
-.score-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(218, 165, 32, 0.18);
-  border-radius: 14px;
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-.score-card--done {
-  border-color: rgba(218, 165, 32, 0.5);
-  background: rgba(218, 165, 32, 0.06);
-}
-.score-card--locked {
-  opacity: 0.55;
-  border-style: dashed;
 }
 
 .score-card-header {
@@ -542,25 +459,25 @@ function formatDate(iso: string): string {
 .score-card-header h3 {
   margin: 0 0 0.15rem;
   font-size: 1.05rem;
-  color: #f4e4bc;
+  color: var(--color-text);
 }
 .score-card-subtitle {
   margin: 0;
   font-size: 0.75rem;
-  color: #888;
+  color: var(--color-text-faint);
 }
 .score-card-total {
   font-size: 1.2rem;
   font-weight: 700;
-  color: #daa520;
+  color: var(--color-accent-ink);
   flex-shrink: 0;
 }
 .total--done {
-  color: #22c55e;
+  color: var(--color-success-strong);
 }
 .locked-label {
   font-size: 0.75rem;
-  color: #666;
+  color: var(--color-text-disabled);
   font-style: italic;
 }
 
@@ -572,23 +489,10 @@ function formatDate(iso: string): string {
 }
 .score-bar {
   flex: 1;
-  height: 10px;
-  background: rgba(255, 255, 255, 0.07);
-  border-radius: 5px;
-  overflow: hidden;
-}
-.score-bar-fill {
-  height: 100%;
-  border-radius: 5px;
-  background: linear-gradient(90deg, #ef4444, #dc2626);
-  transition: width 0.5s ease;
-}
-.score-bar-fill.fill--done {
-  background: linear-gradient(90deg, #22c55e, #16a34a);
 }
 .score-bar-label {
   font-size: 0.75rem;
-  color: #888;
+  color: var(--color-text-faint);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -609,9 +513,9 @@ function formatDate(iso: string): string {
   gap: 0.6rem;
   padding: 0.45rem 0.7rem;
   font-size: 0.83rem;
-  color: #c9a96e;
-  background: rgba(0, 0, 0, 0.15);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--color-text-muted);
+  background: rgba(var(--overlay-rgb), 0.04);
+  border-bottom: 1px solid rgba(var(--overlay-rgb), 0.06);
 }
 .score-sources li:last-child {
   border-bottom: none;
@@ -625,7 +529,7 @@ function formatDate(iso: string): string {
 }
 .src-pts {
   font-weight: 700;
-  color: #daa520;
+  color: var(--color-accent-ink);
   flex-shrink: 0;
 }
 /* Ligne avec plafond : texte légèrement atténué pour signaler la contrainte */
@@ -635,16 +539,8 @@ function formatDate(iso: string): string {
 .src-cap {
   font-style: italic;
   font-size: 0.75em;
-  color: #a07850;
+  color: var(--color-text-faint);
   font-weight: 400;
-}
-
-.score-locked-msg {
-  font-size: 0.82rem;
-  color: #555;
-  font-style: italic;
-  text-align: center;
-  padding: 0.5rem;
 }
 
 /* ── Historique ── */
@@ -653,61 +549,22 @@ function formatDate(iso: string): string {
 }
 .history-section h2 {
   font-size: 1.15rem;
-  color: #daa520;
+  color: var(--color-accent-ink);
   margin: 0 0 1rem;
-}
-.history-empty {
-  font-size: 0.9rem;
-  color: #666;
-  font-style: italic;
-  padding: 1rem 0;
-}
-
-.history-table-scroll {
-  width: 100%;
-  overflow-x: auto;
-}
-
-.history-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-.history-table thead tr {
-  border-bottom: 1px solid rgba(218, 165, 32, 0.25);
-}
-.history-table th {
-  text-align: left;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.72rem;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 600;
-}
-.history-table tbody tr {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  transition: background 0.1s;
-}
-.history-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
-}
-.history-table td {
-  padding: 0.5rem 0.75rem;
 }
 .hist-icon {
   font-size: 1rem;
 }
 .hist-reason {
-  color: #c9a96e;
+  color: var(--color-text-muted);
 }
 .hist-date {
-  color: #666;
+  color: var(--color-text-disabled);
   font-size: 0.78rem;
 }
 .hist-pts {
   font-weight: 700;
-  color: #ef4444;
+  color: var(--color-danger);
   text-align: right;
 }
 

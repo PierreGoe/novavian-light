@@ -30,5 +30,14 @@ export default defineConfigWithVueTs(
     ...pluginPlaywright.configs['flat/recommended'],
     files: ['e2e/**/*.{test,spec}.{js,ts,jsx,tsx}'],
   },
+
+  {
+    // Primitives du design system — noms courts d'un seul mot, comme dans
+    // toute bibliothèque de composants (Button, Badge, Separator...).
+    files: ['src/components/ui/**/*.vue'],
+    rules: {
+      'vue/multi-word-component-names': 'off',
+    },
+  },
   skipFormatting,
 )

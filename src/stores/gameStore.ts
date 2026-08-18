@@ -4,6 +4,7 @@ import { generateMap } from '@/utils'
 import { debounce } from '@/utils/debounce'
 import router from '@/router'
 import { useMissionStore } from '@/stores/missionStore'
+import type { MilitaryUnit } from '@/stores/missionStore'
 import { useMapStore } from '@/stores/mapStore'
 import { HOSTILITY_REDUCE_RAID_REPELLED } from '@/stores/mapStore'
 import { useToastStore } from '@/stores/toastStore'
@@ -98,6 +99,8 @@ export interface MapNode {
   completed: boolean
   accessible: boolean
   inProgress?: boolean // Mission en cours (pas encore terminée)
+  /** Décalage horizontal (fraction du slot) calculé une fois à la génération — cf. mapGenerator.ts */
+  jitterX?: number
   reward?: {
     type: 'gold' | 'card' | 'relic' | 'leadership'
     amount?: number
@@ -176,7 +179,7 @@ const createInitialState = (): GameState => ({
     leadership: 100,
     artifacts: [], // ← Nouveau tableau à chaque appel
     activeArtifacts: [], // ← IDs des artefacts actifs
-    mapFragments: 50, // Le joueur commence avec 5 fragments de carte
+    mapFragments: 50, // Le joueur commence avec 50 fragments de carte
   },
   createdAt: null,
   currentGameSection: undefined,
@@ -249,8 +252,10 @@ export const useGameStore = () => {
     // Donner des artefacts de démarrage selon la race
     giveStartingArtifacts(selectedRace)
 
-    // Sauvegarder
-    saveGame()
+    // Sauvegarder immédiatement (pas de debounce) : la navigation qui suit
+    // déclenche un loadGame() synchrone (ex: MissionTree.onMounted) qui doit
+    // retrouver la race tout juste sélectionnée en localStorage.
+    writeGame()
   }
 
   const loadGame = () => {
@@ -579,12 +584,8 @@ export const useGameStore = () => {
 
       // Appliquer les pertes aux troupes en ville
       for (const [unitType, killed] of Object.entries(report.defender.losses.killed)) {
-        const unit = missionStore.missionState.town.units.find((u) => u.type === unitType)
-        if (unit) unit.count = Math.max(0, unit.count - killed)
+        missionStore.removeUnits(unitType as MilitaryUnit['type'], killed)
       }
-      missionStore.missionState.town.units = missionStore.missionState.town.units.filter(
-        (u) => u.count > 0,
-      )
 
       // Sauvegarder le rapport
       const savedReport: SavedBattleReport = {

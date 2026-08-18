@@ -7,12 +7,13 @@
     :aria-expanded="!collapsed"
   >
     <span class="toggle-icon">{{ icon }}</span>
-    <span v-if="collapsed && badge" class="toggle-badge">{{ badge }}</span>
+    <CountBadge v-if="collapsed && badge" :count="badge" variant="active" position="bottom-right" />
   </button>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import CountBadge from './CountBadge.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -45,10 +46,10 @@ const icon = computed(() => {
   width: 28px;
   height: 28px;
   margin: 0.75rem 0.5rem 0.25rem;
-  border: 1px solid rgba(218, 165, 32, 0.35);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.35);
   border-radius: 6px;
-  background: rgba(218, 165, 32, 0.1);
-  color: #daa520;
+  background: rgba(var(--color-accent-rgb), 0.1);
+  color: var(--color-accent-ink);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -70,30 +71,17 @@ const icon = computed(() => {
 }
 
 .nav-toggle-btn:hover {
-  background: rgba(218, 165, 32, 0.25);
-  border-color: #daa520;
+  background: rgba(var(--color-accent-rgb), 0.25);
+  border-color: var(--color-accent);
+}
+
+.nav-toggle-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .toggle-icon {
   display: block;
   transform: translateY(-1px);
-}
-
-.toggle-badge {
-  position: absolute;
-  bottom: -6px;
-  right: -6px;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  border-radius: 8px;
-  background: #ef4444;
-  color: white;
-  font-size: 0.6rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
 }
 </style>

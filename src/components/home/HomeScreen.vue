@@ -9,29 +9,30 @@
 
     <main class="content-section">
       <div class="game-options">
-        <div class="option-card new-game" v-clickable @click="startNewGame">
-          <span class="new-game-badge">Commencer</span>
-          <div class="card-icon">⚔️</div>
+        <SelectableCard selected v-clickable @click="startNewGame">
+          <template #badge>
+            <Badge tone="accent">Commencer</Badge>
+          </template>
+          <template #icon>⚔️</template>
           <h3>Nouvelle Partie</h3>
           <p>Commencez votre conquête</p>
-        </div>
+        </SelectableCard>
 
-        <div
-          class="option-card load-game"
-          :class="{ disabled: !gameStore.hasSavedGame.value }"
+        <SelectableCard
+          :disabled="!gameStore.hasSavedGame.value"
           v-clickable="gameStore.hasSavedGame.value"
           @click="loadGame"
         >
-          <div class="card-icon">📜</div>
+          <template #icon>📜</template>
           <h3>Continuer</h3>
           <p>{{ gameStore.hasSavedGame.value ? 'Reprenez votre partie' : 'Aucune sauvegarde' }}</p>
-        </div>
+        </SelectableCard>
 
-        <div class="option-card settings" v-clickable @click="showSettings">
-          <div class="card-icon">⚙️</div>
+        <SelectableCard v-clickable @click="showSettings">
+          <template #icon>⚙️</template>
           <h3>Paramètres</h3>
           <p>Configuration du jeu</p>
-        </div>
+        </SelectableCard>
       </div>
 
       <div class="game-info">
@@ -48,6 +49,8 @@ import { useGameStore } from '@/stores/gameStore'
 import { useMissionStore } from '@/stores/missionStore'
 import { useMapStore } from '@/stores/mapStore'
 import { useToastStore } from '@/stores/toastStore'
+import SelectableCard from '@/components/ui/SelectableCard.vue'
+import Badge from '@/components/ui/Badge.vue'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -63,7 +66,9 @@ onMounted(() => {
 const startNewGame = () => {
   if (
     gameStore.hasSavedGame.value &&
-    !window.confirm('Une partie sauvegardée existe déjà. La commencer écrasera définitivement cette sauvegarde. Continuer ?')
+    !window.confirm(
+      'Une partie sauvegardée existe déjà. La commencer écrasera définitivement cette sauvegarde. Continuer ?',
+    )
   ) {
     return
   }
@@ -104,8 +109,8 @@ const showSettings = () => {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #2c1810 0%, #1a0f08 100%);
-  color: #f4e4bc;
+  background: var(--gradient-canvas);
+  color: var(--color-text);
   position: relative;
   overflow: hidden;
   margin: auto;
@@ -118,8 +123,8 @@ const showSettings = () => {
   right: 0;
   bottom: 0;
   background-image:
-    radial-gradient(circle at 20% 30%, rgba(218, 165, 32, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 80% 70%, rgba(139, 69, 19, 0.1) 0%, transparent 50%);
+    radial-gradient(circle at 20% 30%, rgba(var(--color-accent-rgb), 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(var(--color-accent-rgb), 0.04) 0%, transparent 50%);
   pointer-events: none;
 }
 
@@ -137,23 +142,23 @@ const showSettings = () => {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  text-shadow: 1px 1px 3px rgba(var(--color-black-rgb), 0.12);
   animation: titleGlow 3s ease-in-out infinite alternate;
 }
 
 @keyframes titleGlow {
   0% {
-    filter: drop-shadow(0 0 10px rgba(218, 165, 32, 0.3));
+    filter: drop-shadow(0 0 8px rgba(218, 165, 32, 0.25));
   }
   100% {
-    filter: drop-shadow(0 0 20px rgba(218, 165, 32, 0.6));
+    filter: drop-shadow(0 0 16px rgba(218, 165, 32, 0.45));
   }
 }
 
 .game-subtitle {
   font-size: 1.2rem;
   margin: 1rem 0 0;
-  opacity: 0.8;
+  color: var(--color-text-muted);
   font-style: italic;
 }
 
@@ -171,76 +176,21 @@ const showSettings = () => {
   margin-bottom: 3rem;
 }
 
-.option-card {
-  background: rgba(139, 69, 19, 0.3);
-  border: 2px solid #8b4513;
-  border-radius: 15px;
-  padding: 2rem;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
-  position: relative;
-}
-
-.option-card:hover:not(.disabled) {
-  background: rgba(218, 165, 32, 0.2);
-  border-color: #daa520;
-  transform: translateY(-5px);
-  box-shadow: 0 10px 30px rgba(218, 165, 32, 0.3);
-}
-
-.option-card.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.option-card.new-game {
-  background: rgba(218, 165, 32, 0.18);
-  border-color: #ffd700;
-  box-shadow: 0 0 24px rgba(218, 165, 32, 0.25);
-}
-
-.option-card.new-game:hover {
-  box-shadow: 0 12px 34px rgba(218, 165, 32, 0.45);
-}
-
-.new-game-badge {
-  position: absolute;
-  top: -0.75rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background: linear-gradient(45deg, #daa520, #ffd700);
-  color: #1a0f08;
-  font-size: 0.7rem;
-  font-weight: bold;
-  letter-spacing: 0.04em;
-  padding: 0.25rem 0.8rem;
-  border-radius: 999px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-}
-
-.card-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  display: block;
-}
-
-.option-card h3 {
+.game-options h3 {
   margin: 0.5rem 0;
   font-size: 1.5rem;
-  color: #daa520;
+  color: var(--color-accent-ink);
 }
 
-.option-card p {
+.game-options p {
   margin: 0;
-  opacity: 0.8;
+  color: var(--color-text-muted);
   font-size: 0.95rem;
 }
 
 .game-info {
   text-align: center;
-  opacity: 0.6;
+  color: var(--color-text-faint);
   font-size: 0.9rem;
 }
 
@@ -253,10 +203,6 @@ const showSettings = () => {
   .game-options {
     grid-template-columns: 1fr;
     gap: 1.5rem;
-  }
-
-  .option-card {
-    padding: 1.5rem;
   }
 }
 </style>

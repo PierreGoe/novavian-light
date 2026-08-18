@@ -18,7 +18,7 @@
           :progress="item.kind !== 'done' ? item.progress / 100 : undefined"
           :icon="item.icon"
           :done="item.kind === 'done'"
-          progress-color="#ef4444"
+          progress-color="var(--color-danger)"
         >
           <span class="clock-time">{{ item.eta }}</span>
         </TimerClock>
@@ -26,12 +26,12 @@
         <div class="clock-label">{{ item.label }}</div>
         <!-- Badges unités -->
         <div v-if="item.units" class="clock-units">
-          <span v-for="(u, i) in item.units" :key="i" class="unit-badge">{{ u }}</span>
+          <Badge v-for="(u, i) in item.units" :key="i" tone="neutral">{{ u }}</Badge>
         </div>
       </div>
     </div>
 
-    <div v-else class="empty-hint">Aucun mouvement en cours</div>
+    <EmptyState v-else message="Aucun mouvement en cours" />
   </section>
 </template>
 
@@ -41,6 +41,8 @@ import { useMissionStore } from '../../stores/missionStore'
 import { useMapStore, type TroopMovement } from '../../stores/mapStore'
 import { formatDuration } from '../../utils/formatDuration'
 import TimerClock from '@/components/ui/TimerClock.vue'
+import Badge from '@/components/ui/Badge.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const missionStore = useMissionStore()
 const mapStore = useMapStore()
@@ -82,7 +84,11 @@ onMounted(() => {
     const currentMovements = new Map(mapStore.mapState.activeMovements.map((m) => [m.id, m]))
     for (const [id, mov] of previousMovements) {
       if (!currentMovements.has(id)) {
-        justArrived.value.push({ id, ...describeMovement(mov), expiresAt: now.value + DONE_DISPLAY_MS })
+        justArrived.value.push({
+          id,
+          ...describeMovement(mov),
+          expiresAt: now.value + DONE_DISPLAY_MS,
+        })
       }
     }
     justArrived.value = justArrived.value.filter((entry) => entry.expiresAt > now.value)
@@ -172,10 +178,11 @@ const allItems = computed((): MovementItem[] => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: rgba(15, 25, 50, 0.7);
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  background: rgba(var(--color-white-rgb), 0.85);
+  border: 1px solid rgba(var(--overlay-rgb), 0.15);
   border-radius: 10px;
   padding: 10px 12px;
+  box-shadow: 0 4px 16px rgba(var(--color-black-rgb), 0.08);
 }
 
 /* En-tête */
@@ -188,7 +195,7 @@ const allItems = computed((): MovementItem[] => {
 .header-label {
   font-size: 0.78rem;
   font-weight: 600;
-  color: #93c5fd;
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -217,20 +224,20 @@ const allItems = computed((): MovementItem[] => {
 
 .clock-time {
   font-size: 0.6rem;
-  color: #fca5a5;
+  color: var(--color-danger);
   font-weight: bold;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
 .clock-item--done .clock-time {
-  color: #86efac;
+  color: var(--color-success);
 }
 
 /* Label destination */
 .clock-label {
   font-size: 0.66rem;
-  color: #93c5fd;
+  color: var(--color-text-muted);
   text-align: center;
   max-width: 100px;
   white-space: normal;
@@ -245,23 +252,5 @@ const allItems = computed((): MovementItem[] => {
   justify-content: center;
   gap: 3px;
   max-width: 80px;
-}
-
-.unit-badge {
-  font-size: 0.62rem;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  padding: 1px 5px;
-  color: #94a3b8;
-}
-
-/* Vide */
-.empty-hint {
-  font-size: 0.75rem;
-  color: #3f4f6a;
-  text-align: center;
-  padding: 4px 0;
-  font-style: italic;
 }
 </style>

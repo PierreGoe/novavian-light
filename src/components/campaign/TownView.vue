@@ -6,21 +6,19 @@
     </header>
 
     <!-- Navigation par onglets -->
-    <nav class="tab-nav">
-      <button
-        v-for="tab in TABS"
-        :key="tab.id"
-        class="tab-btn"
-        :class="{ active: activeTab === tab.id }"
-        @click="activeTab = tab.id"
-      >
-        <span class="tab-icon">{{ tab.icon }}</span>
-        <span class="tab-label">{{ tab.label }}</span>
-        <span v-if="tab.badge !== undefined && tab.badge > 0" class="tab-badge">{{
-          tab.badge
-        }}</span>
-      </button>
-    </nav>
+    <SegmentedControl
+      class="tab-nav"
+      :options="
+        TABS.map((tab) => ({
+          value: tab.id,
+          label: tab.label,
+          icon: tab.icon,
+          badge: tab.badge && tab.badge > 0 ? tab.badge : undefined,
+        }))
+      "
+      :model-value="activeTab"
+      @update:model-value="activeTab = $event as TabId"
+    />
 
     <!-- Contenu de l'onglet actif -->
     <div class="tab-content">
@@ -32,34 +30,40 @@
       <!-- Ressources -->
       <div v-else-if="activeTab === 'resources'" class="resources-tab">
         <div class="res-grid">
-          <div class="res-row" v-for="key in TRAVIAN_RESOURCE_ORDER" :key="key">
-            <span class="res-icon">{{ TRAVIAN_RESOURCES[key].emoji }}</span>
-            <span class="res-name">{{ TRAVIAN_RESOURCES[key].label }}</span>
-            <ResourceCounter class="res-amount" :value="missionStore.displayResources.value[key]" />
-            <span class="res-cap">/{{ formatNumber(capacity) }}</span>
+          <IconRow
+            v-for="key in TRAVIAN_RESOURCE_ORDER"
+            :key="key"
+            class="res-row"
+            :icon="TRAVIAN_RESOURCES[key].emoji"
+            :label="TRAVIAN_RESOURCES[key].label"
+          >
+            <ResourceCounter :value="missionStore.displayResources.value[key]" />/{{
+              formatNumber(capacity)
+            }}
             <span class="res-rate">+{{ Math.floor(town?.production?.[key] || 0) }}/min</span>
-          </div>
+          </IconRow>
         </div>
 
         <!-- Détails production par bâtiment -->
         <div class="prod-buildings">
-          <div class="prod-title">Bâtiments producteurs</div>
-          <div v-for="b in productionBuildings" :key="b.id" class="prod-row">
-            <span class="prod-icon">{{ b.icon }}</span>
-            <span class="prod-name">{{ b.name }}</span>
-            <span class="prod-level">niv. {{ b.level }}</span>
+          <SectionLabel>Bâtiments producteurs</SectionLabel>
+          <IconRow
+            v-for="b in productionBuildings"
+            :key="b.id"
+            class="prod-row"
+            :icon="b.icon"
+            :label="b.name"
+            :sublabel="`niv. ${b.level}`"
+          >
             <span class="prod-value">{{ b.resourceIcon }} +{{ b.production }}/min</span>
-          </div>
-          <div v-if="productionBuildings.length === 0" class="prod-empty">
-            Aucun bâtiment de production construit.
-          </div>
+          </IconRow>
+          <EmptyState
+            v-if="productionBuildings.length === 0"
+            message="Aucun bâtiment de production construit."
+          />
         </div>
       </div>
 
-      <!-- Militaire -->
-      <div v-else-if="activeTab === 'military'">
-        <UnitsTrainingSection />
-      </div>
     </div>
   </div>
 </template>
@@ -72,26 +76,28 @@ import type { BuildingType } from '@/data/buildings'
 import { TRAVIAN_RESOURCES, TRAVIAN_RESOURCE_ORDER } from '@/data/resources'
 import { formatNumber } from '@/utils/formatNumber'
 import VillagePlanView from './VillagePlanView.vue'
-import UnitsTrainingSection from './UnitsTrainingSection.vue'
-import ResourceCounter from '@/components/globals/ResourceCounter.vue'
+import ResourceCounter from '@/components/ui/ResourceCounter.vue'
+import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+import IconRow from '@/components/ui/IconRow.vue'
+import SectionLabel from '@/components/ui/SectionLabel.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const missionStore = useMissionStore()
 const town = computed(() => missionStore.town.value)
 const hqLevel = computed(() => getHQLevel(town.value?.buildings ?? []))
 const capacity = computed(() => getResourceCapacity(hqLevel.value))
 
-type TabId = 'village' | 'resources' | 'military'
+type TabId = 'village' | 'resources'
 const activeTab = ref<TabId>('village')
 
 const TABS = computed(() => [
-  { id: 'village' as TabId, icon: '🏛️', label: 'Village', badge: undefined },
-  { id: 'resources' as TabId, icon: '🌾', label: 'Ressources', badge: undefined },
   {
-    id: 'military' as TabId,
-    icon: '⚔️',
-    label: 'Militaire',
+    id: 'village' as TabId,
+    icon: '🏛️',
+    label: 'Village',
     badge: missionStore.trainingQueue.value.length,
   },
+  { id: 'resources' as TabId, icon: '🌾', label: 'Ressources', badge: undefined },
 ])
 
 // Bâtiments qui ont une production active
@@ -127,72 +133,28 @@ const productionBuildings = computed(() => {
   align-items: baseline;
   gap: 0.75rem;
   padding: 0.85rem 1.25rem 0.6rem;
-  border-bottom: 1px solid rgba(218, 165, 32, 0.15);
+  border-bottom: 1px solid rgba(var(--color-accent-rgb), 0.15);
   flex-shrink: 0;
 }
 
 .town-name {
   font-size: 1rem;
   font-weight: 700;
-  color: #daa520;
+  color: var(--color-accent-ink);
   letter-spacing: 0.03em;
 }
 
 /* ---- Onglets ---- */
 .tab-nav {
   display: flex;
-  gap: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  width: 100%;
   flex-shrink: 0;
+  margin-bottom: 0.5rem;
 }
 
-.tab-btn {
+.tab-nav :deep(.segment) {
   flex: 1;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  padding: 0.6rem 0.5rem;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: #6b7280;
-  font-size: 0.78rem;
-  cursor: pointer;
-  transition:
-    color 0.2s,
-    border-color 0.2s,
-    background 0.2s;
-  position: relative;
-}
-
-.tab-btn:hover {
-  color: #94a3b8;
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.tab-btn.active {
-  color: #daa520;
-  border-bottom-color: #daa520;
-  background: rgba(218, 165, 32, 0.05);
-}
-
-.tab-icon {
-  font-size: 0.9rem;
-}
-
-.tab-label {
-  font-weight: 500;
-}
-
-.tab-badge {
-  font-size: 0.65rem;
-  padding: 0.05rem 0.35rem;
-  background: rgba(218, 165, 32, 0.15);
-  border: 1px solid rgba(218, 165, 32, 0.3);
-  border-radius: 8px;
-  color: #daa520;
-  line-height: 1.4;
 }
 
 /* ---- Contenu ---- */
@@ -207,19 +169,15 @@ const productionBuildings = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 0;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(var(--overlay-rgb), 0.07);
   border-radius: 10px;
   overflow: hidden;
   margin-bottom: 1.25rem;
 }
 
 .res-row {
-  display: grid;
-  grid-template-columns: 1.5rem 1fr auto auto auto;
-  align-items: center;
-  gap: 0.6rem;
   padding: 0.6rem 0.9rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(var(--overlay-rgb), 0.05);
   transition: background 0.15s;
 }
 
@@ -228,47 +186,13 @@ const productionBuildings = computed(() => {
 }
 
 .res-row:hover {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.res-icon {
-  font-size: 1rem;
-  text-align: center;
-}
-
-.res-name {
-  font-size: 0.8rem;
-  color: #94a3b8;
-}
-
-.res-amount {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #f4e4bc;
-  text-align: right;
-  min-width: 3.5rem;
-}
-
-.res-cap {
-  font-size: 0.72rem;
-  color: #6b7280;
-  text-align: right;
-  min-width: 3rem;
+  background: rgba(var(--overlay-rgb), 0.03);
 }
 
 .res-rate {
-  font-size: 0.72rem;
-  color: #4ade80;
-  text-align: right;
-  min-width: 4rem;
-}
-
-.prod-title {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #4b5563;
-  margin-bottom: 0.5rem;
+  color: var(--color-success-strong);
+  font-weight: 600;
+  margin-left: 0.4rem;
 }
 
 .prod-buildings {
@@ -278,41 +202,13 @@ const productionBuildings = computed(() => {
 }
 
 .prod-row {
-  display: grid;
-  grid-template-columns: 1.5rem 1fr auto auto;
-  align-items: center;
-  gap: 0.6rem;
   padding: 0.4rem 0.6rem;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.prod-icon {
-  font-size: 0.9rem;
-  text-align: center;
-}
-
-.prod-name {
-  font-size: 0.78rem;
-  color: #94a3b8;
-}
-
-.prod-level {
-  font-size: 0.7rem;
-  color: #4b5563;
+  background: rgba(var(--overlay-rgb), 0.03);
 }
 
 .prod-value {
-  font-size: 0.78rem;
-  color: #4ade80;
+  color: var(--color-success-strong);
   font-weight: 600;
-  text-align: right;
-}
-
-.prod-empty {
-  font-size: 0.78rem;
-  color: #4b5563;
-  font-style: italic;
-  padding: 0.5rem 0.25rem;
 }
 </style>

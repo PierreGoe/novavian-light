@@ -1,0 +1,165 @@
+:root {
+  /* Base claire — fond blanc/quasi-blanc. L'identité "Travian" (or) devient un
+     accent ponctuel réservé aux vrais temps forts (CTA primaire, état actif),
+     pas une teinte dominante. */
+  --color-bg-canvas: #faf8f5;
+  --color-bg-surface: #ffffff;
+  --color-text: #2a1f14;
+  --color-text-muted: #6b5d4d;
+  --color-text-subtle: #4a3d2e;
+  /* #7d6c5a plutôt qu'un ton plus pâle : au format initial (#a89a86) le
+     contraste tombait à ~2.75:1 sur blanc, sous le seuil AA (4.5:1) alors
+     que ce ton sert de texte réel (EmptyState, SectionLabel, IconRow) —
+     recalibré à ~5:1 pour rester lisible tout en restant plus discret que
+     --color-text-muted (~6.4:1). */
+  --color-text-faint: #7d6c5a;
+  /* Volontairement sous le seuil AA : réservé aux états désactivés/inactifs,
+     exemptés par le WCAG (1.4.3) car non porteurs d'information active. */
+  --color-text-disabled: #c2b7a8;
+
+  --color-accent: #daa520;
+  --color-accent-rgb: 218, 165, 32;
+  --color-accent-dark: #b8860b;
+  --color-accent-dark-rgb: 184, 134, 11;
+  /* Toujours une encre sombre, indépendamment du fond — un texte clair sur
+     un doré de luminosité moyenne serait peu lisible. */
+  --color-accent-contrast: #2a1f14;
+  /* Variante "texte" de l'accent — le doré lui-même est trop clair pour
+     rester lisible en texte sur fond blanc (utilisé en fond/bordure ailleurs). */
+  --color-accent-ink: #8b6914;
+
+  --color-danger: #dc2626;
+  --color-danger-rgb: 220, 38, 38;
+  --color-danger-dark: #991b1b;
+  --color-danger-light: #c62828;
+
+  --color-success: #15803d;
+  --color-success-muted-rgb: 21, 128, 61;
+  --color-success-strong: #16a34a;
+  --color-success-strong-rgb: 22, 163, 74;
+  --color-success-strong-dark: #15803d;
+
+  --color-white-rgb: 255, 255, 255;
+  --color-black-rgb: 0, 0, 0;
+
+  /* Overlay neutre pour liserés/fonds discrets (bordures de carte, pistes de
+     progression…). Sur fond clair, un liseré discret est une teinte SOMBRE à
+     faible opacité — d'où un token dédié plutôt que de réutiliser le blanc
+     littéral, qui devenait invisible depuis le passage à la base claire. */
+  --overlay-rgb: 42, 31, 20;
+
+  /* Tons sémantiques neutres — volontairement désaturés (pas de bleu vif,
+     pas de doré supplémentaire) pour ne pas alourdir l'identité visuelle
+     quand ces tons apparaissent dans des composants génériques (Badge,
+     NoticeBox, StateCard…). Recalibrés pour rester lisibles en texte sur
+     fond clair (contraste AA). */
+  --color-info: #64748b;
+  --color-info-rgb: 100, 116, 139;
+  --color-warning: #b45309;
+  --color-warning-rgb: 180, 83, 9;
+
+  /* Rareté d'objet — progression grise → bleu éteint → violet éteint → or éteint,
+     chaque teinte plus terne que --color-accent pour ne pas se confondre avec lui.
+     Assombries par rapport à la version sombre pour rester lisibles sur blanc. */
+  --rarity-common: #6b7280;
+  --rarity-common-rgb: 107, 114, 128;
+  --rarity-rare: #3b5f8a;
+  --rarity-rare-rgb: 59, 95, 138;
+  --rarity-epic: #7c5fb0;
+  --rarity-epic-rgb: 124, 95, 176;
+  --rarity-legendary: #a5680f;
+  --rarity-legendary-rgb: 165, 104, 15;
+
+  --gradient-canvas: linear-gradient(135deg, #fffaf2 0%, #faf8f5 100%);
+
+  /* Couleurs de bonus/effet (artefacts) — partagées entre Inventaire et Bazar */
+  --fx-economy: #10b981;
+  --fx-economy-rgb: 16, 185, 129;
+  --fx-military: #ef4444;
+  --fx-military-rgb: 239, 68, 68;
+  --fx-defense: #3b82f6;
+  --fx-defense-rgb: 59, 130, 246;
+  --fx-resource: #f59e0b;
+  --fx-resource-rgb: 245, 158, 11;
+
+  /* Couleurs par type de bâtiment — partagées entre les cartes du village (Bento) */
+  --building-headquarters: #daa520;
+  --building-headquarters-rgb: 218, 165, 32;
+  --building-barracks: #dc4646;
+  --building-barracks-rgb: 220, 70, 70;
+  --building-lumbermill: #4ac564;
+  --building-lumbermill-rgb: 74, 197, 100;
+  --building-farm: #eabd1e;
+  --building-farm-rgb: 234, 189, 30;
+  --building-quarry: #94a3b8;
+  --building-quarry-rgb: 148, 163, 184;
+  --building-mine: #60a5dc;
+  --building-mine-rgb: 96, 165, 220;
+
+  /* Couleurs par type de nœud — partagées entre MissionTree et MissionMapLayer */
+  --node-combat: #dc143c;
+  --node-combat-rgb: 220, 20, 60;
+  --node-elite: #ffd700;
+  --node-elite-rgb: 255, 215, 0;
+  --node-shop: #32cd32;
+  --node-shop-rgb: 50, 205, 50;
+  --node-event: #9932cc;
+  --node-event-rgb: 153, 50, 204;
+  --node-rest: #4169e1;
+  --node-rest-rgb: 65, 105, 225;
+  --node-boss: #8b0000;
+  --node-boss-rgb: 139, 0, 0;
+
+  /* Couleurs par type de terrain — partagées entre LargeMapGrid et TileDetails.
+     Remplace les 2 jeux de gradients hardcodés historiques (incohérents entre
+     eux) par une seule palette, injectée via le mécanisme --tc (cf. BuildingCard). */
+  --terrain-plains: #8a9b5e;
+  --terrain-plains-rgb: 138, 155, 94;
+  --terrain-forest: #4f6d3a;
+  --terrain-forest-rgb: 79, 109, 58;
+  --terrain-mountain: #8d8478;
+  --terrain-mountain-rgb: 141, 132, 120;
+  --terrain-water: #4d7ea8;
+  --terrain-water-rgb: 77, 126, 168;
+  --terrain-village-player: #c17a2e;
+  --terrain-village-player-rgb: 193, 122, 46;
+  --terrain-village-enemy: #a4453a;
+  --terrain-village-enemy-rgb: 164, 69, 58;
+  --terrain-ruins: #928a92;
+  --terrain-ruins-rgb: 146, 138, 146;
+  --terrain-stronghold: #5b3a73;
+  --terrain-stronghold-rgb: 91, 58, 115;
+
+  /* Zone "cinématique" du hero banner de combat (CombatReportOverlay) —
+     formalise les valeurs déjà utilisées, volontairement hors de la base
+     claire pour marquer un temps fort. */
+  --cinematic-ink: #0d0d14;
+  --cinematic-ink-rgb: 13, 13, 20;
+  --cinematic-victory: #eab308;
+  --cinematic-victory-rgb: 234, 179, 8;
+  --cinematic-victory-soft: #fde68a;
+  --cinematic-victory-soft-rgb: 253, 230, 138;
+  --cinematic-victory-accent2: #22c55e;
+  --cinematic-victory-accent2-rgb: 34, 197, 94;
+  --cinematic-defeat: #ef4444;
+  --cinematic-defeat-rgb: 239, 68, 68;
+  --cinematic-defeat-soft: #fca5a5;
+  --cinematic-defeat-soft-rgb: 250, 165, 165;
+  --cinematic-defeat-accent2: #7f1d1d;
+  --cinematic-defeat-accent2-rgb: 127, 29, 29;
+  --cinematic-subtitle: #94a3b8;
+
+  /* Panel de diagnostic carte (LargeMapGrid, TileDetails) — un seul jeu de
+     couleurs partagé pour fusionner les 2 panels debug historiques. */
+  --debug-bg: #0a0a14;
+  --debug-bg-rgb: 10, 10, 20;
+  --debug-border-rgb: 139, 92, 246;
+  --debug-title: #a78bfa;
+  --debug-text: #94a3b8;
+  --debug-text-strong: #e2e8f0;
+  --debug-mono-accent: #7dd3fc;
+  --debug-danger: #f87171;
+  --debug-warning: #fb923c;
+  --debug-success: #4ade80;
+  --debug-accent: #fde047;
+}

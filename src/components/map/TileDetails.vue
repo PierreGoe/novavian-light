@@ -2,17 +2,18 @@
   <div class="tile-details" v-if="tile">
     <!-- Bannière hero -->
     <div class="tile-hero" :style="heroStyle(tile.type)">
-      <div class="hero-icon">{{ getTileIcon(tile.type) }}</div>
-      <div class="hero-info">
-        <h2 class="hero-title">{{ getTileName(tile.type) }}</h2>
-        <div class="hero-badges">
-          <span class="badge badge-coords">📍 {{ tile.position.x }}, {{ tile.position.y }}</span>
-          <span v-if="tile.type === 'stronghold' && tile.level" class="badge badge-level">
-            Niv. {{ tile.level }}
-          </span>
-          <span class="badge" :class="statusBadgeClass(tile.type)">{{
-            statusLabel(tile.type)
-          }}</span>
+      <div class="hero-art" aria-hidden="true"><span class="hero-glyph">{{ getTileIcon(tile.type) }}</span></div>
+      <div class="hero-content">
+        <div class="hero-icon">{{ getTileIcon(tile.type) }}</div>
+        <div class="hero-info">
+          <h2 class="hero-title">{{ getTileName(tile.type) }}</h2>
+          <div class="hero-badges">
+            <Badge tone="neutral">📍 {{ tile.position.x }}, {{ tile.position.y }}</Badge>
+            <Badge v-if="tile.type === 'stronghold' && tile.level" tone="accent">
+              Niv. {{ tile.level }}
+            </Badge>
+            <Badge :tone="statusBadgeTone(tile.type)">{{ statusLabel(tile.type) }}</Badge>
+          </div>
         </div>
       </div>
     </div>
@@ -21,196 +22,155 @@
     <p class="tile-description">{{ getTileDescription(tile.type) }}</p>
 
     <!-- Niveau de destruction (villages ennemis endommagés) -->
-    <div
+    <NoticeBox
       v-if="tile.type === 'village_enemy' && (tile.destructionLevel ?? 0) > 0"
-      class="destruction-panel"
-      :class="destructionSeverityClass(tile.destructionLevel ?? 0)"
+      :variant="destructionSeverity(tile.destructionLevel ?? 0)"
+      icon="🔥"
     >
-      <div class="destruction-header">
-        <span class="destruction-icon">🔥</span>
-        <span class="destruction-title">Destruction</span>
-        <span class="destruction-badge">{{ destructionLabel(tile.destructionLevel ?? 0) }}</span>
-      </div>
-      <div class="destruction-bar-track">
-        <div
-          class="destruction-bar-fill"
-          :style="{ width: (tile.destructionLevel ?? 0) + '%' }"
+      <div class="notice-stack">
+        <div class="destruction-header">
+          <span class="destruction-title">Destruction</span>
+          <Badge tone="neutral">{{ destructionLabel(tile.destructionLevel ?? 0) }}</Badge>
+        </div>
+        <ProgressBar
+          :value="tile.destructionLevel ?? 0"
+          :tone="destructionSeverity(tile.destructionLevel ?? 0)"
         />
+        <span class="destruction-value"
+          >{{ tile.destructionLevel }}% — Continuez le siège pour raser ce village</span
+        >
       </div>
-      <span class="destruction-value">{{ tile.destructionLevel }}% — Continuez le siège pour raser ce village</span>
-    </div>
+    </NoticeBox>
 
     <!-- Troupes en route -->
-    <div
+    <NoticeBox
       v-for="movement in mapStore.getMovementsToTile(tile.id)"
       :key="movement.id"
-      class="troops-in-transit"
+      variant="warning"
+      icon="🪖"
     >
-      <div class="transit-header">
-        <span>🪖 Troupes en route</span>
-        <span class="transit-eta" v-if="movement.arrivalTime > now">
-          {{ formatRemaining(movement.arrivalTime - now) }}
-        </span>
-        <span class="transit-eta" v-else>imminente...</span>
+      <div class="notice-stack">
+        <div class="transit-header">
+          <span>Troupes en route</span>
+          <span class="transit-eta" v-if="movement.arrivalTime > now">
+            {{ formatRemaining(movement.arrivalTime - now) }}
+          </span>
+          <span class="transit-eta" v-else>imminente...</span>
+        </div>
+        <ProgressBar :value="transitProgress(movement)" tone="warning" />
       </div>
-      <div class="transit-bar-track">
-        <div class="transit-bar-fill" :style="{ width: transitProgress(movement) + '%' }"></div>
-      </div>
-    </div>
+    </NoticeBox>
 
     <!-- Bonus -->
-    <div v-if="tile.bonus" class="tile-bonus">
-      <span class="bonus-icon">💫</span>
-      <span>{{ tile.bonus }}</span>
-    </div>
+    <NoticeBox v-if="tile.bonus" variant="success" icon="💫">{{ tile.bonus }}</NoticeBox>
 
     <!-- Zone d'influence de forteresse (village ennemi ou forteresse) -->
-    <div v-if="tileZone" class="fortress-zone-info" :class="`zone-${tileZone.hostilityState}`">
-      <div class="zone-header">
-        <span class="zone-icon">{{ HOSTILITY_ICONS[tileZone.hostilityState] }}</span>
-        <span class="zone-title">
-          {{ tile.type === 'stronghold' ? "Zone d'influence" : 'Sous contrôle ennemi' }}
-        </span>
-        <span class="zone-hostility-badge" :class="`zone-badge-${tileZone.hostilityState}`">
-          {{ HOSTILITY_LABELS[tileZone.hostilityState] }}
-        </span>
-      </div>
-      <div class="zone-stats">
-        <span class="zone-stat"
-          >⚔️ Puissance : <strong>{{ tileZone.power }}</strong> villages</span
-        >
-        <span class="zone-stat">
-          📊 Hostilité :
-          <span class="zone-bar">
-            <span
-              class="zone-bar-fill"
-              :class="`bar-${tileZone.hostilityState}`"
-              :style="{ width: tileZone.hostilityLevel + '%' }"
-            />
+    <NoticeBox
+      v-if="tileZone"
+      :variant="zoneVariant(tileZone.hostilityState)"
+      :icon="HOSTILITY_ICONS[tileZone.hostilityState]"
+    >
+      <div class="notice-stack">
+        <div class="zone-header">
+          <span class="zone-title">
+            {{ tile.type === 'stronghold' ? "Zone d'influence" : 'Sous contrôle ennemi' }}
           </span>
-          {{ tileZone.hostilityLevel }}%
-        </span>
-        <span
-          v-if="tileZone.hostilityState === 'hostile' && tileZone.nextAttackAt"
-          class="zone-stat zone-next-attack"
-        >
-          ⏰ Prochain raid dans :
-          <strong>{{ formatRemaining((tileZone.nextAttackAt ?? 0) - Date.now()) }}</strong>
-        </span>
+          <Badge :tone="zoneVariant(tileZone.hostilityState)">
+            {{ HOSTILITY_LABELS[tileZone.hostilityState] }}
+          </Badge>
+        </div>
+        <div class="zone-stats">
+          <span class="zone-stat"
+            >⚔️ Puissance : <strong>{{ tileZone.power }}</strong> villages</span
+          >
+          <span class="zone-stat">
+            📊 Hostilité :
+            <span class="zone-bar-wrap">
+              <ProgressBar
+                :value="tileZone.hostilityLevel"
+                :tone="zoneVariant(tileZone.hostilityState)"
+              />
+            </span>
+            {{ tileZone.hostilityLevel }}%
+          </span>
+          <span
+            v-if="tileZone.hostilityState === 'hostile' && tileZone.nextAttackAt"
+            class="zone-stat zone-next-attack"
+          >
+            ⏰ Prochain raid dans :
+            <strong>{{ formatRemaining((tileZone.nextAttackAt ?? 0) - Date.now()) }}</strong>
+          </span>
+        </div>
+        <p v-if="tileZone.hostilityState === 'neutral'" class="zone-hint">
+          Attaquer ce territoire augmentera l'hostilité de la forteresse qui le contrôle.
+        </p>
+        <p v-else-if="tileZone.hostilityState === 'warned'" class="zone-hint zone-hint--warning">
+          La forteresse surveille vos agissements. Continuez à attaquer et elle deviendra hostile.
+        </p>
+        <p v-else class="zone-hint zone-hint--danger">
+          La forteresse envoie des raids périodiques sur votre ville. Détruisez-la pour l'arrêter.
+        </p>
       </div>
-      <p v-if="tileZone.hostilityState === 'neutral'" class="zone-hint">
-        Attaquer ce territoire augmentera l'hostilité de la forteresse qui le contrôle.
-      </p>
-      <p v-else-if="tileZone.hostilityState === 'warned'" class="zone-hint zone-hint--warning">
-        ⚠️ La forteresse surveille vos agissements. Continuez à attaquer et elle deviendra hostile.
-      </p>
-      <p v-else class="zone-hint zone-hint--danger">
-        🔴 La forteresse envoie des raids périodiques sur votre ville. Détruisez-la pour l'arrêter.
-      </p>
-    </div>
+    </NoticeBox>
 
     <!-- Debug : détails de la forteresse (affiché uniquement pour une forteresse) -->
-    <div v-if="tile.type === 'stronghold' && tileZone" class="fortress-debug-panel">
-      <div class="fortress-debug-title">🔍 Debug — Données de la zone</div>
-      <div class="fortress-debug-grid">
-        <div class="fdbg-row">
-          <span class="fdbg-label">ID forteresse</span>
-          <span class="fdbg-value fdbg-mono">{{ tileZone.fortressTileId }}</span>
-        </div>
-        <div class="fdbg-row">
-          <span class="fdbg-label">Niveau</span>
-          <span class="fdbg-value fdbg-level">⭐ {{ tile.level ?? 1 }}</span>
-        </div>
-        <div class="fdbg-row">
-          <span class="fdbg-label">Colonies dans la zone</span>
-          <span class="fdbg-value">{{ tileZone.villageIds.length }} village(s)</span>
-        </div>
-        <div class="fdbg-row">
-          <span class="fdbg-label">Puissance brute</span>
-          <span class="fdbg-value">{{ tileZone.power }} pts</span>
-        </div>
-        <div class="fdbg-row">
-          <span class="fdbg-label">Puissance relative</span>
-          <span class="fdbg-value">{{ fortressDebugInfo.relativePowerPct }}% du total</span>
-        </div>
-        <div class="fdbg-row">
-          <span class="fdbg-label">Rayon d'influence</span>
-          <span class="fdbg-value">{{ tileZone.influenceRadius }} cases (Chebyshev)</span>
-        </div>
-        <div class="fdbg-row">
-          <span class="fdbg-label">Butin estimé / raid</span>
-          <span class="fdbg-value">{{ fortressDebugInfo.raidEstimate }}</span>
-        </div>
-        <div class="fdbg-row">
-          <span class="fdbg-label">Hostilité</span>
-          <span class="fdbg-value"
-            >{{ tileZone.hostilityLevel }}% — {{ tileZone.hostilityState }}</span
-          >
-        </div>
-        <div class="fdbg-row" v-if="tileZone.nextAttackAt">
-          <span class="fdbg-label">Prochain raid</span>
-          <span class="fdbg-value fdbg-danger">{{
-            formatRemaining((tileZone.nextAttackAt ?? 0) - now)
-          }}</span>
-        </div>
-      </div>
-      <div v-if="tileZone.villageIds.length > 0" class="fdbg-villages">
-        <span class="fdbg-label">Colonies contrôlées :</span>
-        <span v-for="vid in tileZone.villageIds" :key="vid" class="fdbg-village-chip">{{
-          vid
-        }}</span>
-      </div>
-    </div>
+    <MapDebugPanel
+      v-if="tile.type === 'stronghold' && tileZone"
+      title="🔍 Debug — Données de la zone"
+      :rows="fortressDebugRows(tileZone)"
+    >
+      <template v-if="tileZone.villageIds.length > 0">
+        <SectionLabel>Colonies contrôlées :</SectionLabel>
+        <Badge v-for="vid in tileZone.villageIds" :key="vid" tone="epic" class="fdbg-village-chip">
+          {{ vid }}
+        </Badge>
+      </template>
+    </MapDebugPanel>
 
     <!-- Ressources -->
-    <div v-if="tile.resources" class="tile-resources">
-      <div class="section-label">Ressources disponibles</div>
+    <div v-if="tile.resources" class="tile-resources notice-stack">
+      <SectionLabel>Ressources disponibles</SectionLabel>
       <div class="resource-grid">
         <div v-for="(amount, resource) in tile.resources" :key="resource" class="resource-card">
           <div class="resource-icon">{{ getResourceIcon(resource as string) }}</div>
           <div class="resource-name">{{ resource }}</div>
           <div class="resource-amount">{{ amount }}</div>
-          <div
+          <Badge
             v-if="resourceBonusPct(resource as string) > 0"
-            class="resource-bonus"
+            tone="success"
             :title="`Bonus reliques : +${resourceBonusPct(resource as string)}%`"
           >
             +{{ resourceBonusPct(resource as string) }}%
-          </div>
+          </Badge>
         </div>
       </div>
     </div>
 
     <!-- Estimation de la garnison ennemie — aide à la décision avant d'attaquer -->
-    <div
-      v-if="garrisonEstimate"
-      class="garrison-estimate"
-      :class="`garrison-tier-${garrisonTierSlug(garrisonEstimate.label)}`"
-    >
-      <div class="section-label">
-        🛡️ Garnison {{ garrisonEstimate.isExact ? 'estimée' : 'estimée (jamais explorée)' }}
+    <NoticeBox v-if="garrisonEstimate" :variant="garrisonVariant(garrisonEstimate.label)" icon="🛡️">
+      <div class="notice-stack">
+        <SectionLabel>
+          Garnison {{ garrisonEstimate.isExact ? 'estimée' : 'estimée (jamais explorée)' }}
+        </SectionLabel>
+        <div class="garrison-estimate-body">
+          <Badge :tone="garrisonVariant(garrisonEstimate.label)">{{
+            garrisonEstimate.label
+          }}</Badge>
+          <span class="garrison-estimate-text">{{ garrisonEstimate.text }}</span>
+        </div>
+        <p v-if="!garrisonEstimate.isExact" class="garrison-estimate-hint">
+          Estimation basée sur le type de territoire — la garnison réelle n'est révélée qu'au
+          premier combat.
+        </p>
       </div>
-      <div class="garrison-estimate-body">
-        <span
-          class="garrison-tier-badge"
-          :class="`tier-badge-${garrisonTierSlug(garrisonEstimate.label)}`"
-        >
-          {{ garrisonEstimate.label }}
-        </span>
-        <span class="garrison-estimate-text">{{ garrisonEstimate.text }}</span>
-      </div>
-      <p v-if="!garrisonEstimate.isExact" class="garrison-estimate-hint">
-        Estimation basée sur le type de territoire — la garnison réelle n'est révélée qu'au premier
-        combat.
-      </p>
-    </div>
+    </NoticeBox>
 
     <!-- Stock pillable (Phase 2) -->
     <div
       v-if="tile.lootStock && (tile.type === 'village_enemy' || tile.type === 'stronghold')"
       class="tile-loot-stock"
     >
-      <div class="section-label">🪙 Butin estimé avec votre armée actuelle</div>
+      <SectionLabel>🪙 Butin estimé avec votre armée actuelle</SectionLabel>
       <div class="resource-grid">
         <div class="resource-card" v-if="estimatedLoot.gold > 0">
           <div class="resource-icon">🪙</div>
@@ -240,41 +200,45 @@
           >🎒 Capacité de transport : <strong>{{ playerCarryCapacity }}</strong></span
         >
         <div class="carry-breakdown" v-if="capacityBreakdown.length > 0">
-          <span
+          <Badge
             v-for="u in capacityBreakdown"
             :key="u.type"
-            class="carry-unit-badge"
+            tone="info"
             :title="`${u.count} × ${u.capPerUnit} = ${u.total}`"
           >
             {{ u.count }} {{ u.type }} → {{ u.total }}
-          </span>
+          </Badge>
         </div>
-        <div v-if="estimatedPillage?.wasCapacityLimited" class="capacity-limited-warning">
-          ⚠️ Votre armée ne peut pas tout emporter — envoyez plus de troupes
-        </div>
+        <NoticeBox v-if="estimatedPillage?.wasCapacityLimited" variant="warning">
+          Votre armée ne peut pas tout emporter — envoyez plus de troupes
+        </NoticeBox>
       </div>
 
-      <div v-if="estimatedPillage?.wasRecentlyPillaged" class="pillage-warning">
-        ⚠️ Village récemment pillé — butin réduit de 50%
-      </div>
+      <NoticeBox v-if="estimatedPillage?.wasRecentlyPillaged" variant="warning">
+        Village récemment pillé — butin réduit de 50%
+      </NoticeBox>
     </div>
 
     <!-- État de la garnison ennemie (Phase 2) -->
-    <div v-if="tile.garrison?.regenStartedAt && garrisonRegenPct < 100" class="garrison-regen">
-      <div class="section-label">🛡️ Garnison en reconstruction</div>
-      <div class="regen-bar-track">
-        <div class="regen-bar-fill" :style="{ width: garrisonRegenPct + '%' }"></div>
+    <NoticeBox
+      v-if="tile.garrison?.regenStartedAt && garrisonRegenPct < 100"
+      variant="info"
+      icon="🛡️"
+    >
+      <div class="notice-stack">
+        <SectionLabel>Garnison en reconstruction</SectionLabel>
+        <ProgressBar :value="garrisonRegenPct" />
+        <div class="regen-label">{{ garrisonRegenPct }}% reconstituée</div>
       </div>
-      <div class="regen-label">{{ garrisonRegenPct }}% reconstituée</div>
-    </div>
+    </NoticeBox>
 
     <!-- Avertissement siège requis -->
-    <div
+    <NoticeBox
       v-if="(tile.type === 'village_enemy' || tile.type === 'stronghold') && !hasSiegeUnits"
-      class="siege-warning"
+      variant="warning"
     >
-      ⚠️ Sans <strong>armes de siège</strong>, le village ne sera pas détruit après la victoire
-    </div>
+      Sans <strong>armes de siège</strong>, le village ne sera pas détruit après la victoire
+    </NoticeBox>
 
     <!-- Panneau d'attaque inline -->
     <div v-if="canAttackTile(tile)" class="attack-panel-wrapper">
@@ -287,16 +251,14 @@
 
     <!-- Actions -->
     <div class="tile-actions">
-      <button
+      <IconActionButton
         v-if="canTradeTile(tile)"
-        class="action-btn trade-btn"
+        icon="🤝"
+        title="Commerce"
+        subtitle="Bientôt disponible"
         disabled
-        title="Fonctionnalité pas encore disponible"
-      >
-        <span class="action-icon">🤝</span>
-        <span class="action-label">Commerce</span>
-        <span class="action-sub">Bientôt disponible</span>
-      </button>
+        aria-label="Fonctionnalité pas encore disponible"
+      />
     </div>
   </div>
 </template>
@@ -317,6 +279,14 @@ import type { AvailableUnit } from '../../combat/attackPlanner'
 import { GARRISON_REGEN_DURATION_MS } from '../../config'
 import { computeLootCapacity, computePillage, UNIT_CARRY_CAPACITY } from '../../combat/loot'
 import { formatDuration } from '../../utils/formatDuration'
+import NoticeBox from '@/components/ui/NoticeBox.vue'
+import Badge from '@/components/ui/Badge.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
+import SectionLabel from '@/components/ui/SectionLabel.vue'
+import IconActionButton from '@/components/ui/IconActionButton.vue'
+import MapDebugPanel, { type MapDebugRow } from './MapDebugPanel.vue'
+
+type Tone = 'success' | 'warning' | 'danger'
 
 // Props
 interface Props {
@@ -354,6 +324,28 @@ const fortressDebugInfo = computed(() => {
   const raidEstimate = `🪵${lootPerRes} 🧱${lootPerRes} ⚒️${lootPerRes} 🌾${lootPerRes}`
   return { relativePowerPct, raidEstimate }
 })
+
+/** Lignes du panneau de debug forteresse (MapDebugPanel) pour la zone sélectionnée */
+const fortressDebugRows = (zone: FortressZone): MapDebugRow[] => {
+  const rows: MapDebugRow[] = [
+    { label: 'ID forteresse', value: zone.fortressTileId, tone: 'mono' },
+    { label: 'Niveau', value: `⭐ ${props.tile?.level ?? 1}`, tone: 'accent' },
+    { label: 'Colonies dans la zone', value: `${zone.villageIds.length} village(s)` },
+    { label: 'Puissance brute', value: `${zone.power} pts` },
+    { label: 'Puissance relative', value: `${fortressDebugInfo.value.relativePowerPct}% du total` },
+    { label: "Rayon d'influence", value: `${zone.influenceRadius} cases (Chebyshev)` },
+    { label: 'Butin estimé / raid', value: fortressDebugInfo.value.raidEstimate },
+    { label: 'Hostilité', value: `${zone.hostilityLevel}% — ${zone.hostilityState}` },
+  ]
+  if (zone.nextAttackAt) {
+    rows.push({
+      label: 'Prochain raid',
+      value: formatRemaining(zone.nextAttackAt - now.value),
+      tone: 'danger',
+    })
+  }
+  return rows
+}
 
 const HOSTILITY_LABELS: Record<string, string> = {
   neutral: 'Neutre',
@@ -463,13 +455,13 @@ const garrisonEstimate = computed(() => {
   return estimateGarrisonStrength(props.tile)
 })
 
-/** Slug ASCII pour les classes CSS (le label affiché peut contenir des accents) */
-const GARRISON_TIER_SLUGS: Record<string, string> = {
-  Faible: 'low',
-  Modérée: 'mid',
-  Forte: 'high',
+/** Tone NoticeBox/Badge selon le palier de force de la garnison estimée */
+const GARRISON_TIER_TONES: Record<string, Tone> = {
+  Faible: 'success',
+  Modérée: 'warning',
+  Forte: 'danger',
 }
-const garrisonTierSlug = (label: string): string => GARRISON_TIER_SLUGS[label] ?? 'mid'
+const garrisonVariant = (label: string): Tone => GARRISON_TIER_TONES[label] ?? 'warning'
 
 /** Progression de la régénération de la garnison (0–100) */
 const garrisonRegenPct = computed(() => {
@@ -491,20 +483,21 @@ const transitProgress = (movement: { departureTime: number; arrivalTime: number 
   return Math.min(100, Math.max(0, (elapsed / total) * 100))
 }
 
-/** Gradient de la bannière selon le type de terrain */
-const HERO_GRADIENTS: Record<string, string> = {
-  plains: 'linear-gradient(135deg, #3a5c20, #4a7c3f)',
-  forest: 'linear-gradient(135deg, #1b3a10, #2e7d32)',
-  mountain: 'linear-gradient(135deg, #37474f, #546e7a)',
-  water: 'linear-gradient(135deg, #0d3c5e, #1565c0)',
-  village_player: 'linear-gradient(135deg, #7c4e00, #ef8c00)',
-  village_enemy: 'linear-gradient(135deg, #7b1515, #c62828)',
-  ruins: 'linear-gradient(135deg, #2c2c2c, #555)',
-  stronghold: 'linear-gradient(135deg, #311b6b, #6a1b9a)',
+/** Teinte par type de terrain (mécanisme --tc, cf. BuildingCard.vue) — palette
+ * partagée avec LargeMapGrid.vue via les tokens --terrain-* de tokens.css. */
+const TERRAIN_TC: Record<string, string> = {
+  plains: 'var(--terrain-plains-rgb)',
+  forest: 'var(--terrain-forest-rgb)',
+  mountain: 'var(--terrain-mountain-rgb)',
+  water: 'var(--terrain-water-rgb)',
+  village_player: 'var(--terrain-village-player-rgb)',
+  village_enemy: 'var(--terrain-village-enemy-rgb)',
+  ruins: 'var(--terrain-ruins-rgb)',
+  stronghold: 'var(--terrain-stronghold-rgb)',
 }
 
 const heroStyle = (type: MapTile['type']) => ({
-  background: HERO_GRADIENTS[type] ?? HERO_GRADIENTS.plains,
+  '--tc': TERRAIN_TC[type] ?? TERRAIN_TC.plains,
 })
 
 const statusLabel = (type: MapTile['type']): string =>
@@ -519,17 +512,19 @@ const statusLabel = (type: MapTile['type']): string =>
     stronghold: 'Forteresse ennemie',
   })[type] ?? 'Inconnu'
 
-const statusBadgeClass = (type: MapTile['type']): string =>
-  ({
-    plains: 'badge-neutral',
-    forest: 'badge-neutral',
-    mountain: 'badge-blocked',
-    water: 'badge-blocked',
-    village_player: 'badge-friendly',
-    village_enemy: 'badge-hostile',
-    ruins: 'badge-neutral',
-    stronghold: 'badge-hostile',
-  })[type] ?? 'badge-neutral'
+const statusBadgeTone = (type: MapTile['type']): 'success' | 'danger' | 'neutral' | 'info' =>
+  (
+    ({
+      plains: 'neutral',
+      forest: 'neutral',
+      mountain: 'info',
+      water: 'info',
+      village_player: 'success',
+      village_enemy: 'danger',
+      ruins: 'neutral',
+      stronghold: 'danger',
+    }) as const
+  )[type] ?? 'neutral'
 
 /** Libellé descriptif du niveau de destruction */
 const destructionLabel = (level: number): string => {
@@ -539,13 +534,15 @@ const destructionLabel = (level: number): string => {
   return 'En ruine partielle'
 }
 
-/** Classe CSS selon la sévérité des dégâts */
-const destructionSeverityClass = (level: number): string => {
-  if (level <= 25) return 'destruction--light'
-  if (level <= 50) return 'destruction--medium'
-  if (level <= 75) return 'destruction--heavy'
-  return 'destruction--critical'
+/** Tone NoticeBox/ProgressBar selon la sévérité des dégâts */
+const destructionSeverity = (level: number): Tone => {
+  if (level <= 50) return 'warning'
+  return 'danger'
 }
+
+/** Tone NoticeBox/Badge/ProgressBar selon l'état d'hostilité d'une zone */
+const zoneVariant = (state: 'neutral' | 'warned' | 'hostile'): Tone =>
+  (({ neutral: 'success', warned: 'warning', hostile: 'danger' }) as const)[state]
 
 /**
  * Retourne le % de bonus artefact applicable à une ressource donnée.
@@ -614,10 +611,58 @@ const getResourceIcon = (resource: string) => {
   gap: 16px;
 }
 
-/* ── Bannière hero ── */
+/* ── Bannière hero — carte claire façon BuildingCard.vue : bordure gauche
+   colorée par --tc, glyphe décoratif, plus de bandeau sombre plein-largeur ── */
 .tile-hero {
-  border-radius: 10px;
+  position: relative;
+  border-radius: 16px;
   padding: 24px 22px;
+  overflow: hidden;
+  background: var(--color-bg-surface);
+  border: 1.5px solid rgba(var(--overlay-rgb), 0.12);
+  box-shadow:
+    0 1px 2px rgba(var(--overlay-rgb), 0.05),
+    0 4px 12px -6px rgba(var(--overlay-rgb), 0.15);
+}
+
+.tile-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: rgba(var(--tc), 0.85);
+  z-index: 2;
+}
+
+.hero-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(130% 100% at 12% -10%, rgba(var(--tc), 0.24), transparent 62%),
+    linear-gradient(165deg, rgba(var(--tc), 0.1), transparent 75%);
+}
+
+.hero-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 35%, var(--color-bg-surface) 94%);
+}
+
+.hero-glyph {
+  position: absolute;
+  right: -0.1em;
+  bottom: -0.35em;
+  font-size: 5.5rem;
+  line-height: 1;
+  opacity: 0.12;
+  transform: rotate(-6deg);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 20px;
@@ -627,7 +672,7 @@ const getResourceIcon = (resource: string) => {
   font-size: 52px;
   line-height: 1;
   flex-shrink: 0;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(0 1px 3px rgba(var(--overlay-rgb), 0.25));
 }
 
 .hero-info {
@@ -640,8 +685,7 @@ const getResourceIcon = (resource: string) => {
   margin: 0;
   font-size: 1.6em;
   font-weight: 700;
-  color: #fff;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  color: var(--color-text);
   line-height: 1.1;
 }
 
@@ -651,48 +695,9 @@ const getResourceIcon = (resource: string) => {
   gap: 8px;
 }
 
-.badge {
-  font-size: 0.78em;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.35);
-  color: #eee;
-  letter-spacing: 0.02em;
-}
-
-.badge-coords {
-  color: #ccc;
-}
-
-.badge-friendly {
-  background: rgba(76, 175, 80, 0.3);
-  border-color: #4caf50;
-  color: #a5d6a7;
-}
-
-.badge-hostile {
-  background: rgba(244, 67, 54, 0.3);
-  border-color: #f44336;
-  color: #ef9a9a;
-}
-
-.badge-neutral {
-  background: rgba(158, 158, 158, 0.2);
-  border-color: #757575;
-  color: #bdbdbd;
-}
-
-.badge-blocked {
-  background: rgba(96, 125, 139, 0.25);
-  border-color: #607d8b;
-  color: #b0bec5;
-}
-
 /* ── Description ── */
 .tile-description {
-  color: #aaa;
+  color: var(--color-text-faint);
   line-height: 1.6;
   margin: 0;
   font-style: italic;
@@ -701,150 +706,42 @@ const getResourceIcon = (resource: string) => {
 }
 
 /* ── Panneau de destruction ── */
-.destruction-panel {
-  border-radius: 10px;
-  padding: 10px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border: 1px solid rgba(255, 87, 34, 0.4);
-  background: rgba(255, 87, 34, 0.07);
-}
-.destruction-panel.destruction--medium {
-  border-color: rgba(255, 152, 0, 0.5);
-  background: rgba(255, 152, 0, 0.08);
-}
-.destruction-panel.destruction--heavy {
-  border-color: rgba(244, 67, 54, 0.5);
-  background: rgba(244, 67, 54, 0.1);
-}
-.destruction-panel.destruction--critical {
-  border-color: rgba(183, 28, 28, 0.7);
-  background: rgba(183, 28, 28, 0.14);
-}
 .destruction-header {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.destruction-icon {
-  font-size: 1em;
-}
 .destruction-title {
   font-size: 0.82em;
   font-weight: 700;
-  color: #ff8a65;
+  color: var(--color-warning);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   flex: 1;
 }
-.destruction-badge {
-  font-size: 0.75em;
-  color: #ffccbc;
-  font-style: italic;
-}
-.destruction-bar-track {
-  height: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  overflow: hidden;
-}
-.destruction-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.4s ease;
-  background: linear-gradient(90deg, #ff9800, #f44336);
-}
-.destruction--heavy .destruction-bar-fill,
-.destruction--critical .destruction-bar-fill {
-  background: linear-gradient(90deg, #f44336, #b71c1c);
-}
 .destruction-value {
   font-size: 0.75em;
-  color: rgba(255, 200, 180, 0.75);
+  color: var(--color-text-muted);
   font-style: italic;
 }
 
 /* ── Troupes en transit ── */
-.troops-in-transit {
-  border: 1px solid rgba(255, 152, 0, 0.4);
-  border-radius: 10px;
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .transit-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #ffcc80;
+  color: var(--color-text);
   font-size: 0.9em;
   font-weight: 600;
 }
 
 .transit-eta {
   font-variant-numeric: tabular-nums;
-  color: #ffa726;
+  color: var(--color-warning);
   font-size: 1em;
 }
 
-.transit-bar-track {
-  height: 5px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.transit-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #ff9800, #ffeb3b);
-  border-radius: 999px;
-  transition: width 0.9s linear;
-}
-
-/* ── Bonus ── */
-.tile-bonus {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(76, 175, 80, 0.1);
-  border: 1px solid rgba(76, 175, 80, 0.35);
-  border-radius: 10px;
-  padding: 12px 16px;
-  color: #a5d6a7;
-  font-size: 0.92em;
-}
-
-.bonus-icon {
-  font-size: 1.2em;
-  flex-shrink: 0;
-}
-
 /* ── Zone d'influence & Hostilité ── */
-.fortress-zone-info {
-  border-radius: 10px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  background: rgba(30, 30, 50, 0.5);
-}
-
-.zone-neutral {
-  border-color: rgba(100, 200, 100, 0.3);
-}
-.zone-warned {
-  border-color: rgba(251, 146, 60, 0.5);
-  background: rgba(120, 60, 10, 0.25);
-}
-.zone-hostile {
-  border-color: rgba(239, 68, 68, 0.5);
-  background: rgba(120, 10, 10, 0.3);
-}
-
 .zone-header {
   display: flex;
   align-items: center;
@@ -856,34 +753,8 @@ const getResourceIcon = (resource: string) => {
   font-size: 0.88em;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #ccc;
+  color: var(--color-text-muted);
   flex: 1;
-}
-
-.zone-hostility-badge {
-  font-size: 0.75em;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  letter-spacing: 0.05em;
-}
-
-.zone-badge-neutral {
-  background: rgba(100, 200, 100, 0.2);
-  color: #86efac;
-}
-.zone-badge-warned {
-  background: rgba(251, 146, 60, 0.2);
-  color: #fdba74;
-}
-.zone-badge-hostile {
-  background: rgba(239, 68, 68, 0.25);
-  color: #fca5a5;
-}
-.badge-level {
-  background: rgba(250, 204, 21, 0.2);
-  color: #fde047;
-  border-color: rgba(250, 204, 21, 0.4);
 }
 
 .zone-stats {
@@ -894,153 +765,52 @@ const getResourceIcon = (resource: string) => {
 
 .zone-stat {
   font-size: 0.83em;
-  color: #aaa;
+  color: var(--color-text-muted);
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
 .zone-next-attack {
-  color: #fca5a5;
+  color: var(--color-danger-light);
 }
 
-.zone-bar {
+.zone-bar-wrap {
   display: inline-block;
   width: 80px;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-  overflow: hidden;
   vertical-align: middle;
-}
-
-.zone-bar-fill {
-  display: block;
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.4s ease;
-}
-
-.bar-neutral {
-  background: #4ade80;
-}
-.bar-warned {
-  background: #fb923c;
-}
-.bar-hostile {
-  background: #ef4444;
 }
 
 .zone-hint {
   font-size: 0.78em;
-  color: #888;
+  color: var(--color-text-faint);
   margin: 0;
   font-style: italic;
 }
 .zone-hint--warning {
-  color: #fdba74;
+  color: var(--color-warning);
 }
 .zone-hint--danger {
-  color: #fca5a5;
-}
-
-/* ── Debug forteresse ── */
-.fortress-debug-panel {
-  margin: 10px 0;
-  background: rgba(5, 5, 20, 0.85);
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-family: monospace;
-  font-size: 11px;
-  color: #94a3b8;
-}
-
-.fortress-debug-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #a78bfa;
-  margin-bottom: 8px;
-  border-bottom: 1px solid rgba(139, 92, 246, 0.2);
-  padding-bottom: 4px;
-}
-
-.fortress-debug-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.fdbg-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
-}
-
-.fdbg-label {
-  color: #64748b;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.fdbg-value {
-  color: #e2e8f0;
-  font-weight: 600;
-  text-align: right;
-}
-
-.fdbg-mono {
-  font-family: monospace;
-  color: #7dd3fc;
-}
-.fdbg-danger {
-  color: #f87171;
-}
-.fdbg-level {
-  color: #fde047;
-}
-
-.fdbg-villages {
-  margin-top: 8px;
-  padding-top: 6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
+  color: var(--color-danger-light);
 }
 
 .fdbg-village-chip {
-  background: rgba(139, 92, 246, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.25);
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-size: 10px;
-  color: #c4b5fd;
   font-family: monospace;
 }
 
 /* ── Ressources ── */
-.section-label {
-  font-size: 0.75em;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #666;
-  margin-bottom: 10px;
-}
-
 .resource-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap: 10px;
 }
 
+/* Grille de tuiles de stat verticale (icône/nom/montant) — aucun composant `ui/`
+   ne couvre cette forme (IconRow est une ligne horizontale, pas une tuile
+   verticale) ; markup custom volontaire, mais tokenisé pour la base claire. */
 .resource-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(var(--overlay-rgb), 0.04);
+  border: 1px solid rgba(var(--overlay-rgb), 0.12);
   border-radius: 10px;
   padding: 14px 10px;
   display: flex;
@@ -1056,51 +826,22 @@ const getResourceIcon = (resource: string) => {
 
 .resource-name {
   font-size: 0.72em;
-  color: #888;
+  color: var(--color-text-faint);
   text-transform: capitalize;
 }
 
 .resource-amount {
   font-size: 1.1em;
   font-weight: 700;
-  color: #81c784;
+  color: var(--color-success);
 }
 
-.resource-bonus {
-  font-size: 0.7em;
-  font-weight: 700;
-  color: #4ade80;
-  background: rgba(74, 222, 128, 0.12);
-  border: 1px solid rgba(74, 222, 128, 0.3);
-  border-radius: 999px;
-  padding: 1px 7px;
-  cursor: default;
-}
-
-/* ── Estimation de la garnison ennemie ── */
-.garrison-estimate {
-  background: rgba(239, 68, 68, 0.06);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 10px;
-  padding: 14px 16px;
+/* ── Regroupe verticalement le contenu multi-blocs d'un NoticeBox (ou d'une
+   section sans layout flex propre), en restaurant l'espacement d'origine ── */
+.notice-stack {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.garrison-tier-low {
-  border-color: rgba(74, 222, 128, 0.3);
-  background: rgba(74, 222, 128, 0.06);
-}
-
-.garrison-tier-mid {
-  border-color: rgba(251, 146, 60, 0.35);
-  background: rgba(251, 146, 60, 0.06);
-}
-
-.garrison-tier-high {
-  border-color: rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.08);
 }
 
 .garrison-estimate-body {
@@ -1110,46 +851,23 @@ const getResourceIcon = (resource: string) => {
   flex-wrap: wrap;
 }
 
-.garrison-tier-badge {
-  font-size: 0.78em;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 999px;
-  letter-spacing: 0.03em;
-}
-
-.tier-badge-low {
-  background: rgba(74, 222, 128, 0.2);
-  color: #86efac;
-}
-
-.tier-badge-mid {
-  background: rgba(251, 146, 60, 0.2);
-  color: #fdba74;
-}
-
-.tier-badge-high {
-  background: rgba(239, 68, 68, 0.25);
-  color: #fca5a5;
-}
-
 .garrison-estimate-text {
   font-size: 0.92em;
   font-weight: 600;
-  color: #ddd;
+  color: var(--color-text);
 }
 
 .garrison-estimate-hint {
   font-size: 0.78em;
-  color: #888;
+  color: var(--color-text-faint);
   margin: 0;
   font-style: italic;
 }
 
 /* ── Phase 2 — Pillage & garnison ── */
 .tile-loot-stock {
-  background: rgba(255, 193, 7, 0.06);
-  border: 1px solid rgba(255, 193, 7, 0.2);
+  background: rgba(var(--color-warning-rgb), 0.06);
+  border: 1px solid rgba(var(--color-warning-rgb), 0.2);
   border-radius: 10px;
   padding: 14px 16px;
   display: flex;
@@ -1157,17 +875,8 @@ const getResourceIcon = (resource: string) => {
   gap: 10px;
 }
 
-.pillage-warning {
-  font-size: 0.78em;
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  border-radius: 6px;
-  padding: 6px 10px;
-}
-
 .carry-capacity-info {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(var(--color-white-rgb), 0.08);
   padding-top: 10px;
   display: flex;
   flex-direction: column;
@@ -1176,7 +885,7 @@ const getResourceIcon = (resource: string) => {
 
 .carry-label {
   font-size: 0.8em;
-  color: #90caf9;
+  color: var(--color-info);
 }
 
 .carry-breakdown {
@@ -1185,69 +894,17 @@ const getResourceIcon = (resource: string) => {
   gap: 6px;
 }
 
-.carry-unit-badge {
-  font-size: 0.72em;
-  background: rgba(100, 181, 246, 0.1);
-  border: 1px solid rgba(100, 181, 246, 0.25);
-  border-radius: 999px;
-  padding: 2px 8px;
-  color: #90caf9;
-  cursor: default;
-}
-
-.capacity-limited-warning {
-  font-size: 0.78em;
-  color: #fb923c;
-  background: rgba(251, 146, 60, 0.1);
-  border: 1px solid rgba(251, 146, 60, 0.25);
-  border-radius: 6px;
-  padding: 5px 9px;
-}
-
-.garrison-regen {
-  background: rgba(100, 181, 246, 0.06);
-  border: 1px solid rgba(100, 181, 246, 0.2);
-  border-radius: 10px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.regen-bar-track {
-  height: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.regen-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #42a5f5, #81d4fa);
-  border-radius: 999px;
-  transition: width 0.5s ease;
-}
-
 .regen-label {
   font-size: 0.75em;
-  color: #90caf9;
+  color: var(--color-text-muted);
   text-align: right;
-}
-
-.siege-warning {
-  font-size: 0.82em;
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  border-radius: 8px;
-  padding: 8px 12px;
 }
 
 /* ── Panneau d'attaque inline ── */
 .attack-panel-wrapper {
-  border: 1px solid rgba(198, 40, 40, 0.3);
+  border: 1px solid rgba(var(--color-danger-rgb), 0.3);
   border-radius: 10px;
-  background: rgba(198, 40, 40, 0.05);
+  background: rgba(var(--color-danger-rgb), 0.05);
   padding: 14px;
   display: flex;
   flex-direction: column;
@@ -1260,65 +917,6 @@ const getResourceIcon = (resource: string) => {
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 10px;
   margin-top: 4px;
-}
-
-.action-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 16px 12px;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition:
-    transform 0.15s,
-    filter 0.15s;
-}
-
-.action-btn:hover {
-  transform: translateY(-3px);
-  filter: brightness(1.15);
-}
-
-.action-btn:active {
-  transform: translateY(0);
-  filter: brightness(0.95);
-}
-
-.action-btn:disabled {
-  cursor: not-allowed;
-  filter: grayscale(70%) brightness(0.8);
-  opacity: 0.7;
-}
-
-.action-btn:disabled:hover {
-  transform: none;
-}
-
-.action-icon {
-  font-size: 1.6em;
-  line-height: 1;
-}
-
-.action-label {
-  font-size: 0.9em;
-  font-weight: 700;
-  color: #fff;
-}
-
-.action-sub {
-  font-size: 0.72em;
-  color: rgba(255, 255, 255, 0.6);
-  text-align: center;
-}
-
-.trade-btn {
-  background: linear-gradient(135deg, #e65100, #ef6c00);
-}
-.explore-btn {
-  background: linear-gradient(135deg, #6a1b9a, #7b1fa2);
 }
 
 @media (max-width: 600px) {

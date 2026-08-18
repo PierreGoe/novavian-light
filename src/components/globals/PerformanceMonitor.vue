@@ -1,3 +1,8 @@
+<!--
+  Volontairement custom, pas de composants ui/ : ce HUD de diagnostic (Shift+P) suit la
+  convention "console/devtools" — toujours sombre, monospace, indépendant du thème clair
+  de l'app — comme un panneau d'outils de développement plutôt qu'un écran du jeu.
+-->
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 

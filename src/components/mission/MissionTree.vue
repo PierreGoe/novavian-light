@@ -11,9 +11,7 @@
 
       <div class="map-header-status" v-if="mapGenerated">
         <div class="progress-container">
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: progressPercentage + '%' }"></div>
-          </div>
+          <ProgressBar class="progress-bar-el" :value="progressPercentage" />
           <span class="progress-text">{{ Math.round(progressPercentage) }}%</span>
         </div>
 
@@ -30,31 +28,44 @@
               }}</span
             >
           </div>
-          <div
-            class="status-item status-item--vp"
-            :class="{ 'status-item--vp-done': totalCombatVP >= COMBAT_VP_GOAL }"
-          >
-            <span class="status-label">⚔️ Objectif :</span>
-            <span class="status-value">{{ totalCombatVP }} / {{ COMBAT_VP_GOAL }} PV</span>
-          </div>
+          <Badge :tone="totalCombatVP >= COMBAT_VP_GOAL ? 'success' : 'accent'">
+            ⚔️ Objectif : {{ totalCombatVP }} / {{ COMBAT_VP_GOAL }} PV
+          </Badge>
         </div>
       </div>
 
-      <button class="reset-button" @click="resetMap" title="Nouvelle carte">🔄 Nouvelle carte</button>
+      <Button variant="secondary" @click="resetMap" title="Nouvelle carte">
+        🔄 Nouvelle carte
+      </Button>
     </header>
 
     <!-- Carte verticale -->
     <main class="map-container">
-      <div class="map-layers" v-if="mapGenerated">
+      <div class="map-layers" v-if="mapGenerated" :style="{ width: `${MAP_WIDTH}px` }">
+        <svg class="tree-connections" :width="MAP_WIDTH" :height="totalHeight">
+          <circle
+            v-for="dot in connectionDots"
+            :key="dot.key"
+            :cx="dot.x"
+            :cy="dot.y"
+            :r="DOT_RADIUS"
+            class="connection-dot"
+            :class="{
+              'active-connection': dot.active,
+              'accessible-connection': dot.accessible,
+            }"
+          />
+        </svg>
+
         <MissionMapLayer
           v-for="layer in mapLayers"
           :key="layer.row"
           :layer="layer"
           :current-player-row="currentPlayerRow"
-          :total-layers="mapLayers.length"
           :selected-node-id="selectedNodeId"
-          :all-nodes="allNodes"
+          :active-node-id="activeNodeId"
           @select-node="selectNode"
+          @toggle-node="toggleNode"
         />
       </div>
 
@@ -111,18 +122,22 @@
         </div>
       </div>
 
-      <button class="home-button" @click="goHome">🏠 Retour à l'accueil</button>
+      <Button variant="secondary" @click="goHome">🏠 Retour à l'accueil</Button>
     </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore, COMBAT_VP_GOAL } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
 import type { MapNode } from '@/utils'
+import { nodeCenterX, nodeCenterY, MAP_WIDTH, ROW_HEIGHT } from '@/utils'
 import MissionMapLayer from './MissionMapLayer.vue'
+import Badge from '@/components/ui/Badge.vue'
+import Button from '@/components/ui/Button.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -133,6 +148,21 @@ const mapLayers = computed(() => gameStore.gameState.mapState.layers)
 const currentPlayerRow = computed(() => gameStore.gameState.mapState.currentPlayerRow)
 const selectedNodeId = computed(() => gameStore.gameState.mapState.selectedNodeId)
 const mapGenerated = computed(() => gameStore.gameState.mapState.mapGenerated)
+
+// Popover de détails d'un nœud : un seul ouvert à la fois, partagé entre toutes les rangées
+// (chaque rangée est un composant distinct, donc cet état ne peut pas vivre dans l'enfant).
+const activeNodeId = ref<string | null>(null)
+
+const toggleNode = (node: MapNode) => {
+  activeNodeId.value = activeNodeId.value === node.id ? null : node.id
+}
+
+const closeActiveNodeOnOutsideClick = (event: MouseEvent) => {
+  const target = event.target as HTMLElement | null
+  if (!target?.closest('.map-node')) {
+    activeNodeId.value = null
+  }
+}
 
 // Progression de la carte de mission + objectif de PV combat
 const progressPercentage = computed(() => {
@@ -165,12 +195,113 @@ const allNodes = computed(() => {
   return nodes
 })
 
+// Hauteur totale de la carte (toutes les rangées, boss inclus)
+const totalHeight = computed(() => mapLayers.value.length * ROW_HEIGHT)
+
+interface Point {
+  x: number
+  y: number
+}
+
+// Espacement et taille des points du chemin en pointillés (façon Slay the Spire : la ligne
+// entre deux nœuds n'est pas un trait plein, mais une suite de petits points le long de la courbe)
+const DOT_SPACING = 14
+const DOT_RADIUS = 2.5
+const CURVE_SEGMENTS = 60 // résolution de l'approximation de la courbe en polyligne
+
+const cubicBezierPoint = (p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point => {
+  const mt = 1 - t
+  return {
+    x: mt * mt * mt * p0.x + 3 * mt * mt * t * p1.x + 3 * mt * t * t * p2.x + t * t * t * p3.x,
+    y: mt * mt * mt * p0.y + 3 * mt * mt * t * p1.y + 3 * mt * t * t * p2.y + t * t * t * p3.y,
+  }
+}
+
+/** Ré-échantillonne une polyligne pour obtenir des points espacés d'une distance constante
+ * (paramétrisation par longueur d'arc), plutôt que par pas de `t` uniforme qui donnerait des
+ * points inégalement espacés sur une courbe. */
+const resamplePolyline = (points: Point[], spacing: number): Point[] => {
+  const result: Point[] = [points[0]]
+  let carry = 0
+
+  for (let i = 1; i < points.length; i++) {
+    let a = points[i - 1]
+    const b = points[i]
+    let segLen = Math.hypot(b.x - a.x, b.y - a.y)
+
+    while (carry + segLen >= spacing) {
+      const t = (spacing - carry) / segLen
+      const point = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+      result.push(point)
+      segLen -= spacing - carry
+      a = point
+      carry = 0
+    }
+    carry += segLen
+  }
+
+  return result
+}
+
+const dotsAlongCurve = (p0: Point, p1: Point, p2: Point, p3: Point): Point[] => {
+  const curvePoints: Point[] = []
+  for (let i = 0; i <= CURVE_SEGMENTS; i++) {
+    curvePoints.push(cubicBezierPoint(p0, p1, p2, p3, i / CURVE_SEGMENTS))
+  }
+  return resamplePolyline(curvePoints, DOT_SPACING)
+}
+
+/**
+ * Tracé des connexions entre nœuds : un unique overlay SVG global (plutôt qu'un tracé par
+ * rangée) pour que chaque point parte et arrive exactement au centre réel des deux nœuds
+ * qu'elle relie, quelle que soit la rangée. Chaque connexion suit une courbe de Bézier douce
+ * (contrôle horizontal aligné sur chaque extrémité, à mi-hauteur, pour un cheminement
+ * légèrement sinueux plutôt qu'un trait droit rigide), mais au lieu d'un trait plein, elle est
+ * matérialisée par une suite de petits points régulièrement espacés le long de cette courbe.
+ */
+const connectionDots = computed(() => {
+  const byId = new Map(allNodes.value.map((n) => [n.id, n]))
+  const dots: Array<{ key: string; x: number; y: number; active: boolean; accessible: boolean }> =
+    []
+
+  allNodes.value.forEach((node) => {
+    const x1 = nodeCenterX(node)
+    const y1 = nodeCenterY(node.row)
+
+    node.connections.forEach((connectionId) => {
+      const target = byId.get(connectionId)
+      if (!target) return
+
+      const x2 = nodeCenterX(target)
+      const y2 = nodeCenterY(target.row)
+      const midY = (y1 + y2) / 2
+
+      const points = dotsAlongCurve(
+        { x: x1, y: y1 },
+        { x: x1, y: midY },
+        { x: x2, y: midY },
+        { x: x2, y: y2 },
+      )
+
+      points.forEach((point, index) => {
+        dots.push({
+          key: `${node.id}-${connectionId}-${index}`,
+          x: point.x,
+          y: point.y,
+          active: node.completed,
+          accessible: node.accessible,
+        })
+      })
+    })
+  })
+
+  return dots
+})
+
 const selectNode = (node: MapNode) => {
-  // selectMapNode contient déjà le guard et appelle handleMapNodeAction en interne
-  // On appelle handleMapNodeAction séparément uniquement pour passer router et toastStore
-  // mais avec le guard appliqué ici aussi pour éviter tout doublon
   if (node.completed || (!node.accessible && !node.inProgress)) return
 
+  activeNodeId.value = null
   gameStore.selectMapNode(node)
   gameStore.handleMapNodeAction(node, router, toastStore)
 }
@@ -198,12 +329,15 @@ const goHome = () => {
 
 onMounted(() => {
   gameStore.loadGame()
+  document.addEventListener('mousedown', closeActiveNodeOnOutsideClick)
   if (gameStore.gameState.currentStatus === 'game-over') {
     router.push('/game-over')
     return
   }
   gameStore.initializeMapIfNeeded()
 })
+
+onBeforeUnmount(() => document.removeEventListener('mousedown', closeActiveNodeOnOutsideClick))
 </script>
 
 <style scoped>
@@ -211,8 +345,8 @@ onMounted(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
-  color: #f4e4bc;
+  background: var(--gradient-canvas);
+  color: var(--color-text);
   position: relative;
   overflow: hidden;
 }
@@ -224,8 +358,8 @@ onMounted(() => {
   right: 0;
   bottom: 0;
   background-image:
-    radial-gradient(circle at 20% 30%, rgba(218, 165, 32, 0.03) 0%, transparent 50%),
-    radial-gradient(circle at 80% 70%, rgba(139, 69, 19, 0.03) 0%, transparent 50%);
+    radial-gradient(circle at 20% 30%, rgba(var(--color-accent-rgb), 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(var(--overlay-rgb), 0.04) 0%, transparent 50%);
   pointer-events: none;
 }
 
@@ -236,8 +370,8 @@ onMounted(() => {
   gap: 1.5rem;
   flex-wrap: wrap;
   padding: 1.5rem 2rem;
-  background: rgba(0, 0, 0, 0.4);
-  border-bottom: 1px solid rgba(218, 165, 32, 0.3);
+  background: rgba(var(--color-white-rgb), 0.7);
+  border-bottom: 1px solid rgba(var(--color-accent-rgb), 0.3);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -251,8 +385,7 @@ onMounted(() => {
 .map-header h1 {
   font-size: 1.8rem;
   margin: 0;
-  color: #daa520;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+  color: var(--color-accent-ink);
 }
 
 .map-header p {
@@ -275,25 +408,15 @@ onMounted(() => {
   min-width: 140px;
 }
 
-.progress-bar {
+.progress-bar-el {
   flex: 1;
-  height: 8px;
-  background: rgba(139, 69, 19, 0.5);
-  border-radius: 4px;
-  overflow: hidden;
   min-width: 80px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #daa520, #ffd700);
-  transition: width 0.5s ease;
 }
 
 .progress-text {
   font-size: 0.9rem;
   font-weight: bold;
-  color: #daa520;
+  color: var(--color-accent-ink);
   min-width: 40px;
 }
 
@@ -302,9 +425,9 @@ onMounted(() => {
   gap: 1rem;
   align-items: center;
   padding: 0.5rem 1rem;
-  background: rgba(139, 69, 19, 0.3);
+  background: rgba(var(--overlay-rgb), 0.06);
   border-radius: 8px;
-  border: 1px solid rgba(218, 165, 32, 0.3);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.3);
   white-space: nowrap;
 }
 
@@ -315,52 +438,13 @@ onMounted(() => {
   font-size: 0.8rem;
 }
 
-.status-item--vp {
-  padding: 0.2rem 0.6rem;
-  border-radius: 12px;
-  background: rgba(218, 165, 32, 0.1);
-  border: 1px solid rgba(218, 165, 32, 0.3);
-}
-
-.status-item--vp-done {
-  background: rgba(34, 139, 34, 0.15);
-  border-color: rgba(34, 139, 34, 0.5);
-  animation: vp-pulse 2.2s ease-in-out infinite;
-}
-
-@keyframes vp-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(34, 139, 34, 0);
-  }
-  50% {
-    box-shadow: 0 0 0 5px rgba(34, 139, 34, 0.2);
-  }
-}
-
 .status-label {
-  color: #daa520;
+  color: var(--color-accent-ink);
   font-weight: bold;
 }
 
 .status-value {
-  color: #f4e4bc;
-}
-
-.reset-button {
-  background: rgba(139, 69, 19, 0.4);
-  border: 1px solid #8b4513;
-  color: #f4e4bc;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 1rem;
-}
-
-.reset-button:hover {
-  background: rgba(218, 165, 32, 0.3);
-  border-color: #daa520;
+  color: var(--color-text);
 }
 
 .map-container {
@@ -370,14 +454,34 @@ onMounted(() => {
   padding: 1rem 2rem;
   position: relative;
   z-index: 1;
+  background: radial-gradient(ellipse at 50% 0%, #7d7c66 0%, #6b6a56 55%, #55543f 100%);
 }
 
 .map-layers {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0;
-  max-width: fit-content;
   margin: 0 auto;
+}
+
+.tree-connections {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.connection-dot {
+  fill: rgba(235, 230, 210, 0.45);
+  transition: fill 0.3s ease;
+}
+.connection-dot.active-connection {
+  fill: var(--color-accent);
+}
+.connection-dot.accessible-connection {
+  fill: rgba(var(--color-accent-rgb), 0.85);
 }
 
 .loading-map {
@@ -396,8 +500,8 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem 2rem;
-  background: rgba(0, 0, 0, 0.4);
-  border-top: 1px solid rgba(218, 165, 32, 0.3);
+  background: rgba(var(--color-white-rgb), 0.7);
+  border-top: 1px solid rgba(var(--color-accent-rgb), 0.3);
   position: sticky;
   bottom: 0;
   z-index: 100;
@@ -445,33 +549,18 @@ onMounted(() => {
 }
 
 .status-icon-completed {
-  background: #228b22;
-  color: white;
+  background: var(--color-success-strong);
+  color: #fff;
 }
 
 .status-icon-accessible {
-  background: #daa520;
-  color: white;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
 }
 
 .status-icon-locked {
-  background: #444;
-  color: #888;
-}
-
-.home-button {
-  background: rgba(139, 69, 19, 0.4);
-  border: 1px solid #8b4513;
-  color: #f4e4bc;
-  padding: 0.8rem 1.5rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.home-button:hover {
-  background: rgba(218, 165, 32, 0.3);
-  border-color: #daa520;
+  background: rgba(var(--overlay-rgb), 0.15);
+  color: var(--color-text-faint);
 }
 
 @keyframes spin {

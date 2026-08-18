@@ -2,45 +2,35 @@
   <div class="large-map-exploration-view">
     <!-- BANDEAU D'ALERTE RAID — affiché dès qu'une forteresse est hostile -->
     <Transition name="raid-banner">
-      <div v-if="nextHostileRaid" class="raid-alert-banner">
-        <TimerClock
-          :progress="1 - raidProgressRatio"
-          :remaining-ms="raidCountdownSeconds !== null ? raidCountdownSeconds * 1000 : undefined"
-          icon="⚔️"
-          progress-color="#ef4444"
-        />
-        <!-- Infos texte -->
-        <div class="raid-alert-text">
-          <strong>RAID ENNEMI IMMINENT</strong>
-          <span class="raid-alert-sub">{{ nextHostileRaidLocation }}</span>
+      <NoticeBox v-if="nextHostileRaid" variant="danger" icon="" class="raid-alert-banner">
+        <div class="raid-alert-body">
+          <TimerClock
+            :progress="1 - raidProgressRatio"
+            :remaining-ms="raidCountdownSeconds !== null ? raidCountdownSeconds * 1000 : undefined"
+            icon="⚔️"
+            progress-color="var(--color-danger)"
+          />
+          <!-- Infos texte -->
+          <div class="raid-alert-text">
+            <strong>RAID ENNEMI IMMINENT</strong>
+            <span class="raid-alert-sub">{{ nextHostileRaidLocation }}</span>
+          </div>
         </div>
-      </div>
+      </NoticeBox>
     </Transition>
 
     <!-- VUE CARTE -->
     <template v-if="!selectedTile">
-      <!-- Fragments de carte -->
-      <div class="map-fragments-bar" v-if="gameStore.gameState.inventory.mapFragments > 0">
-        <span class="fragments-icon">🗺️</span>
-        <span class="fragments-label">
-          {{ gameStore.gameState.inventory.mapFragments }} fragment{{
-            gameStore.gameState.inventory.mapFragments > 1 ? 's' : ''
-          }}
-          de carte
-        </span>
-        <span class="fragments-hint">Cliquez sur un cadran 🔒 pour le révéler</span>
-      </div>
-
       <!-- Instructions -->
-      <div class="controls-help-wrap">
-        <span class="controls-help-trigger">⌨️</span>
-        <div class="controls-help-tooltip">
-          <div class="help-item">🖱️ <strong>Clic & Glisser</strong> : Déplacer la carte</div>
-          <div class="help-item">⌨️ <strong>Flèches / WASD</strong> : Navigation</div>
-          <div class="help-item">🔍 <strong>Proche / Normal / Loin</strong> : Zoom</div>
-          <div class="help-item">⌨️ <strong>Espace</strong> : Centrer sur position</div>
+      <InfoPopover icon="⌨️" label="Aide clavier & souris" class="controls-help">
+        <div class="help-item">🖱️ <strong>Clic & Glisser</strong> : Déplacer la carte</div>
+        <div class="help-item">⌨️ <strong>Flèches / WASD</strong> : Navigation</div>
+        <div class="help-item">🔍 <strong>Proche / Normal / Loin</strong> : Zoom</div>
+        <div class="help-item">⌨️ <strong>Espace</strong> : Centrer sur position</div>
+        <div class="help-item">
+          🔒 <strong>Cadran verrouillé</strong> : cliquez pour le révéler (1 fragment de carte 🗺️)
         </div>
-      </div>
+      </InfoPopover>
 
       <!-- Grande grille de la carte -->
       <section class="map-section">
@@ -59,7 +49,7 @@
     <!-- VUE DÉTAILS (remplace la carte) -->
     <template v-else>
       <div class="tile-details-view">
-        <button class="back-btn" @click="closeDetails">← Retour à la carte</button>
+        <Button variant="secondary" @click="closeDetails">← Retour à la carte</Button>
         <TileDetails
           :tile="selectedTile"
           @attack-tile="handleAttackTile"
@@ -74,6 +64,7 @@
 import { ref, computed } from 'vue'
 import { useMapStore, HOSTILE_ATTACK_INTERVAL_MS, type MovementUnit } from '../../stores/mapStore'
 import { useMissionStore } from '../../stores/missionStore'
+import type { MilitaryUnit } from '../../stores/missionStore'
 import { useGameStore } from '../../stores/gameStore'
 import { gameSettings } from '../../stores/gameSettingsStore'
 import { useToastStore } from '../../stores/toastStore'
@@ -84,6 +75,9 @@ import LargeMapGrid from './LargeMapGrid.vue'
 import TileDetails from './TileDetails.vue'
 import MovementsPanel from './MovementsPanel.vue'
 import TimerClock from '@/components/ui/TimerClock.vue'
+import NoticeBox from '@/components/ui/NoticeBox.vue'
+import InfoPopover from '@/components/ui/InfoPopover.vue'
+import Button from '@/components/ui/Button.vue'
 
 // Stores
 const mapStore = useMapStore()
@@ -195,14 +189,9 @@ const handleAttackTile = (tileId: string, selectedUnits: MovementUnit[]) => {
   }
 
   // Retirer les troupes envoyées de la garnison — elles ne sont plus disponibles pendant le voyage
-  const townUnits = missionStore.missionState.town.units
   for (const sentUnit of selectedUnits) {
-    const garrisonUnit = townUnits.find((u) => u.type === sentUnit.type)
-    if (garrisonUnit) {
-      garrisonUnit.count = Math.max(0, garrisonUnit.count - sentUnit.count)
-    }
+    missionStore.removeUnits(sentUnit.type as MilitaryUnit['type'], sentUnit.count)
   }
-  missionStore.missionState.town.units = townUnits.filter((u) => u.count > 0)
 
   toastStore.addToast(`🪖 Troupes envoyées — arrivée dans ${travelLabel}`, 'info')
   // Revenir à la carte pour voir le mouvement en temps réel
@@ -230,7 +219,6 @@ const handleUnlockChunk = (chunkId: string) => {
 const handleTradeTile = (_tileId: string) => {
   toastStore.addToast('Système de commerce en développement', 'info')
 }
-
 </script>
 
 <style scoped>
@@ -242,15 +230,14 @@ const handleTradeTile = (_tileId: string) => {
 
 /* ── Bandeau alerte raid ── */
 .raid-alert-banner {
+  margin-bottom: 14px;
+}
+
+.raid-alert-body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 10px 16px;
-  margin-bottom: 14px;
-  background: linear-gradient(135deg, rgba(140, 15, 15, 0.92), rgba(80, 8, 8, 0.95));
-  border: 1px solid rgba(239, 68, 68, 0.6);
-  border-radius: 10px;
-  color: #fff;
+  width: 100%;
 }
 
 .raid-alert-text {
@@ -263,11 +250,12 @@ const handleTradeTile = (_tileId: string) => {
 .raid-alert-text strong {
   font-size: 0.95em;
   letter-spacing: 0.06em;
+  color: var(--color-danger);
 }
 
 .raid-alert-sub {
   font-size: 0.8em;
-  color: #fca5a5;
+  color: var(--color-text-muted);
 }
 
 /* Transition entrée/sortie du bandeau */
@@ -286,118 +274,24 @@ const handleTradeTile = (_tileId: string) => {
   transform: translateY(-8px);
 }
 
-.map-fragments-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
-  background: linear-gradient(135deg, #1a1040, #2d1f6e);
-  border: 1px solid #5b4aaa;
-  border-radius: 8px;
+.controls-help {
   margin-bottom: 10px;
-  color: #c0b8ff;
-  font-size: 0.9em;
-}
-
-.fragments-icon {
-  font-size: 1.2em;
-}
-
-.fragments-label {
-  font-weight: bold;
-  color: #e0d8ff;
-}
-
-.fragments-hint {
-  font-size: 0.8em;
-  color: #8878cc;
-  margin-left: auto;
-  font-style: italic;
-}
-
-.map-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-  padding: 20px;
-  background: linear-gradient(135deg, #1e3c72, #2a5298);
-  border-radius: 12px;
-  color: white;
-}
-
-.map-header h2 {
-  margin: 0;
-  font-size: 1.5em;
-}
-
-.header-info {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.map-size-info {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 0.9em;
-  font-weight: 500;
-}
-
-.controls-help-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.controls-help-trigger {
-  font-size: 1rem;
-  cursor: help;
-  opacity: 0.55;
-  transition: opacity 0.15s;
-  user-select: none;
-  padding: 2px 6px;
-  border-radius: 6px;
-  border: 1px solid rgba(42, 82, 152, 0.3);
-  background: rgba(42, 82, 152, 0.08);
-}
-.controls-help-trigger:hover {
-  opacity: 1;
-}
-
-.controls-help-tooltip {
-  display: none;
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 100;
-  background: rgba(10, 15, 30, 0.97);
-  border: 1px solid rgba(42, 82, 152, 0.4);
-  border-radius: 10px;
-  padding: 0.6rem 0.85rem;
-  min-width: 240px;
-  flex-direction: column;
-  gap: 0.4rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-  white-space: nowrap;
-}
-
-.controls-help-wrap:hover .controls-help-tooltip {
-  display: flex;
 }
 
 .help-item {
-  font-size: 0.82em;
-  color: #94a3b8;
+  font-size: 0.85em;
+  color: var(--color-text-muted);
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
+.help-item + .help-item {
+  margin-top: 0.3rem;
+}
+
 .help-item strong {
-  color: #e2e8f0;
+  color: var(--color-text);
 }
 
 .map-section {
@@ -408,37 +302,15 @@ const handleTradeTile = (_tileId: string) => {
   position: relative;
   width: 100%;
   min-height: 600px;
-  background: #1a1a1a;
+  background: var(--color-bg-surface);
   border-radius: 12px;
   padding: 20px;
   box-sizing: border-box;
   margin: 20px 0;
 }
 
-.back-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  color: #ccc;
-  padding: 10px 18px;
+.tile-details-view > .btn {
   margin-bottom: 16px;
-  cursor: pointer;
-  font-size: 0.95em;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-
-.back-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-}
-
-.notification-placeholder {
-  display: none;
 }
 
 .slide-fade-enter-from {

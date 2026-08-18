@@ -2,23 +2,15 @@
   <div class="ap">
     <!-- En-tête : titre + onglets -->
     <div class="ap-header">
-      <span class="ap-title">⚔️ Attaque</span>
-      <div class="ap-tabs">
-        <button
-          class="ap-tab"
-          :class="{ active: activeTab === 'quick' }"
-          @click="activeTab = 'quick'"
-        >
-          ⚡ Rapide
-        </button>
-        <button
-          class="ap-tab"
-          :class="{ active: activeTab === 'custom' }"
-          @click="activeTab = 'custom'"
-        >
-          ⚙️ Custom
-        </button>
-      </div>
+      <SectionLabel>⚔️ Attaque</SectionLabel>
+      <SegmentedControl
+        :options="[
+          { value: 'quick', label: '⚡ Rapide' },
+          { value: 'custom', label: '⚙️ Custom' },
+        ]"
+        :model-value="activeTab"
+        @update:model-value="activeTab = $event as 'quick' | 'custom'"
+      />
     </div>
 
     <div class="ap-sep" />
@@ -52,7 +44,7 @@
             :title="unitLabel(u.type)"
           >
             <span class="ap-avatar-icon">{{ unitIcon(u.type) }}</span>
-            <span class="ap-badge">{{ u.count }}</span>
+            <CountBadge :count="u.count" />
           </span>
           <span
             v-if="quickPlanFor(mode)!.units.length > 3"
@@ -90,51 +82,24 @@
             :class="{ 'ap-avatar--active': (composition[unit.type] ?? 0) > 0 }"
           >
             <span class="ap-avatar-icon">{{ unitIcon(unit.type) }}</span>
-            <span v-if="(composition[unit.type] ?? 0) > 0" class="ap-badge ap-badge--active">
-              {{ composition[unit.type] }}
-            </span>
+            <CountBadge :count="composition[unit.type] ?? 0" variant="active" />
           </div>
           <span class="ap-unit-label">{{ unitLabel(unit.type) }}</span>
           <span class="ap-unit-max">/ {{ unit.count }}</span>
-          <div class="ap-unit-controls">
-            <button
-              class="ap-qty-btn"
-              @click="decrement(unit.type)"
-              :disabled="(composition[unit.type] ?? 0) <= 0"
-            >
-              −
-            </button>
-            <input
-              class="ap-qty-input"
-              type="number"
-              min="0"
-              :max="unit.count"
-              :value="composition[unit.type] ?? 0"
-              :disabled="unit.count === 0"
-              :aria-label="`Nombre de ${unitLabel(unit.type)} à envoyer`"
-              @change="setCount(unit.type, ($event.target as HTMLInputElement).valueAsNumber || 0)"
-            />
-            <button
-              class="ap-qty-btn"
-              @click="increment(unit.type)"
-              :disabled="(composition[unit.type] ?? 0) >= unit.count"
-            >
-              +
-            </button>
-            <button
-              class="ap-qty-max"
-              @click="setCount(unit.type, unit.count)"
-              :disabled="unit.count === 0"
-            >
-              max
-            </button>
-          </div>
+          <QuantityStepper
+            :model-value="composition[unit.type] ?? 0"
+            :min="0"
+            :max="unit.count"
+            @update:model-value="(v) => setCount(unit.type, v)"
+          />
         </div>
       </div>
 
       <!-- Erreurs -->
       <div v-if="validationErrors.length" class="ap-errors">
-        <span v-for="e in validationErrors" :key="e.field" class="ap-error">{{ e.message }}</span>
+        <NoticeBox v-for="e in validationErrors" :key="e.field" variant="danger">{{
+          e.message
+        }}</NoticeBox>
       </div>
 
       <!-- Récap + bouton envoi -->
@@ -147,7 +112,7 @@
             :title="unitLabel(u.type)"
           >
             <span class="ap-avatar-icon">{{ unitIcon(u.type) }}</span>
-            <span class="ap-badge ap-badge--active">{{ u.count }}</span>
+            <CountBadge :count="u.count" variant="active" />
           </span>
         </div>
         <div class="ap-confirm-meta">
@@ -155,7 +120,7 @@
           <span>🎒 {{ customPlan.carryCapacity }}</span>
           <span v-if="customPlan.hasSiege" class="ap-siege">🏰</span>
         </div>
-        <button class="ap-send-btn" @click="confirm">⚔️ Envoyer</button>
+        <Button variant="danger" size="sm" @click="confirm">⚔️ Envoyer</Button>
       </div>
     </div>
   </div>
@@ -177,6 +142,12 @@ import {
   type QuickAttackMode,
 } from '../../combat/attackPlanner'
 import { Separator } from '@/components/ui/separator'
+import SectionLabel from '@/components/ui/SectionLabel.vue'
+import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+import CountBadge from '@/components/ui/CountBadge.vue'
+import QuantityStepper from '@/components/ui/QuantityStepper.vue'
+import NoticeBox from '@/components/ui/NoticeBox.vue'
+import Button from '@/components/ui/Button.vue'
 
 // ------------------------------------
 // Props / Emits
@@ -283,14 +254,6 @@ const setCount = (type: string, value: number) => {
   composition.value = { ...composition.value, [type]: Math.min(Math.max(0, value), max) }
 }
 
-const increment = (type: string) => {
-  setCount(type, (composition.value[type] ?? 0) + 1)
-}
-
-const decrement = (type: string) => {
-  setCount(type, (composition.value[type] ?? 0) - 1)
-}
-
 // ------------------------------------
 // Affichage
 // ------------------------------------
@@ -354,42 +317,6 @@ const confirm = () => {
   gap: 8px;
 }
 
-.ap-title {
-  font-size: 0.8em;
-  font-weight: 700;
-  color: #ef9a9a;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-}
-
-.ap-tabs {
-  display: flex;
-  gap: 3px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 7px;
-  padding: 3px;
-}
-
-.ap-tab {
-  padding: 4px 10px;
-  border: none;
-  border-radius: 5px;
-  background: transparent;
-  color: #888;
-  font-size: 0.72em;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 0.12s,
-    color 0.12s;
-  white-space: nowrap;
-}
-
-.ap-tab.active {
-  background: rgba(198, 40, 40, 0.3);
-  color: #ef9a9a;
-}
-
 /* ── Mode Rapide : 4 boutons sur une ligne ── */
 .ap-quick {
   display: grid;
@@ -397,14 +324,17 @@ const confirm = () => {
   gap: 5px;
 }
 
+/* Custom volontaire : carte de stratégie composée (en-tête icône+libellé+ETA,
+   séparateur, rangée d'avatars d'unités OU raison de blocage) — plus riche que
+   les 3 slots de `SelectableCard`. Compose déjà `Separator`/`CountBadge`. */
 .ap-strat {
   display: flex;
   flex-direction: column;
   gap: 5px;
   padding: 7px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(var(--overlay-rgb), 0.09);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--overlay-rgb), 0.03);
   cursor: pointer;
   text-align: left;
   transition:
@@ -414,8 +344,8 @@ const confirm = () => {
 }
 
 .ap-strat:hover:not(.ap-strat--disabled) {
-  border-color: rgba(239, 83, 80, 0.45);
-  background: rgba(239, 83, 80, 0.08);
+  border-color: rgba(var(--color-danger-rgb), 0.45);
+  background: rgba(var(--color-danger-rgb), 0.08);
   transform: translateY(-1px);
 }
 
@@ -439,21 +369,21 @@ const confirm = () => {
   flex: 1;
   font-size: 0.76em;
   font-weight: 700;
-  color: #eee;
+  color: var(--color-text);
 }
 
 .ap-strat-meta {
   font-size: 0.65em;
-  color: #90caf9;
+  color: var(--color-info);
 }
 
 .ap-strat-reason {
   font-size: 0.65em;
-  color: #f59e0b;
+  color: var(--color-warning);
   font-style: italic;
 }
 
-/* ── Avatars (ShadCN-style) ── */
+/* ── Avatars ── */
 .ap-avatars {
   display: flex;
   flex-wrap: wrap;
@@ -468,8 +398,8 @@ const confirm = () => {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(var(--overlay-rgb), 0.07);
+  border: 1px solid rgba(var(--overlay-rgb), 0.13);
   flex-shrink: 0;
 }
 
@@ -479,8 +409,8 @@ const confirm = () => {
 }
 
 .ap-avatar--active {
-  border-color: rgba(239, 83, 80, 0.5);
-  background: rgba(239, 83, 80, 0.12);
+  border-color: rgba(var(--color-danger-rgb), 0.5);
+  background: rgba(var(--color-danger-rgb), 0.12);
 }
 
 .ap-avatar-icon {
@@ -489,42 +419,15 @@ const confirm = () => {
   user-select: none;
 }
 
-/* Badge ShadCN */
-.ap-badge {
-  position: absolute;
-  top: -5px;
-  right: -6px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 3px;
-  border-radius: 999px;
-  background: rgba(60, 60, 80, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #ccc;
-  font-size: 0.6em;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
-
-.ap-badge--active {
-  background: #c62828;
-  border-color: rgba(255, 255, 255, 0.25);
-  color: #fff;
-}
-
-/* AvatarGroupCount */
 .ap-avatar--more {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(var(--overlay-rgb), 0.1);
+  border-color: rgba(var(--overlay-rgb), 0.2);
 }
 
 .ap-avatar-more-count {
   font-size: 0.62em !important;
   font-weight: 700;
-  color: #ccc;
+  color: var(--color-text-muted);
 }
 
 /* ── Mode Custom ── */
@@ -553,92 +456,14 @@ const confirm = () => {
 
 .ap-unit-label {
   font-size: 0.63em;
-  color: #aaa;
+  color: var(--color-text-faint);
   text-align: center;
   line-height: 1.2;
 }
 
 .ap-unit-max {
   font-size: 0.6em;
-  color: #555;
-}
-
-.ap-unit-controls {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 2px;
-}
-
-.ap-qty-btn {
-  width: 20px;
-  height: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #ddd;
-  font-size: 0.85em;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.1s;
-}
-
-.ap-qty-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.ap-qty-btn:disabled {
-  opacity: 0.25;
-  cursor: default;
-}
-
-.ap-qty-input {
-  width: 30px;
-  height: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #ddd;
-  font-size: 0.68em;
-  text-align: center;
-  padding: 0;
-  /* Masque les flèches natives du input[type=number] : les boutons -/+ suffisent */
-  appearance: textfield;
-  -moz-appearance: textfield;
-}
-
-.ap-qty-input::-webkit-outer-spin-button,
-.ap-qty-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.ap-qty-input:disabled {
-  opacity: 0.25;
-}
-
-.ap-qty-max {
-  padding: 0 5px;
-  height: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.04);
-  color: #90caf9;
-  font-size: 0.6em;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.1s;
-}
-
-.ap-qty-max:hover:not(:disabled) {
-  background: rgba(100, 181, 246, 0.15);
-}
-
-.ap-qty-max:disabled {
-  opacity: 0.25;
-  cursor: default;
+  color: var(--color-text-disabled);
 }
 
 /* ── Erreurs ── */
@@ -648,24 +473,15 @@ const confirm = () => {
   gap: 3px;
 }
 
-.ap-error {
-  font-size: 0.7em;
-  color: #ef5350;
-  background: rgba(239, 83, 80, 0.1);
-  border: 1px solid rgba(239, 83, 80, 0.2);
-  border-radius: 5px;
-  padding: 3px 7px;
-}
-
 /* ── Ligne confirmation ── */
 .ap-confirm-row {
   display: flex;
   align-items: center;
   gap: 7px;
   padding: 6px 8px;
-  border: 1px solid rgba(239, 83, 80, 0.2);
+  border: 1px solid rgba(var(--color-danger-rgb), 0.2);
   border-radius: 8px;
-  background: rgba(239, 83, 80, 0.05);
+  background: rgba(var(--color-danger-rgb), 0.05);
   flex-wrap: wrap;
 }
 
@@ -673,39 +489,19 @@ const confirm = () => {
   display: flex;
   gap: 7px;
   font-size: 0.67em;
-  color: #90caf9;
+  color: var(--color-info);
   flex: 1;
   flex-wrap: wrap;
 }
 
 .ap-siege {
-  color: #ce93d8;
-}
-
-.ap-send-btn {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #c62828, #e53935);
-  color: #fff;
-  font-size: 0.76em;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    opacity 0.13s,
-    transform 0.1s;
-}
-
-.ap-send-btn:hover {
-  opacity: 0.88;
-  transform: translateY(-1px);
+  color: var(--rarity-epic);
 }
 
 /* ── Séparateur ── */
 .ap-sep {
   height: 1px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(var(--overlay-rgb), 0.08);
   border: none;
   margin: 4px 0;
 }

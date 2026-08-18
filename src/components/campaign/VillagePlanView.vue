@@ -2,124 +2,58 @@
   <section class="village-plan-section">
     <div class="plan-title">
       <h3>Plan du Village</h3>
-      <span class="hq-badge">QG niv. {{ hqLevel }}</span>
+      <Badge tone="accent">QG niv. {{ hqLevel }}</Badge>
       <!-- Tooltip légende -->
-      <div
-        class="legend-tooltip-wrap"
-        @focusout="onLegendFocusOut"
-        @keydown.esc="showLegend = false"
-      >
-        <button
-          class="legend-trigger"
-          type="button"
-          :aria-expanded="showLegend"
-          aria-label="Légende des états de bâtiment"
-          @click="showLegend = !showLegend"
-        >
-          ℹ️
-        </button>
-        <div class="legend-tooltip" v-show="showLegend">
-          <div class="legend-item legend-upgradable">⬆️ Améliorable</div>
-          <div class="legend-item legend-available">✨ Disponible</div>
-          <div class="legend-item legend-constructing">🏗️ En chantier</div>
-          <div class="legend-item legend-waiting">🪙 Ressources insuffisantes</div>
-          <div class="legend-item legend-locked">🔒 Verrouillé (QG requis)</div>
-          <div class="legend-item legend-maxed">✅ Niveau maximum</div>
-        </div>
-      </div>
+      <InfoPopover label="Légende des états de bâtiment" class="legend-popover">
+        <div class="legend-item legend-upgradable">⬆️ Améliorable</div>
+        <div class="legend-item legend-available">✨ Disponible</div>
+        <div class="legend-item legend-constructing">🏗️ En chantier</div>
+        <div class="legend-item legend-waiting">🪙 Ressources insuffisantes</div>
+        <div class="legend-item legend-locked">🔒 Verrouillé (QG requis)</div>
+        <div class="legend-item legend-maxed">✅ Niveau maximum</div>
+      </InfoPopover>
     </div>
 
-    <!-- Carte du village (grille) -->
-    <div class="village-map">
-      <!-- Routes SVG en fond -->
-      <svg class="map-roads" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <!-- Routes rayonnant depuis HQ (50,50) vers chaque bâtiment -->
-        <line x1="50" y1="50" x2="20" y2="20" />
-        <line x1="50" y1="50" x2="80" y2="20" />
-        <line x1="50" y1="50" x2="20" y2="50" />
-        <line x1="50" y1="50" x2="20" y2="80" />
-        <line x1="50" y1="50" x2="80" y2="80" />
-        <!-- Place centrale -->
-        <circle cx="50" cy="50" r="3" class="road-center" />
-      </svg>
-
-      <!-- Tuiles des bâtiments -->
-      <div
-        v-for="def in ALL_BUILDINGS"
-        :key="def.type"
-        class="building-tile"
-        :class="[
-          `tile-${def.type}`,
-          `state-${getBuildingState(def.type)}`,
-          { selected: selectedType === def.type },
-        ]"
-        v-clickable
-        @click="toggleSelect(def.type)"
-      >
-        <div class="tile-inner">
-          <!-- Icône + badge niveau + anneau de progression du chantier -->
-          <div class="tile-icon-wrap">
-            <svg
-              v-if="getBuildingState(def.type) === 'constructing'"
-              viewBox="0 0 48 48"
-              class="tile-progress-svg"
-              aria-hidden="true"
-            >
-              <circle class="tile-progress-track" cx="24" cy="24" r="19" />
-              <circle
-                class="tile-progress-ring"
-                cx="24"
-                cy="24"
-                r="19"
-                :stroke-dasharray="tileRingCircumference"
-                :stroke-dashoffset="
-                  tileRingCircumference * (1 - getConstructionProgress(def.type) / 100)
-                "
-              />
-            </svg>
-            <span
-              class="tile-icon"
-              :class="{
-                'tile-icon--locked': getBuildingState(def.type) === 'locked',
-                'tile-icon--constructing': getBuildingState(def.type) === 'constructing',
-              }"
-            >
-              {{ def.icon }}
-            </span>
-            <span
-              v-if="getBuilding(def.type) && getBuilding(def.type)!.level > 0"
-              class="level-badge"
-              :class="{ 'level-badge--maxed': getBuildingState(def.type) === 'maxed' }"
-            >
-              {{ getBuilding(def.type)!.level }}
-            </span>
-          </div>
-          <!-- Nom (abrégé en "QG" pour le Bâtiment Principal, trop long pour la tuile) -->
-          <div class="tile-name">{{ getTileLabel(def.type) }}</div>
-          <!-- Statut -->
-          <div class="tile-status">
-            <template v-if="getBuildingState(def.type) === 'locked'"
-              >QG {{ def.hqLevelRequired }}</template
-            >
-            <template v-else-if="getBuildingState(def.type) === 'available'">construire</template>
-            <template v-else-if="getBuildingState(def.type) === 'constructing'"
-              >🏗️ {{ getRemainingConstructionTime(def.type) }}</template
-            >
-            <template v-else-if="getBuildingState(def.type) === 'upgradable'">▲ améliorer</template>
-            <template v-else-if="getBuildingState(def.type) === 'waiting'">⏳ ressources</template>
-            <template v-else-if="getBuildingState(def.type) === 'maxed'">max</template>
-          </div>
-          <!-- Bouton action rapide -->
-          <button
-            v-if="getBuildingState(def.type) === 'upgradable' || getBuildingState(def.type) === 'available'"
-            class="quick-btn"
-            :class="{ 'quick-btn--build': getBuildingState(def.type) === 'available' }"
-            @click.stop="quickAction(def.type)"
-          >
-            {{ getBuildingState(def.type) === 'upgradable' ? '▲' : '+' }}
-          </button>
-        </div>
-      </div>
+    <!--
+      Grille Bento du village : chaque bâtiment prend la place que ses actions
+      demandent (config déclarative — voir src/data/villageLayout.ts). La
+      Caserne, plus riche en actions (recrutement inline), a un composant dédié
+      (BarracksCard) plutôt qu'une variante de BuildingCard.
+    -->
+    <div class="village-bento">
+      <template v-for="layout in VILLAGE_LAYOUT" :key="layout.type">
+        <BarracksCard
+          v-if="layout.type === 'barracks'"
+          :style="cellStyle(layout)"
+          :icon="BUILDING_DEFINITIONS.barracks.icon"
+          :name="BUILDING_DEFINITIONS.barracks.name"
+          :description="BUILDING_DEFINITIONS.barracks.description"
+          :level="getBuilding('barracks')?.level ?? 0"
+          :state="getBuildingState('barracks')"
+          :selected="selectedType === 'barracks'"
+          :status-text="getStatusText('barracks')"
+          :construction-progress="getConstructionProgress('barracks')"
+          :action-affordable="canAffordQuickAction('barracks')"
+          @select="toggleSelect('barracks')"
+          @quick-action="quickAction('barracks')"
+        />
+        <BuildingCard
+          v-else
+          :style="cellStyle(layout)"
+          :type="layout.type"
+          :icon="BUILDING_DEFINITIONS[layout.type].icon"
+          :name="BUILDING_DEFINITIONS[layout.type].name"
+          :level="getBuilding(layout.type)?.level ?? 0"
+          :state="getBuildingState(layout.type)"
+          :size="layout.colSpan > 1 ? 'lg' : 'sm'"
+          :selected="selectedType === layout.type"
+          :status-text="getStatusText(layout.type)"
+          :construction-progress="getConstructionProgress(layout.type)"
+          :action-affordable="canAffordQuickAction(layout.type)"
+          @select="toggleSelect(layout.type)"
+          @quick-action="quickAction(layout.type)"
+        />
+      </template>
     </div>
 
     <!-- Panneau de détails du bâtiment sélectionné -->
@@ -157,42 +91,38 @@
           <div class="build-costs">
             <span class="costs-label">Coût de construction (niveau 1)</span>
             <div class="costs-row">
-              <span
-                class="cost-chip"
-                :class="{ insufficient: (town?.resources?.wood || 0) < selectedBuildCost.wood }"
+              <Badge
+                :tone="(town?.resources?.wood || 0) < selectedBuildCost.wood ? 'danger' : 'neutral'"
               >
                 🪵 {{ selectedBuildCost.wood }}
-              </span>
-              <span
-                class="cost-chip"
-                :class="{ insufficient: (town?.resources?.clay || 0) < selectedBuildCost.clay }"
+              </Badge>
+              <Badge
+                :tone="(town?.resources?.clay || 0) < selectedBuildCost.clay ? 'danger' : 'neutral'"
               >
                 🧱 {{ selectedBuildCost.clay }}
-              </span>
-              <span
-                class="cost-chip"
-                :class="{ insufficient: (town?.resources?.iron || 0) < selectedBuildCost.iron }"
+              </Badge>
+              <Badge
+                :tone="(town?.resources?.iron || 0) < selectedBuildCost.iron ? 'danger' : 'neutral'"
               >
                 ⚒️ {{ selectedBuildCost.iron }}
-              </span>
-              <span
-                class="cost-chip"
-                :class="{ insufficient: (town?.resources?.crop || 0) < selectedBuildCost.crop }"
+              </Badge>
+              <Badge
+                :tone="(town?.resources?.crop || 0) < selectedBuildCost.crop ? 'danger' : 'neutral'"
               >
                 🌾 {{ selectedBuildCost.crop }}
-              </span>
+              </Badge>
             </div>
           </div>
 
           <!-- Bouton construire -->
-          <button
+          <Button
+            variant="success"
             class="upgrade-btn"
-            :class="{ 'upgrade-btn-ready': canAffordBuild }"
             :disabled="!canAffordBuild"
             @click="doBuild()"
           >
             {{ canAffordBuild ? 'Construire' : 'Ressources insuffisantes' }}
-          </button>
+          </Button>
         </div>
 
         <!-- Bâtiment construit -->
@@ -202,16 +132,11 @@
             <div class="constructing-message">
               🏗️ Chantier en cours — niveau {{ selectedBuilding.level + 1 }}
             </div>
-            <div class="construction-progress-bar">
-              <div
-                class="construction-progress-fill"
-                :style="{ width: getConstructionProgress(selectedDef.type) + '%' }"
-              ></div>
-            </div>
+            <ProgressBar :value="getConstructionProgress(selectedDef.type)" tone="accent" />
             <div class="construction-eta">
               ⏱️ Terminé dans {{ getRemainingConstructionTime(selectedDef.type) }}
             </div>
-            <button class="upgrade-btn" disabled>🏗️ Chantier en cours…</button>
+            <Button variant="success" class="upgrade-btn" disabled>🏗️ Chantier en cours…</Button>
           </div>
 
           <template v-else>
@@ -242,46 +167,46 @@
               </div>
 
               <div class="upgrade-costs">
-                <span
-                  class="cost-chip"
-                  :class="{
-                    insufficient:
-                      (town?.resources?.wood || 0) <
-                      getUpgradeCost(selectedDef.type, selectedBuilding.level).wood,
-                  }"
+                <Badge
+                  :tone="
+                    (town?.resources?.wood || 0) <
+                    getUpgradeCost(selectedDef.type, selectedBuilding.level).wood
+                      ? 'danger'
+                      : 'neutral'
+                  "
                 >
                   🪵 {{ getUpgradeCost(selectedDef.type, selectedBuilding.level).wood }}
-                </span>
-                <span
-                  class="cost-chip"
-                  :class="{
-                    insufficient:
-                      (town?.resources?.clay || 0) <
-                      getUpgradeCost(selectedDef.type, selectedBuilding.level).clay,
-                  }"
+                </Badge>
+                <Badge
+                  :tone="
+                    (town?.resources?.clay || 0) <
+                    getUpgradeCost(selectedDef.type, selectedBuilding.level).clay
+                      ? 'danger'
+                      : 'neutral'
+                  "
                 >
                   🧱 {{ getUpgradeCost(selectedDef.type, selectedBuilding.level).clay }}
-                </span>
-                <span
-                  class="cost-chip"
-                  :class="{
-                    insufficient:
-                      (town?.resources?.iron || 0) <
-                      getUpgradeCost(selectedDef.type, selectedBuilding.level).iron,
-                  }"
+                </Badge>
+                <Badge
+                  :tone="
+                    (town?.resources?.iron || 0) <
+                    getUpgradeCost(selectedDef.type, selectedBuilding.level).iron
+                      ? 'danger'
+                      : 'neutral'
+                  "
                 >
                   ⚒️ {{ getUpgradeCost(selectedDef.type, selectedBuilding.level).iron }}
-                </span>
-                <span
-                  class="cost-chip"
-                  :class="{
-                    insufficient:
-                      (town?.resources?.crop || 0) <
-                      getUpgradeCost(selectedDef.type, selectedBuilding.level).crop,
-                  }"
+                </Badge>
+                <Badge
+                  :tone="
+                    (town?.resources?.crop || 0) <
+                    getUpgradeCost(selectedDef.type, selectedBuilding.level).crop
+                      ? 'danger'
+                      : 'neutral'
+                  "
                 >
                   🌾 {{ getUpgradeCost(selectedDef.type, selectedBuilding.level).crop }}
-                </span>
+                </Badge>
               </div>
 
               <!-- Temps estimé si ressources insuffisantes -->
@@ -290,9 +215,9 @@
               </div>
 
               <!-- Bouton améliorer -->
-              <button
+              <Button
+                variant="success"
                 class="upgrade-btn"
-                :class="{ 'upgrade-btn-ready': selectedState === 'upgradable' }"
                 :disabled="selectedState !== 'upgradable'"
                 @click="doUpgrade()"
               >
@@ -301,7 +226,7 @@
                     ? `Améliorer → Niv. ${selectedBuilding.level + 1}`
                     : 'Ressources insuffisantes'
                 }}
-              </button>
+              </Button>
             </div>
           </template>
         </template>
@@ -322,8 +247,14 @@ import {
   isBuildingUnlocked,
 } from '@/data/buildings'
 import type { BuildingType } from '@/data/buildings'
-// Ordre d'affichage des bâtiments sur la carte
-const ALL_BUILDINGS = Object.values(BUILDING_DEFINITIONS)
+import { VILLAGE_LAYOUT } from '@/data/villageLayout'
+import type { VillageCardLayout } from '@/data/villageLayout'
+import Badge from '@/components/ui/Badge.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
+import InfoPopover from '@/components/ui/InfoPopover.vue'
+import Button from '@/components/ui/Button.vue'
+import BuildingCard from '@/components/campaign/village/BuildingCard.vue'
+import BarracksCard from '@/components/campaign/village/BarracksCard.vue'
 
 const missionStore = useMissionStore()
 const toastStore = useToastStore()
@@ -342,20 +273,14 @@ onUnmounted(() => {
   if (tickInterval) clearInterval(tickInterval)
 })
 
-// Anneau de progression sur les tuiles (rayon 19 sur un viewBox 48x48)
-const TILE_RING_RADIUS = 19
-const tileRingCircumference = 2 * Math.PI * TILE_RING_RADIUS
-
 const hqLevel = computed(() => getHQLevel(town.value?.buildings ?? []))
 
-// Légende des états de bâtiment — accessible au clic/clavier, pas seulement au survol
-const showLegend = ref(false)
-const onLegendFocusOut = (e: FocusEvent) => {
-  const nextTarget = e.relatedTarget as Node | null
-  if (!nextTarget || !(e.currentTarget as HTMLElement).contains(nextTarget)) {
-    showLegend.value = false
-  }
-}
+// Place chaque carte dans la grille selon sa configuration (colSpan/rowSpan) —
+// voir villageLayout.ts pour le détail de la disposition.
+const cellStyle = (layout: VillageCardLayout) => ({
+  gridColumn: `span ${layout.colSpan}`,
+  gridRow: `span ${layout.rowSpan}`,
+})
 
 // Bâtiment sélectionné pour le panneau de détails
 const selectedType = ref<BuildingType | null>(null)
@@ -367,12 +292,6 @@ const toggleSelect = (type: BuildingType) => {
 // Récupère l'instance construite d'un bâtiment (ou null si pas encore construit)
 const getBuilding = (type: BuildingType) =>
   town.value?.buildings?.find((b) => b.type === type) ?? null
-
-// Libellé affiché sur la tuile : "Bâtiment Principal" est abrégé en "QG"
-// (terminologie déjà utilisée ailleurs dans cette vue) pour éviter la troncature,
-// les autres noms de bâtiments tiennent tous dans la largeur de la tuile.
-const getTileLabel = (type: BuildingType): string =>
-  type === 'headquarters' ? 'QG' : BUILDING_DEFINITIONS[type].name
 
 // État d'un bâtiment : locked | available | constructing | upgradable | waiting | maxed
 type BuildingState = 'locked' | 'available' | 'constructing' | 'upgradable' | 'waiting' | 'maxed'
@@ -404,6 +323,42 @@ const getBuildingState = (type: BuildingType): BuildingState => {
     return 'upgradable'
   }
   return 'waiting'
+}
+
+// Libellé de statut affiché sur la carte
+const getStatusText = (type: BuildingType): string => {
+  const state = getBuildingState(type)
+  switch (state) {
+    case 'locked':
+      return `QG ${BUILDING_DEFINITIONS[type].hqLevelRequired}`
+    case 'available':
+      return 'construire'
+    case 'constructing':
+      return `🏗️ ${getRemainingConstructionTime(type)}`
+    case 'upgradable':
+      return '▲ améliorer'
+    case 'waiting':
+      return '⏳ ressources'
+    case 'maxed':
+      return 'max'
+  }
+}
+
+// Le bouton d'action rapide reste visible même sans les ressources requises
+// (état `waiting`) — il est juste désactivé/grisé plutôt que masqué, pour ne
+// pas cacher l'affordance qu'une action existe.
+const canAffordQuickAction = (type: BuildingType): boolean => {
+  const state = getBuildingState(type)
+  const res = town.value?.resources
+  if (!res) return false
+  if (state === 'upgradable') return true
+  if (state === 'available') {
+    const cost = getBuildingUpgrade(type, 0)
+    return (
+      res.wood >= cost.wood && res.clay >= cost.clay && res.iron >= cost.iron && res.crop >= cost.crop
+    )
+  }
+  return false
 }
 
 // --- Données du panneau de détails ---
@@ -532,7 +487,7 @@ const doBuild = () => {
   }
 }
 
-// Action rapide directement depuis la tuile (sans ouvrir le panneau)
+// Action rapide directement depuis la carte (sans ouvrir le panneau)
 const quickAction = (type: BuildingType) => {
   const state = getBuildingState(type)
   const def = BUILDING_DEFINITIONS[type]
@@ -571,61 +526,20 @@ const quickAction = (type: BuildingType) => {
 
 .plan-title h3 {
   margin: 0;
-  color: #daa520;
+  color: var(--color-accent-ink);
   font-size: 1.2rem;
 }
 
-.hq-badge {
-  font-size: 0.72rem;
-  font-weight: normal;
-  padding: 0.15rem 0.55rem;
-  background: rgba(218, 165, 32, 0.12);
-  border: 1px solid rgba(218, 165, 32, 0.35);
-  border-radius: 10px;
-  color: #daa520;
-}
-
-/* ---- Tooltip légende ---- */
-.legend-tooltip-wrap {
-  position: relative;
+/* ---- Tooltip légende (InfoPopover) ---- */
+.legend-popover {
   margin-left: auto;
-  display: flex;
-  align-items: center;
 }
 
-.legend-trigger {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.9rem;
-  cursor: pointer;
-  opacity: 0.6;
-  transition: opacity 0.15s;
-  user-select: none;
-}
-.legend-trigger:hover,
-.legend-trigger[aria-expanded='true'] {
-  opacity: 1;
-}
-.legend-trigger:focus-visible {
-  outline: 2px solid #daa520;
-  outline-offset: 2px;
-}
-
-.legend-tooltip {
+.legend-popover :deep(.info-popover-content) {
   display: flex;
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 100;
-  background: rgba(10, 20, 10, 0.97);
-  border: 1px solid rgba(218, 165, 32, 0.3);
-  border-radius: 10px;
-  padding: 0.6rem 0.75rem;
-  min-width: 200px;
   flex-direction: column;
   gap: 0.35rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  min-width: 200px;
 }
 
 .legend-item {
@@ -637,365 +551,54 @@ const quickAction = (type: BuildingType) => {
 }
 
 .legend-upgradable {
-  background: rgba(34, 197, 94, 0.12);
-  border-color: rgba(34, 197, 94, 0.4);
-  color: #4ade80;
+  background: rgba(var(--color-success-strong-rgb), 0.12);
+  border-color: rgba(var(--color-success-strong-rgb), 0.4);
+  color: var(--color-success-strong);
 }
 .legend-available {
-  background: rgba(96, 165, 250, 0.12);
-  border-color: rgba(96, 165, 250, 0.4);
-  color: #93c5fd;
+  background: rgba(var(--color-info-rgb), 0.12);
+  border-color: rgba(var(--color-info-rgb), 0.4);
+  color: var(--color-info);
 }
 .legend-constructing {
-  background: rgba(218, 165, 32, 0.12);
-  border-color: rgba(218, 165, 32, 0.4);
-  color: #daa520;
+  background: rgba(var(--color-accent-rgb), 0.12);
+  border-color: rgba(var(--color-accent-rgb), 0.4);
+  color: var(--color-accent-ink);
 }
 .legend-waiting {
-  background: rgba(245, 158, 11, 0.12);
-  border-color: rgba(245, 158, 11, 0.4);
-  color: #fbbf24;
+  background: rgba(var(--color-warning-rgb), 0.12);
+  border-color: rgba(var(--color-warning-rgb), 0.4);
+  color: var(--color-warning);
 }
 .legend-locked {
-  background: rgba(107, 114, 128, 0.15);
-  border-color: rgba(107, 114, 128, 0.35);
-  color: #9ca3af;
+  background: rgba(var(--rarity-common-rgb), 0.15);
+  border-color: rgba(var(--rarity-common-rgb), 0.35);
+  color: var(--rarity-common);
 }
 .legend-maxed {
-  background: rgba(139, 92, 246, 0.12);
-  border-color: rgba(139, 92, 246, 0.35);
-  color: #c4b5fd;
+  background: rgba(var(--rarity-epic-rgb), 0.12);
+  border-color: rgba(var(--rarity-epic-rgb), 0.35);
+  color: var(--rarity-epic);
 }
 
-/* ---- Carte du village ---- */
-.village-map {
-  position: relative;
+/* ---- Grille Bento du village ---- */
+.village-bento {
   display: grid;
-  grid-template-columns: 1fr 1.15fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr;
-  grid-template-areas:
-    'lumb  .    farm'
-    'bar   hq   .   '
-    'quar  .    mine';
+  grid-template-columns: repeat(4, 1fr);
+  /* minmax (pas une longueur fixe) : la Caserne a un contenu réellement plus
+     riche (recrutement + file) qui doit pouvoir pousser sa rangée au-delà du
+     minimum, sans quoi min-height:auto sur les grid items la ferait déborder. */
+  grid-auto-rows: minmax(132px, auto);
+  grid-auto-flow: dense;
   gap: 0.65rem;
-  padding: 1.4rem 1.2rem;
-  background:
-    radial-gradient(ellipse at 55% 45%, rgba(40, 80, 25, 0.5) 0%, transparent 55%),
-    radial-gradient(ellipse at 20% 80%, rgba(60, 40, 15, 0.3) 0%, transparent 40%),
-    radial-gradient(ellipse at 80% 15%, rgba(20, 40, 60, 0.2) 0%, transparent 35%),
-    linear-gradient(160deg, rgba(14, 26, 10, 0.97) 0%, rgba(8, 14, 6, 0.99) 100%);
-  border: 1px solid rgba(80, 120, 55, 0.2);
-  border-radius: 14px;
-  overflow: hidden;
-  min-height: 260px;
 }
 
-/* SVG des routes */
-.map-roads {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.map-roads line {
-  stroke: rgba(155, 115, 55, 0.18);
-  stroke-width: 3;
-  stroke-linecap: round;
-}
-
-.road-center {
-  fill: rgba(155, 115, 55, 0.15);
-}
-
-/* Placement des tuiles dans la grille */
-.tile-lumbermill {
-  grid-area: lumb;
-}
-.tile-farm {
-  grid-area: farm;
-}
-.tile-barracks {
-  grid-area: bar;
-}
-.tile-headquarters {
-  grid-area: hq;
-}
-.tile-quarry {
-  grid-area: quar;
-}
-.tile-mine {
-  grid-area: mine;
-}
-
-/* Couleur thématique par type */
-.tile-headquarters {
-  --tc: 218, 165, 32;
-} /* or */
-.tile-barracks {
-  --tc: 220, 70, 70;
-} /* rouge */
-.tile-lumbermill {
-  --tc: 74, 197, 100;
-} /* vert forêt */
-.tile-farm {
-  --tc: 234, 189, 30;
-} /* blé */
-.tile-quarry {
-  --tc: 148, 163, 184;
-} /* pierre */
-.tile-mine {
-  --tc: 96, 165, 220;
-} /* acier */
-
-/* ---- Tuile de bâtiment ---- */
-.building-tile {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 11px;
-  border: 1.5px solid rgba(var(--tc), 0.28);
-  background: rgba(var(--tc), 0.07);
-  cursor: pointer;
-  transition:
-    transform 0.15s ease,
-    box-shadow 0.2s ease,
-    border-color 0.2s ease,
-    background 0.2s ease;
-  min-height: 88px;
-}
-
-.tile-headquarters {
-  min-height: 108px;
-  border-width: 2px;
-}
-
-.building-tile:hover {
-  transform: translateY(-2px) scale(1.03);
-}
-
-.building-tile.selected {
-  outline: 2px solid rgba(var(--tc), 0.85);
-  outline-offset: 2px;
-}
-
-/* États (override couleur type) */
-.state-upgradable {
-  border-color: rgba(34, 197, 94, 0.65);
-  background: rgba(18, 48, 18, 0.75);
-  box-shadow:
-    0 0 14px rgba(34, 197, 94, 0.18),
-    inset 0 0 10px rgba(34, 197, 94, 0.04);
-}
-.state-upgradable:hover {
-  box-shadow: 0 0 22px rgba(34, 197, 94, 0.32);
-}
-
-.state-available {
-  border-color: rgba(96, 165, 250, 0.45);
-  border-style: dashed;
-  background: rgba(12, 25, 50, 0.55);
-}
-.state-available:hover {
-  background: rgba(18, 36, 70, 0.68);
-}
-
-.state-waiting {
-  border-color: rgba(245, 158, 11, 0.42);
-  background: rgba(38, 26, 8, 0.68);
-}
-
-.state-constructing {
-  border-color: rgba(218, 165, 32, 0.5);
-  background: rgba(40, 30, 8, 0.72);
-}
-.state-constructing .tile-status {
-  color: #daa520;
-}
-
-.state-locked {
-  border-color: rgba(60, 60, 60, 0.25);
-  background: rgba(10, 10, 10, 0.6);
-  opacity: 0.45;
-  cursor: default;
-}
-.state-locked:hover {
-  transform: none;
-}
-
-.state-maxed {
-  border-color: rgba(139, 92, 246, 0.42);
-  background: rgba(18, 10, 36, 0.68);
-}
-
-/* ---- Contenu de la tuile ---- */
-.tile-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.22rem;
-  padding: 0.55rem 0.4rem 0.45rem;
-  width: 100%;
-}
-
-.tile-icon-wrap {
-  position: relative;
-  display: inline-flex;
-}
-
-.tile-icon {
-  font-size: 2rem;
-  line-height: 1;
-  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.6));
-  transition: filter 0.2s;
-}
-
-.tile-icon--locked {
-  filter: grayscale(1) opacity(0.45);
-}
-
-.tile-icon--constructing {
-  filter: grayscale(0.35) opacity(0.8);
-}
-
-/* Anneau de progression du chantier, superposé derrière l'icône */
-.tile-progress-svg {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 48px;
-  height: 48px;
-  pointer-events: none;
-}
-
-.tile-progress-track {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.1);
-  stroke-width: 3;
-}
-
-.tile-progress-ring {
-  fill: none;
-  stroke: #daa520;
-  stroke-width: 3;
-  stroke-linecap: round;
-  transform: rotate(-90deg);
-  transform-origin: center;
-  transition: stroke-dashoffset 1s linear;
-}
-
-.tile-headquarters .tile-icon {
-  font-size: 2.4rem;
-}
-
-/* Badge niveau (coin haut-droite) */
-.level-badge {
-  position: absolute;
-  top: -5px;
-  right: -9px;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 3px;
-  background: #b8860b;
-  color: #fff8e0;
-  font-size: 0.6rem;
-  font-weight: 800;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
-  line-height: 1;
-}
-
-.level-badge--maxed {
-  background: rgba(139, 92, 246, 0.9);
-  color: #f0ebff;
-}
-
-.tile-name {
-  font-size: 0.63rem;
-  font-weight: 700;
-  color: rgba(var(--tc), 0.85);
-  text-align: center;
-  line-height: 1.2;
-  max-width: 82px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.state-locked .tile-name {
-  color: #374151;
-}
-
-/* Libellé de statut */
-.tile-status {
-  font-size: 0.56rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #374151;
-  line-height: 1;
-}
-
-.state-upgradable .tile-status {
-  color: #4ade80;
-}
-.state-available .tile-status {
-  color: #60a5fa;
-}
-.state-waiting .tile-status {
-  color: #f59e0b;
-}
-.state-locked .tile-status {
-  color: #374151;
-}
-.state-maxed .tile-status {
-  color: #a78bfa;
-}
-
-/* ---- Bouton action rapide sur la tuile ---- */
-.quick-btn {
-  margin-top: 0.2rem;
-  padding: 0.15rem 0.55rem;
-  font-size: 0.65rem;
-  font-weight: 800;
-  border-radius: 6px;
-  border: 1px solid rgba(34, 197, 94, 0.6);
-  background: rgba(18, 80, 30, 0.75);
-  color: #4ade80;
-  cursor: pointer;
-  line-height: 1.4;
-  transition:
-    background 0.15s,
-    transform 0.1s,
-    box-shadow 0.15s;
-}
-
-.quick-btn:hover {
-  background: rgba(34, 197, 94, 0.22);
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.35);
-  transform: translateY(-1px);
-}
-
-.quick-btn:active {
-  transform: scale(0.95);
-}
-
-.quick-btn--build {
-  border-color: rgba(96, 165, 250, 0.6);
-  background: rgba(12, 30, 70, 0.75);
-  color: #93c5fd;
-}
-
-.quick-btn--build:hover {
-  background: rgba(96, 165, 250, 0.22);
-  box-shadow: 0 0 8px rgba(96, 165, 250, 0.35);
+@media (max-width: 480px) {
+  .village-bento {
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: minmax(112px, auto);
+    gap: 0.45rem;
+  }
 }
 
 /* ====== Panneau de détails ====== */
@@ -1003,8 +606,8 @@ const quickAction = (type: BuildingType) => {
   margin-top: 0.75rem;
   padding: 1rem;
   border-radius: 12px;
-  background: rgba(10, 20, 10, 0.8);
-  border: 1px solid rgba(218, 165, 32, 0.2);
+  background: var(--color-bg-surface);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.2);
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -1044,14 +647,14 @@ const quickAction = (type: BuildingType) => {
 
 .detail-name {
   font-weight: 700;
-  color: #f4e4bc;
+  color: var(--color-text);
   font-size: 1rem;
   margin-bottom: 0.2rem;
 }
 
 .detail-desc {
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   line-height: 1.4;
 }
 
@@ -1059,7 +662,7 @@ const quickAction = (type: BuildingType) => {
   margin-left: auto;
   background: none;
   border: none;
-  color: #6b7280;
+  color: var(--color-text-faint);
   font-size: 0.85rem;
   cursor: pointer;
   padding: 0.25rem;
@@ -1067,13 +670,13 @@ const quickAction = (type: BuildingType) => {
   transition: color 0.2s;
 }
 .detail-close:hover {
-  color: #f4e4bc;
+  color: var(--color-text);
 }
 
 /* Bâtiment verrouillé */
 .locked-message {
   font-size: 0.82rem;
-  color: #9ca3af;
+  color: var(--color-text-muted);
   line-height: 1.5;
 }
 
@@ -1086,25 +689,25 @@ const quickAction = (type: BuildingType) => {
 
 .hq-current {
   font-size: 0.78rem;
-  background: rgba(107, 114, 128, 0.15);
+  background: rgba(var(--rarity-common-rgb), 0.15);
   padding: 0.2rem 0.5rem;
   border-radius: 5px;
-  color: #9ca3af;
+  color: var(--color-text-muted);
 }
 
 .hq-needed {
   font-size: 0.78rem;
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(var(--color-warning-rgb), 0.1);
   padding: 0.2rem 0.5rem;
   border-radius: 5px;
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--color-warning);
+  border: 1px solid rgba(var(--color-warning-rgb), 0.3);
 }
 
 /* Bâtiment disponible */
 .available-message {
   font-size: 0.82rem;
-  color: #93c5fd;
+  color: var(--color-info);
   line-height: 1.5;
 }
 
@@ -1118,7 +721,7 @@ const quickAction = (type: BuildingType) => {
 
 .costs-label {
   font-size: 0.72rem;
-  color: #6b7280;
+  color: var(--color-text-faint);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   width: 100%;
@@ -1140,29 +743,15 @@ const quickAction = (type: BuildingType) => {
 
 .constructing-message {
   font-size: 0.82rem;
-  color: #daa520;
+  color: var(--color-accent-ink);
   line-height: 1.5;
-}
-
-.construction-progress-bar {
-  width: 100%;
-  height: 8px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-}
-
-.construction-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #b8860b, #daa520);
-  transition: width 1s linear;
 }
 
 .construction-eta {
   font-size: 0.78rem;
-  color: #daa520;
-  background: rgba(218, 165, 32, 0.08);
-  border: 1px solid rgba(218, 165, 32, 0.25);
+  color: var(--color-accent-ink);
+  background: rgba(var(--color-accent-rgb), 0.08);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.25);
   border-radius: 5px;
   padding: 0.3rem 0.5rem;
   text-align: center;
@@ -1174,14 +763,14 @@ const quickAction = (type: BuildingType) => {
   justify-content: space-between;
   align-items: center;
   padding: 0.45rem 0.6rem;
-  background: rgba(34, 197, 94, 0.06);
-  border: 1px solid rgba(34, 197, 94, 0.12);
+  background: rgba(var(--color-success-strong-rgb), 0.06);
+  border: 1px solid rgba(var(--color-success-strong-rgb), 0.12);
   border-radius: 7px;
 }
 
 .production-label {
   font-size: 0.72rem;
-  color: #6b7280;
+  color: var(--color-text-faint);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -1189,16 +778,16 @@ const quickAction = (type: BuildingType) => {
 .production-value {
   font-size: 0.82rem;
   font-weight: 600;
-  color: #4ade80;
+  color: var(--color-success-strong);
 }
 
 /* Niveau max */
 .detail-maxed {
   font-size: 0.82rem;
-  color: #c4b5fd;
+  color: var(--rarity-epic);
   text-align: center;
   padding: 0.5rem;
-  background: rgba(139, 92, 246, 0.08);
+  background: rgba(var(--rarity-epic-rgb), 0.08);
   border-radius: 7px;
 }
 
@@ -1218,7 +807,7 @@ const quickAction = (type: BuildingType) => {
 .upgrade-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #daa520;
+  color: var(--color-accent-ink);
 }
 
 .upgrade-gain {
@@ -1226,35 +815,19 @@ const quickAction = (type: BuildingType) => {
   align-items: center;
   gap: 4px;
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: var(--color-text-muted);
 }
 
 .gain-arrow {
-  color: #4ade80;
+  color: var(--color-success-strong);
   font-weight: bold;
-}
-
-.cost-chip {
-  padding: 0.2rem 0.5rem;
-  border-radius: 5px;
-  font-size: 0.75rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #f4e4bc;
-  transition: all 0.2s;
-}
-
-.cost-chip.insufficient {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #fca5a5;
 }
 
 .upgrade-eta {
   font-size: 0.73rem;
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: var(--color-warning);
+  background: rgba(var(--color-warning-rgb), 0.08);
+  border: 1px solid rgba(var(--color-warning-rgb), 0.25);
   border-radius: 5px;
   padding: 0.3rem 0.5rem;
   text-align: center;
@@ -1262,28 +835,6 @@ const quickAction = (type: BuildingType) => {
 
 .upgrade-btn {
   width: 100%;
-  padding: 0.55rem;
-  border-radius: 7px;
-  border: 1px solid rgba(218, 165, 32, 0.3);
-  background: rgba(139, 69, 19, 0.2);
-  color: #94a3b8;
-  font-size: 0.82rem;
-  cursor: not-allowed;
-  transition: all 0.25s ease;
-}
-
-.upgrade-btn.upgrade-btn-ready {
-  background: rgba(34, 197, 94, 0.15);
-  border-color: rgba(34, 197, 94, 0.5);
-  color: #4ade80;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.upgrade-btn.upgrade-btn-ready:hover {
-  background: rgba(34, 197, 94, 0.25);
-  border-color: #4ade80;
-  box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
 }
 
 /* ====== Animations ====== */
@@ -1297,38 +848,5 @@ const quickAction = (type: BuildingType) => {
 .slide-up-leave-to {
   opacity: 0;
   transform: translateY(8px);
-}
-
-/* ====== Responsive ======
-   La carte garde ses 3x3 zones nommées (les routes SVG sont alignées dessus) —
-   on réduit juste densité et tailles pour les petits écrans plutôt que de
-   changer la structure de la grille. */
-@media (max-width: 480px) {
-  .village-map {
-    gap: 0.4rem;
-    padding: 0.9rem 0.6rem;
-    min-height: 200px;
-  }
-
-  .building-tile {
-    min-height: 64px;
-  }
-
-  .tile-icon {
-    font-size: 1.4rem;
-  }
-
-  .tile-headquarters .tile-icon {
-    font-size: 1.7rem;
-  }
-
-  .tile-name {
-    font-size: 0.55rem;
-    max-width: 60px;
-  }
-
-  .tile-status {
-    font-size: 0.48rem;
-  }
 }
 </style>

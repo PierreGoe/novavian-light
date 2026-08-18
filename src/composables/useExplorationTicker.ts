@@ -8,20 +8,21 @@
 // reste monté en permanence tant que le joueur est dans la Campagne. Les appeler depuis un
 // autre composant démarrerait un second intervalle en parallèle.
 import { ref, watch } from 'vue'
-import {
-  useMapStore,
-  type MapTile,
-  type MovementUnit,
-  type TroopMovement,
-} from '@/stores/mapStore'
-import { useMissionStore, UNIT_DEFINITIONS, type MilitaryUnit } from '@/stores/missionStore'
+import { useMapStore, type MapTile, type MovementUnit, type TroopMovement } from '@/stores/mapStore'
+import { useMissionStore, type MilitaryUnit } from '@/stores/missionStore'
 import { useGameStore, type Artifact } from '@/stores/gameStore'
 import {
   defaultResolver,
   computeSiegeDestruction,
   getDestructionLabel,
 } from '@/combat/combatResolver'
-import type { Army, CombatModifier, CombatReport, CombatUnit, SavedBattleReport } from '@/combat/types'
+import type {
+  Army,
+  CombatModifier,
+  CombatReport,
+  CombatUnit,
+  SavedBattleReport,
+} from '@/combat/types'
 import { ENEMY_REGEN_INTERVAL_MS } from '@/config'
 import { gameSettings } from '@/stores/gameSettingsStore'
 import { useToastStore } from '@/stores/toastStore'
@@ -86,7 +87,10 @@ export function useExplorationTicker() {
    * Applique les effets spéciaux déclenchés au moment de la victoire
    * (gold_on_victory, leadership_on_victory, fog_reveal_on_victory, healing_after_combat)
    */
-  function applyPostVictorySpecialPowers(artifacts: Artifact[], position: { x: number; y: number }) {
+  function applyPostVictorySpecialPowers(
+    artifacts: Artifact[],
+    position: { x: number; y: number },
+  ) {
     let goldGained = 0
     let leadershipGained = 0
 
@@ -120,12 +124,11 @@ export function useExplorationTicker() {
 
         case 'healing_after_combat': {
           // Restaurer sp.value% des unités tuées au combat
-          const townUnits = missionStore.missionState.town.units
           let totalRestored = 0
-          for (const unit of townUnits) {
+          for (const unit of missionStore.missionState.town.units) {
             const restored = Math.floor(unit.count * (sp.value / 100))
             if (restored > 0) {
-              unit.count += restored
+              missionStore.addUnits(unit.type, restored)
               totalRestored += restored
             }
           }
@@ -286,7 +289,11 @@ export function useExplorationTicker() {
           losses: { killed: {}, survivors: [] },
           totalPowerUsed: 0,
         },
-        extra: { emptyGarrison: true, siegeUsed: hasSiegeUnit, destructionLevel: currentDestructionLevel },
+        extra: {
+          emptyGarrison: true,
+          siegeUsed: hasSiegeUnit,
+          destructionLevel: currentDestructionLevel,
+        },
       }
       combatReport.value = null
       missionStore.addBattleReport(emptyReport)
@@ -375,7 +382,10 @@ export function useExplorationTicker() {
             .filter((u) => u.type === 'siege')
             .reduce((s, u) => s + u.count, 0)
           const destructionAmount = computeSiegeDestruction(siegeSurvivors)
-          const { newLevel, isRuined } = mapStore.applyVillageDestruction(tile.id, destructionAmount)
+          const { newLevel, isRuined } = mapStore.applyVillageDestruction(
+            tile.id,
+            destructionAmount,
+          )
           report.siegeDestruction = destructionAmount
 
           if (isRuined) {
@@ -420,7 +430,8 @@ export function useExplorationTicker() {
       // Une défaite entame le leadership du joueur (le fail-state du jeu repose dessus).
       // On réutilise la pénalité déjà calculée pour la mission de campagne en cours si
       // disponible, sinon on retombe sur une pénalité par défaut selon le type de cible.
-      const missionLeadershipPenalty = missionStore.missionState.currentMission?.losePenalty?.leadership
+      const missionLeadershipPenalty =
+        missionStore.missionState.currentMission?.losePenalty?.leadership
       const fallbackLeadershipLoss = isStronghold
         ? Math.floor(Math.random() * 101) + 150 // Forteresse : 150-250
         : Math.floor(Math.random() * 71) + 50 // Village ennemi : 50-120
@@ -511,25 +522,8 @@ export function useExplorationTicker() {
       for (const movement of arrivals) {
         if (movement.isReturning) {
           // Troupes de retour : remettre les survivants dans la garnison
-          const townUnits = missionStore.missionState.town.units
           for (const unit of movement.units) {
-            if (unit.count <= 0) continue
-            const existing = townUnits.find((u) => u.type === unit.type)
-            if (existing) {
-              existing.count += unit.count
-            } else {
-              const unitType = unit.type as MilitaryUnit['type']
-              townUnits.push({
-                id: `${unitType}-${Date.now()}`,
-                type: unitType,
-                count: unit.count,
-                attack: unit.attack,
-                defense: unit.defense,
-                health: unit.health,
-                cost: UNIT_DEFINITIONS[unitType].cost,
-                trainingTime: UNIT_DEFINITIONS[unitType].baseTrainingTime,
-              })
-            }
+            missionStore.addUnits(unit.type as MilitaryUnit['type'], unit.count)
           }
           missionStore.saveMissionState()
           toastStore.addToast('🏠 Vos troupes sont rentrées au village.', 'info')
@@ -546,7 +540,10 @@ export function useExplorationTicker() {
               : `${totalReturnSec}s`
           mapStore.createReturnMovement(movement, survivors)
           mapStore.resolveMovement(movement.id)
-          toastStore.addToast(`↩️ Troupes en route vers la base — retour dans ${returnLabel}`, 'info')
+          toastStore.addToast(
+            `↩️ Troupes en route vers la base — retour dans ${returnLabel}`,
+            'info',
+          )
         }
       }
     }, 1000)

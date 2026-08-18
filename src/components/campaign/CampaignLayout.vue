@@ -1,6 +1,10 @@
 <template>
   <div class="campaign-view" :style="{ '--timers-panel-width': timersPanelWidth }">
-    <!-- Écran de transition/chargement -->
+    <!--
+      Volontairement custom, sur son propre fond sombre : c'est un scrim plein écran de
+      transition entre deux missions, pensé comme un moment cinématique bref plutôt qu'un
+      contenu de page — pas un candidat BaseDialog/NoticeBox.
+    -->
     <Transition name="fade">
       <div v-if="missionStore.isTransitioning.value" class="transition-overlay">
         <div class="transition-content">
@@ -16,34 +20,58 @@
       <div class="campaign-info">
         <h1>{{ missionName }}</h1>
         <div class="campaign-status">
-          <span
-            v-if="missionDifficulty"
-            class="difficulty-badge"
-            :class="`difficulty-${missionDifficulty}`"
-          >
+          <Badge v-if="missionDifficulty" :tone="DIFFICULTY_TONES[missionDifficulty]">
             {{ missionDifficulty.toUpperCase() }}
-          </span>
+          </Badge>
         </div>
       </div>
       <!-- Ressources Travian -->
       <div class="resources-display">
-        <div
-          v-for="key in TRAVIAN_RESOURCE_ORDER"
-          :key="key"
-          class="resource-item"
-          :aria-label="TRAVIAN_RESOURCES[key].label"
-        >
-          <span class="resource-icon" aria-hidden="true">{{ TRAVIAN_RESOURCES[key].emoji }}</span>
-          <span class="resource-values">
-            <ResourceCounter
-              class="resource-amount"
-              :value="missionStore.displayResources.value[key]"
-            />
-            <span class="resource-cap">/{{ formatNumber(capacity) }}</span>
-          </span>
-          <span class="resource-production"
-            >+{{ Math.floor(town?.production?.[key] || 0) }}/min</span
+        <div class="resource-group">
+          <div
+            v-for="key in TRAVIAN_RESOURCE_ORDER"
+            :key="key"
+            class="resource-item"
+            :aria-label="TRAVIAN_RESOURCES[key].label"
           >
+            <span class="resource-icon" aria-hidden="true">{{
+              TRAVIAN_RESOURCES[key].emoji
+            }}</span>
+            <span class="resource-values">
+              <ResourceCounter
+                class="resource-amount"
+                :value="missionStore.displayResources.value[key]"
+              />
+              <span class="resource-cap">/{{ formatNumber(capacity) }}</span>
+            </span>
+            <span class="resource-production"
+              >+{{ Math.floor(town?.production?.[key] || 0) }}/min</span
+            >
+          </div>
+        </div>
+
+        <!-- Séparateur : ressources de ville (production locale) vs méta-ressources
+             (comptes joueur, transversaux à toute la campagne) -->
+        <div class="resource-divider" role="separator" aria-orientation="vertical"></div>
+
+        <div class="resource-group">
+          <div class="resource-item" :aria-label="PLAYER_RESOURCES.mapFragment.label">
+            <span class="resource-icon" aria-hidden="true">{{
+              PLAYER_RESOURCES.mapFragment.emoji
+            }}</span>
+            <span class="resource-values">
+              <ResourceCounter
+                class="resource-amount"
+                :value="gameStore.gameState.inventory.mapFragments"
+              />
+            </span>
+          </div>
+          <div class="resource-item" aria-label="Troupes disponibles" :title="unitsTooltip">
+            <span class="resource-icon" aria-hidden="true">⚔️</span>
+            <span class="resource-values">
+              <ResourceCounter class="resource-amount" :value="totalUnits" />
+            </span>
+          </div>
         </div>
       </div>
 
@@ -56,7 +84,7 @@
           <span class="time-separator">|</span>
           <span class="time-item time-real" title="Heure réelle"> 🕒 {{ formattedRealTime }} </span>
         </div>
-        <button class="btn-exit" @click="exitCampaign">🏠 Retour aux missions</button>
+        <Button variant="secondary" @click="exitCampaign">🏠 Retour aux missions</Button>
       </div>
     </header>
 
@@ -78,20 +106,24 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useMissionStore, getResourceCapacity } from '@/stores/missionStore'
+import { useMissionStore, getResourceCapacity, UNIT_DEFINITIONS } from '@/stores/missionStore'
 import { useMapStore } from '@/stores/mapStore'
+import { useGameStore } from '@/stores/gameStore'
 import { getHQLevel } from '@/data/buildings'
-import { TRAVIAN_RESOURCES, TRAVIAN_RESOURCE_ORDER } from '@/data/resources'
+import { TRAVIAN_RESOURCES, TRAVIAN_RESOURCE_ORDER, PLAYER_RESOURCES } from '@/data/resources'
 import { formatNumber } from '@/utils/formatNumber'
 import { useExplorationTicker } from '@/composables/useExplorationTicker'
 import VictoryPointsDisplay from './VictoryPointsDisplay.vue'
 import TimersPanel from './TimersPanel.vue'
 import CombatReportOverlay from '../map/CombatReportOverlay.vue'
-import ResourceCounter from '@/components/globals/ResourceCounter.vue'
+import ResourceCounter from '@/components/ui/ResourceCounter.vue'
+import Badge from '@/components/ui/Badge.vue'
+import Button from '@/components/ui/Button.vue'
 
 const router = useRouter()
 const missionStore = useMissionStore()
 const mapStore = useMapStore()
+const gameStore = useGameStore()
 const { combatReport, start: startTicker, stop: stopTicker } = useExplorationTicker()
 
 // Computed
@@ -100,7 +132,24 @@ const town = computed(() => missionStore.town.value)
 const hqLevel = computed(() => getHQLevel(town.value?.buildings ?? []))
 const capacity = computed(() => getResourceCapacity(hqLevel.value))
 const missionName = computed(() => currentMission.value?.name || 'Camp de Base')
+// Total des troupes disponibles en garnison (hors mouvements/missions), pour l'indicateur
+// du header — le détail par type reste dans le tooltip, cf. BarracksCard.vue pour l'équivalent
+// détaillé (icône par type) affiché dans la vue Village.
+const totalUnits = computed(() =>
+  (town.value?.units ?? []).reduce((sum, u) => sum + u.count, 0),
+)
+const unitsTooltip = computed(() => {
+  const units = town.value?.units ?? []
+  if (units.length === 0) return 'Aucune troupe disponible'
+  return units.map((u) => `${UNIT_DEFINITIONS[u.type].name} : ${u.count}`).join(' · ')
+})
 const missionDifficulty = computed(() => currentMission.value?.difficulty)
+const DIFFICULTY_TONES = {
+  easy: 'success',
+  medium: 'warning',
+  hard: 'danger',
+  elite: 'epic',
+} as const
 
 // Temps
 const now = ref(Date.now())
@@ -171,8 +220,8 @@ onUnmounted(() => {
 <style scoped>
 .campaign-view {
   min-height: 100vh;
-  background: linear-gradient(135deg, #2c1810 0%, #1a0f08 100%);
-  color: #f4e4bc;
+  background: var(--gradient-canvas);
+  color: var(--color-text);
   display: flex;
   flex-direction: column;
   /* Le panneau de timers est une sidebar fixe (TimersPanel.vue) — on réserve l'espace à
@@ -195,16 +244,15 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 2rem;
-  background: rgba(0, 0, 0, 0.4);
-  border-bottom: 1px solid rgba(218, 165, 32, 0.3);
+  background: rgba(var(--color-white-rgb), 0.7);
+  border-bottom: 1px solid rgba(var(--color-accent-rgb), 0.3);
   backdrop-filter: blur(10px);
 }
 
 .campaign-info h1 {
   font-size: 1.8rem;
   margin: 0;
-  color: #daa520;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+  color: var(--color-accent-ink);
 }
 
 .campaign-status {
@@ -214,30 +262,6 @@ onUnmounted(() => {
   margin-top: 0.5rem;
 }
 
-.difficulty-badge {
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: bold;
-}
-
-.difficulty-easy {
-  background: #22c55e;
-  color: white;
-}
-.difficulty-medium {
-  background: #f59e0b;
-  color: white;
-}
-.difficulty-hard {
-  background: #ef4444;
-  color: white;
-}
-.difficulty-elite {
-  background: #8b5cf6;
-  color: white;
-}
-
 .resources-display {
   display: flex;
   gap: 0.5rem;
@@ -245,14 +269,30 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 
+.resource-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Sépare visuellement les ressources de ville (production locale, bois/argile/fer/céréales)
+   des méta-ressources (comptes joueur transversaux à la campagne : fragments, troupes). */
+.resource-divider {
+  width: 1px;
+  align-self: stretch;
+  min-height: 1.6rem;
+  background: rgba(var(--color-accent-rgb), 0.25);
+}
+
 .resource-item {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 0.6rem;
-  background: rgba(139, 69, 19, 0.2);
+  background: rgba(var(--color-accent-rgb), 0.08);
   border-radius: 6px;
-  border: 1px solid rgba(218, 165, 32, 0.3);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.3);
   line-height: 1.1;
 }
 
@@ -269,24 +309,26 @@ onUnmounted(() => {
 .resource-amount {
   font-weight: bold;
   font-size: 0.88rem;
-  color: #f4e4bc;
+  color: var(--color-text);
 }
 
 .resource-cap {
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--color-text-muted);
 }
 
 .resource-production {
   font-size: 0.68rem;
-  color: #22c55e;
+  color: var(--color-success-strong);
   opacity: 0.85;
   white-space: nowrap;
 }
 
 .header-actions {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-start;
   gap: 1rem;
 }
 
@@ -294,8 +336,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(218, 165, 32, 0.2);
+  background: rgba(var(--color-white-rgb), 0.5);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.2);
   border-radius: 8px;
   padding: 6px 12px;
   font-size: 0.82rem;
@@ -303,31 +345,16 @@ onUnmounted(() => {
 }
 
 .time-item {
-  color: #daa520;
+  color: var(--color-accent-ink);
   white-space: nowrap;
 }
 
 .time-real {
-  color: #94a3b8;
+  color: var(--color-text-muted);
 }
 
 .time-separator {
-  color: rgba(218, 165, 32, 0.3);
-}
-
-.btn-exit {
-  background: rgba(139, 69, 19, 0.4);
-  border: 1px solid #8b4513;
-  color: #f4e4bc;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.btn-exit:hover {
-  background: rgba(218, 165, 32, 0.3);
-  border-color: #daa520;
+  color: rgba(var(--color-accent-rgb), 0.3);
 }
 
 .campaign-content {
@@ -337,9 +364,9 @@ onUnmounted(() => {
 
 .campaign-router-view {
   height: 100%;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(var(--overlay-rgb), 0.03);
   border-radius: 12px;
-  border: 1px solid rgba(218, 165, 32, 0.3);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.15);
   overflow: hidden;
 }
 
@@ -413,5 +440,4 @@ onUnmounted(() => {
     gap: 1rem;
   }
 }
-
 </style>

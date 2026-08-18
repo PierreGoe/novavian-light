@@ -12,3 +12,11 @@ const props = defineProps<{
 
 const displayValue = computed(() => formatNumber(Math.floor(props.value)))
 </script>
+
+<style scoped>
+.resource-counter {
+  /* Chiffres alignés en largeur fixe — évite que l'affichage tressaute
+     visuellement quand un compteur de production incrémente en continu. */
+  font-variant-numeric: tabular-nums;
+}
+</style>

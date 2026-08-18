@@ -21,22 +21,16 @@
         <div class="game-stats" v-if="gameState.race">
           <h3>📊 Statistiques de votre règne</h3>
           <div class="stats-grid">
-            <div class="stat-item">
-              <span class="stat-label">Race choisie:</span>
-              <span class="stat-value">{{ gameState.race.name }} {{ gameState.race.icon }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Or restant:</span>
-              <span class="stat-value">💰 {{ gameState.inventory.gold }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Artefacts collectés:</span>
-              <span class="stat-value">🎁 {{ gameState.inventory.artifacts.length }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Temps de jeu:</span>
-              <span class="stat-value">⏱️ {{ formatPlayTime() }}</span>
-            </div>
+            <IconRow label="Race choisie"
+              >{{ gameState.race.name }} {{ gameState.race.icon }}</IconRow
+            >
+            <IconRow label="Or restant"
+              ><CurrencyBadge :amount="gameState.inventory.gold" icon="💰"
+            /></IconRow>
+            <IconRow label="Artefacts collectés"
+              >🎁 {{ gameState.inventory.artifacts.length }}</IconRow
+            >
+            <IconRow label="Temps de jeu">⏱️ {{ formatPlayTime() }}</IconRow>
           </div>
         </div>
 
@@ -46,35 +40,29 @@
 
           <div class="action-buttons">
             <!-- Recommencer avec la même race -->
-            <button
-              class="action-btn restart-same-race"
-              @click="restartWithSameRace"
+            <IconActionButton
               v-if="gameState.race"
-            >
-              <span class="btn-icon">🔄</span>
-              <div class="btn-content">
-                <span class="btn-title">Recommencer</span>
-                <span class="btn-subtitle">Avec {{ gameState.race.name }}</span>
-              </div>
-            </button>
+              icon="🔄"
+              title="Recommencer"
+              :subtitle="`Avec ${gameState.race.name}`"
+              @click="restartWithSameRace"
+            />
 
             <!-- Changer de race -->
-            <button class="action-btn change-race" @click="changeRace">
-              <span class="btn-icon">🎭</span>
-              <div class="btn-content">
-                <span class="btn-title">Changer de Race</span>
-                <span class="btn-subtitle">Nouveau début, nouvelle stratégie</span>
-              </div>
-            </button>
+            <IconActionButton
+              icon="🎭"
+              title="Changer de Race"
+              subtitle="Nouveau début, nouvelle stratégie"
+              @click="changeRace"
+            />
 
             <!-- Retour à l'accueil -->
-            <button class="action-btn go-home" @click="goHome">
-              <span class="btn-icon">🏠</span>
-              <div class="btn-content">
-                <span class="btn-title">Menu Principal</span>
-                <span class="btn-subtitle">Retour à l'accueil</span>
-              </div>
-            </button>
+            <IconActionButton
+              icon="🏠"
+              title="Menu Principal"
+              subtitle="Retour à l'accueil"
+              @click="goHome"
+            />
           </div>
         </div>
 
@@ -98,6 +86,9 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
+import CurrencyBadge from '@/components/ui/CurrencyBadge.vue'
+import IconActionButton from '@/components/ui/IconActionButton.vue'
+import IconRow from '@/components/ui/IconRow.vue'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -174,7 +165,7 @@ const goHome = () => {
 <style scoped>
 .game-over-screen {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1a0000 0%, #4a0000 50%, #1a0000 100%);
+  background: linear-gradient(135deg, #fdf4f4 0%, #faf8f5 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -191,26 +182,26 @@ const goHome = () => {
   right: 0;
   bottom: 0;
   background-image:
-    radial-gradient(circle at 20% 30%, rgba(220, 20, 60, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 80% 70%, rgba(139, 0, 0, 0.1) 0%, transparent 50%);
+    radial-gradient(circle at 20% 30%, rgba(220, 20, 60, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(139, 0, 0, 0.05) 0%, transparent 50%);
   animation: pulseBackground 4s ease-in-out infinite;
 }
 
 @keyframes pulseBackground {
   0%,
   100% {
-    opacity: 0.3;
+    opacity: 0.4;
   }
   50% {
-    opacity: 0.6;
+    opacity: 0.8;
   }
 }
 
 .game-over-overlay {
-  background: rgba(0, 0, 0, 0.9);
+  background: var(--color-bg-surface);
   border-radius: 20px;
-  backdrop-filter: blur(10px);
-  border: 2px solid rgba(220, 20, 60, 0.3);
+  border: 1px solid rgba(var(--color-danger-rgb), 0.2);
+  box-shadow: 0 16px 50px rgba(var(--color-black-rgb), 0.12);
   position: relative;
   z-index: 1;
   max-width: 800px;
@@ -220,7 +211,7 @@ const goHome = () => {
 .game-over-content {
   padding: 3rem;
   text-align: center;
-  color: #f4e4bc;
+  color: var(--color-text);
 }
 
 .game-over-animation {
@@ -249,55 +240,51 @@ const goHome = () => {
 .game-over-title {
   font-size: 4rem;
   font-weight: bold;
-  color: #dc143c;
-  text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.8);
+  color: var(--color-danger);
+  text-shadow: 0 2px 8px rgba(var(--color-danger-rgb), 0.25);
   margin-bottom: 1rem;
   animation: glow 2s ease-in-out infinite alternate;
 }
 
 @keyframes glow {
   from {
-    text-shadow:
-      3px 3px 6px rgba(0, 0, 0, 0.8),
-      0 0 20px rgba(220, 20, 60, 0.5);
+    text-shadow: 0 2px 8px rgba(var(--color-danger-rgb), 0.25);
   }
   to {
-    text-shadow:
-      3px 3px 6px rgba(0, 0, 0, 0.8),
-      0 0 30px rgba(220, 20, 60, 0.8);
+    text-shadow: 0 2px 16px rgba(var(--color-danger-rgb), 0.45);
   }
 }
 
 .game-over-reason {
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background: rgba(139, 0, 0, 0.2);
+  background: rgba(var(--color-danger-rgb), 0.06);
   border-radius: 10px;
-  border: 1px solid rgba(220, 20, 60, 0.3);
+  border: 1px solid rgba(var(--color-danger-rgb), 0.25);
 }
 
 .game-over-reason h2 {
   font-size: 1.5rem;
-  color: #ff6b6b;
+  color: var(--color-danger);
   margin-bottom: 1rem;
 }
 
 .reason-description {
   font-size: 1rem;
-  opacity: 0.9;
+  color: var(--color-text-muted);
   line-height: 1.6;
 }
 
 .game-stats {
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background: rgba(218, 165, 32, 0.1);
+  background: rgba(var(--color-accent-rgb), 0.06);
   border-radius: 10px;
-  border: 1px solid rgba(218, 165, 32, 0.3);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.25);
 }
 
 .game-stats h3 {
-  color: #daa520;
+  color: var(--color-accent-ink);
   margin-bottom: 1rem;
 }
 
@@ -307,23 +294,10 @@ const goHome = () => {
   gap: 1rem;
 }
 
-.stat-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem;
-  background: rgba(0, 0, 0, 0.3);
+.stats-grid :deep(.icon-row) {
+  padding: 0.5rem 0.75rem;
+  background: rgba(var(--overlay-rgb), 0.04);
   border-radius: 5px;
-}
-
-.stat-label {
-  font-size: 0.9rem;
-  opacity: 0.8;
-}
-
-.stat-value {
-  font-weight: bold;
-  color: #daa520;
 }
 
 .game-over-actions {
@@ -331,93 +305,26 @@ const goHome = () => {
 }
 
 .game-over-actions h3 {
-  color: #daa520;
+  color: var(--color-accent-ink);
   margin-bottom: 1.5rem;
 }
 
 .action-buttons {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 1rem;
-}
-
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  background: rgba(139, 69, 19, 0.4);
-  border: 2px solid transparent;
-  border-radius: 10px;
-  color: #f4e4bc;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-align: left;
-}
-
-.action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-}
-
-.restart-same-race {
-  border-color: #22c55e;
-}
-
-.restart-same-race:hover {
-  background: rgba(34, 197, 94, 0.2);
-  border-color: #16a34a;
-}
-
-.change-race {
-  border-color: #3b82f6;
-}
-
-.change-race:hover {
-  background: rgba(59, 130, 246, 0.2);
-  border-color: #2563eb;
-}
-
-.go-home {
-  border-color: #6b7280;
-}
-
-.go-home:hover {
-  background: rgba(107, 114, 128, 0.2);
-  border-color: #4b5563;
-}
-
-.btn-icon {
-  font-size: 2rem;
-  flex-shrink: 0;
-}
-
-.btn-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.btn-title {
-  font-size: 1.1rem;
-  font-weight: bold;
-}
-
-.btn-subtitle {
-  font-size: 0.9rem;
-  opacity: 0.8;
 }
 
 .tips-section {
   padding: 1.5rem;
-  background: rgba(139, 69, 19, 0.2);
+  background: rgba(var(--overlay-rgb), 0.03);
   border-radius: 10px;
-  border: 1px solid rgba(218, 165, 32, 0.3);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.2);
   text-align: left;
 }
 
 .tips-section h4 {
-  color: #daa520;
+  color: var(--color-accent-ink);
   margin-bottom: 1rem;
   text-align: center;
 }
@@ -426,11 +333,12 @@ const goHome = () => {
   list-style: none;
   padding: 0;
   margin: 0;
+  color: var(--color-text-muted);
 }
 
 .tips-list li {
   padding: 0.5rem 0;
-  border-bottom: 1px solid rgba(218, 165, 32, 0.1);
+  border-bottom: 1px solid rgba(var(--overlay-rgb), 0.1);
   font-size: 0.9rem;
   line-height: 1.4;
 }
@@ -455,14 +363,6 @@ const goHome = () => {
 
   .stats-grid {
     grid-template-columns: 1fr;
-  }
-
-  .action-btn {
-    padding: 1rem;
-  }
-
-  .btn-icon {
-    font-size: 1.5rem;
   }
 }
 </style>

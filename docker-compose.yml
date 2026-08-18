@@ -11,13 +11,26 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true
 
+  storybook:
+    build: .
+    container_name: novavian-storybook
+    restart: unless-stopped
+    command: npx storybook dev --host 0.0.0.0 --port 6006 --no-open --ci
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+
   proxy:
     image: caddy:2-alpine
     container_name: novavian-proxy
     restart: unless-stopped
     ports:
       - '8880:80'
+      - '8881:81'
     volumes:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
       - app
+      - storybook

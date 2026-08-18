@@ -2,13 +2,14 @@
   <div class="bazar-page">
     <!-- En-tête -->
     <header class="bazar-header">
-      <button
-        class="back-btn"
+      <Button
+        variant="secondary"
+        size="sm"
         @click="exitBazar"
         title="Quitter le Bazar — vous ne pourrez plus y revenir"
       >
         ← Retour
-      </button>
+      </Button>
       <h1>🔮 Bazar Mystique</h1>
       <span class="gold-display">🪙 {{ currentGold }} or</span>
     </header>
@@ -49,7 +50,9 @@
             <!-- En-tête de la carte -->
             <div class="card-top">
               <span class="card-icon">{{ artifact.icon }}</span>
-              <span class="rarity-badge">{{ rarityLabel(artifact.rarity) }}</span>
+              <RarityBadge :rarity="artifact.rarity">{{
+                rarityLabel(artifact.rarity)
+              }}</RarityBadge>
             </div>
 
             <div class="card-name">{{ artifact.name }}</div>
@@ -57,26 +60,26 @@
 
             <!-- Effets statistiques -->
             <div class="card-effects" v-if="hasEffects(artifact)">
-              <span v-if="artifact.effects.economy" class="fx economy"
-                >+{{ artifact.effects.economy }}% Éco</span
+              <FxBadge v-if="artifact.effects.economy" kind="economy"
+                >+{{ artifact.effects.economy }}% Éco</FxBadge
               >
-              <span v-if="artifact.effects.military" class="fx military"
-                >+{{ artifact.effects.military }}% Mil</span
+              <FxBadge v-if="artifact.effects.military" kind="military"
+                >+{{ artifact.effects.military }}% Mil</FxBadge
               >
-              <span v-if="artifact.effects.defense" class="fx defense"
-                >+{{ artifact.effects.defense }}% Déf</span
+              <FxBadge v-if="artifact.effects.defense" kind="defense"
+                >+{{ artifact.effects.defense }}% Déf</FxBadge
               >
-              <span v-if="artifact.effects.resourceBonus?.wood" class="fx resource"
-                >+{{ artifact.effects.resourceBonus.wood }}% Bois</span
+              <FxBadge v-if="artifact.effects.resourceBonus?.wood" kind="resource"
+                >+{{ artifact.effects.resourceBonus.wood }}% Bois</FxBadge
               >
-              <span v-if="artifact.effects.resourceBonus?.stone" class="fx resource"
-                >+{{ artifact.effects.resourceBonus.stone }}% Pierre</span
+              <FxBadge v-if="artifact.effects.resourceBonus?.stone" kind="resource"
+                >+{{ artifact.effects.resourceBonus.stone }}% Pierre</FxBadge
               >
-              <span v-if="artifact.effects.resourceBonus?.iron" class="fx resource"
-                >+{{ artifact.effects.resourceBonus.iron }}% Fer</span
+              <FxBadge v-if="artifact.effects.resourceBonus?.iron" kind="resource"
+                >+{{ artifact.effects.resourceBonus.iron }}% Fer</FxBadge
               >
-              <span v-if="artifact.effects.resourceBonus?.crop" class="fx resource">
-                +{{ artifact.effects.resourceBonus.crop }}% Céréales</span
+              <FxBadge v-if="artifact.effects.resourceBonus?.crop" kind="resource">
+                +{{ artifact.effects.resourceBonus.crop }}% Céréales</FxBadge
               >
             </div>
 
@@ -117,9 +120,10 @@
           </p>
         </div>
 
-        <div v-if="allArtifacts.length === 0" class="empty-state">
-          Votre inventaire est vide — rien à vendre.
-        </div>
+        <EmptyState
+          v-if="allArtifacts.length === 0"
+          message="Votre inventaire est vide — rien à vendre."
+        />
 
         <div class="sell-grid" v-else>
           <div
@@ -146,7 +150,7 @@
       <!-- ===== Quitter le Bazar ===== -->
       <div class="bazar-exit">
         <p class="exit-warning">⚠️ Une fois parti, vous ne pourrez plus revenir à ce Bazar.</p>
-        <button class="exit-btn" @click="exitBazar">🚪 Quitter le Bazar</button>
+        <Button variant="danger" @click="exitBazar">🚪 Quitter le Bazar</Button>
       </div>
     </div>
 
@@ -165,6 +169,10 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
+import Button from '@/components/ui/Button.vue'
+import RarityBadge from '@/components/ui/RarityBadge.vue'
+import FxBadge from '@/components/ui/FxBadge.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { useGameStore, type Artifact } from '@/stores/gameStore'
 import {
   SELL_PRICES,
@@ -332,29 +340,29 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
 
 <style scoped lang="scss">
 // ===== Couleurs par rareté =====
-$rarity-common: #9ca3af;
-$rarity-rare: #3b82f6;
-$rarity-epic: #8b5cf6;
-$rarity-legendary: #f59e0b;
-
+// Tirées des tokens partagés --rarity-* (src/styles/tokens.css), mêmes que RarityBadge.
 .rarity-common {
-  --rarity-color: #{$rarity-common};
+  --rarity-color: var(--rarity-common);
+  --rarity-rgb: var(--rarity-common-rgb);
 }
 .rarity-rare {
-  --rarity-color: #{$rarity-rare};
+  --rarity-color: var(--rarity-rare);
+  --rarity-rgb: var(--rarity-rare-rgb);
 }
 .rarity-epic {
-  --rarity-color: #{$rarity-epic};
+  --rarity-color: var(--rarity-epic);
+  --rarity-rgb: var(--rarity-epic-rgb);
 }
 .rarity-legendary {
-  --rarity-color: #{$rarity-legendary};
+  --rarity-color: var(--rarity-legendary);
+  --rarity-rgb: var(--rarity-legendary-rgb);
 }
 
 // ===== Page =====
 .bazar-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1a0a2e 0%, #12102e 50%, #0a1a3a 100%);
-  color: #e2e8f0;
+  background: var(--gradient-canvas);
+  color: var(--color-text);
   display: flex;
   flex-direction: column;
 }
@@ -365,39 +373,25 @@ $rarity-legendary: #f59e0b;
   align-items: center;
   gap: 1rem;
   padding: 1rem 2rem;
-  background: rgba(80, 0, 120, 0.35);
-  border-bottom: 1px solid rgba(160, 80, 255, 0.25);
+  background: rgba(var(--rarity-epic-rgb), 0.06);
+  border-bottom: 1px solid rgba(var(--rarity-epic-rgb), 0.25);
 
   h1 {
     flex: 1;
     margin: 0;
     font-size: 1.5rem;
     text-align: center;
-    text-shadow: 0 0 20px rgba(160, 80, 255, 0.6);
+    text-shadow: 0 1px 2px rgba(var(--color-black-rgb), 0.1);
   }
 
   .gold-display {
     font-size: 1rem;
     font-weight: 700;
-    color: #f59e0b;
-    background: rgba(245, 158, 11, 0.12);
+    color: var(--color-accent-ink);
+    background: rgba(var(--color-accent-rgb), 0.12);
     padding: 0.3rem 0.75rem;
     border-radius: 8px;
-    border: 1px solid rgba(245, 158, 11, 0.3);
-  }
-}
-
-.back-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #e2e8f0;
-  padding: 0.4rem 0.9rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.2s;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(var(--color-accent-rgb), 0.3);
   }
 }
 
@@ -427,12 +421,12 @@ $rarity-legendary: #f59e0b;
   h2 {
     margin: 0 0 0.25rem;
     font-size: 1.3rem;
-    color: #c084fc;
+    color: var(--rarity-epic);
   }
   .section-subtitle {
     margin: 0;
     font-size: 0.85rem;
-    color: #94a3b8;
+    color: var(--color-text-muted);
   }
 }
 
@@ -446,16 +440,20 @@ $rarity-legendary: #f59e0b;
 
 .reroll-info {
   font-size: 0.85rem;
-  color: #94a3b8;
+  color: var(--color-text-muted);
 
   strong {
-    color: #e2e8f0;
+    color: var(--color-text);
     &.exhausted {
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
 }
 
+/* Bouton custom volontaire : dégradé indigo/violet propre à l'identité "arcane"
+   du Bazar — aucun variant `Button` ne le couvre sans réintroduire le doré
+   Travian ou aplatir cette identité. Texte blanc fixe : contraste garanti sur
+   ce fond plein quel que soit le thème. */
 .reroll-btn {
   background: linear-gradient(135deg, #4f46e5, #7c3aed);
   border: none;
@@ -486,8 +484,8 @@ $rarity-legendary: #f59e0b;
 }
 
 .offer-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 2px solid var(--rarity-color, #9ca3af);
+  background: var(--color-bg-surface);
+  border: 2px solid var(--rarity-color, var(--rarity-common));
   border-radius: 12px;
   padding: 1rem;
   display: flex;
@@ -499,7 +497,7 @@ $rarity-legendary: #f59e0b;
 
   &:hover {
     transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 6px 20px rgba(var(--color-black-rgb), 0.12);
   }
 }
 
@@ -514,26 +512,15 @@ $rarity-legendary: #f59e0b;
   line-height: 1;
 }
 
-.rarity-badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--rarity-color, #9ca3af);
-  background: rgba(0, 0, 0, 0.3);
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-}
-
 .card-name {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #f1f5f9;
+  color: var(--color-text);
 }
 
 .card-desc {
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   line-height: 1.4;
   margin: 0;
   flex: 1;
@@ -545,41 +532,17 @@ $rarity-legendary: #f59e0b;
   gap: 0.3rem;
 }
 
-.fx {
-  font-size: 0.72rem;
-  padding: 0.15rem 0.45rem;
-  border-radius: 4px;
-  font-weight: 600;
-
-  &.economy {
-    background: rgba(var(--fx-economy-rgb), 0.2);
-    color: var(--fx-economy);
-  }
-  &.military {
-    background: rgba(var(--fx-military-rgb), 0.2);
-    color: var(--fx-military);
-  }
-  &.defense {
-    background: rgba(var(--fx-defense-rgb), 0.2);
-    color: var(--fx-defense);
-  }
-  &.resource {
-    background: rgba(var(--fx-resource-rgb), 0.2);
-    color: var(--fx-resource);
-  }
-}
-
 .card-special {
   font-size: 0.78rem;
-  color: #c084fc;
-  background: rgba(192, 132, 252, 0.1);
+  color: var(--rarity-epic);
+  background: rgba(var(--rarity-epic-rgb), 0.1);
   border-radius: 6px;
   padding: 0.3rem 0.5rem;
 }
 
 .card-durability {
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--color-text-muted);
   display: flex;
   gap: 0.5rem;
   align-items: center;
@@ -587,18 +550,21 @@ $rarity-legendary: #f59e0b;
 
 .fragile-tag {
   font-size: 0.72rem;
-  color: #f97316;
+  color: var(--color-warning);
 }
 
+/* Bouton custom volontaire : la teinte est dynamique par rareté de l'objet
+   (variable CSS `--rarity-color` posée par le parent) — `Button` n'a pas de
+   variant paramétrable par couleur arbitraire. */
 .buy-btn {
   margin-top: auto;
   background: linear-gradient(
     135deg,
-    rgba(var(--rarity-rgb, 59, 130, 246), 0.25),
-    rgba(0, 0, 0, 0.2)
+    rgba(var(--rarity-rgb, var(--rarity-rare-rgb)), 0.18),
+    rgba(var(--rarity-rgb, var(--rarity-rare-rgb)), 0.06)
   );
-  border: 1px solid var(--rarity-color, #3b82f6);
-  color: var(--rarity-color, #3b82f6);
+  border: 1px solid var(--rarity-color, var(--rarity-rare));
+  color: var(--rarity-color, var(--rarity-rare));
   padding: 0.45rem 0.8rem;
   border-radius: 7px;
   cursor: pointer;
@@ -607,7 +573,7 @@ $rarity-legendary: #f59e0b;
   transition: background 0.2s;
 
   &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(var(--rarity-rgb, var(--rarity-rare-rgb)), 0.3);
   }
   &:disabled {
     opacity: 0.35;
@@ -618,15 +584,8 @@ $rarity-legendary: #f59e0b;
 // ===== Section vente =====
 .sell-section {
   .section-title-block h2 {
-    color: #fbbf24;
+    color: var(--color-accent-ink);
   }
-}
-
-.empty-state {
-  text-align: center;
-  color: #64748b;
-  padding: 2rem;
-  font-size: 0.9rem;
 }
 
 .sell-grid {
@@ -640,17 +599,17 @@ $rarity-legendary: #f59e0b;
   align-items: center;
   justify-content: space-between;
   padding: 0.6rem 1rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--rarity-color, #9ca3af);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--rarity-color, var(--rarity-common));
   border-radius: 8px;
   transition: background 0.15s;
 
   &.is-active {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(var(--color-accent-rgb), 0.06);
   }
 
   &:hover {
-    background: rgba(255, 255, 255, 0.07);
+    background: rgba(var(--overlay-rgb), 0.03);
   }
 }
 
@@ -673,28 +632,31 @@ $rarity-legendary: #f59e0b;
 .sell-name {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--color-text);
 }
 
 .sell-rarity {
   font-size: 0.75rem;
-  color: var(--rarity-color, #9ca3af);
+  color: var(--rarity-color, var(--rarity-common));
 }
 
 .active-tag {
   font-size: 0.7rem;
-  color: #22c55e;
-  background: rgba(34, 197, 94, 0.15);
+  color: var(--color-success);
+  background: rgba(var(--color-success-strong-rgb), 0.15);
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  border: 1px solid rgba(var(--color-success-strong-rgb), 0.3);
   width: fit-content;
 }
 
+/* Bouton custom volontaire : chip translucide teinté accent, distinct des
+   variants pleins de `Button` (primary/secondary/ghost) — traitement propre
+   à l'action "vendre" dans ce contexte de carte compacte. */
 .sell-btn {
-  background: rgba(245, 158, 11, 0.15);
-  border: 1px solid rgba(245, 158, 11, 0.4);
-  color: #f59e0b;
+  background: rgba(var(--color-accent-rgb), 0.15);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.4);
+  color: var(--color-accent-ink);
   padding: 0.4rem 1rem;
   border-radius: 7px;
   cursor: pointer;
@@ -704,7 +666,7 @@ $rarity-legendary: #f59e0b;
   transition: background 0.2s;
 
   &:hover {
-    background: rgba(245, 158, 11, 0.3);
+    background: rgba(var(--color-accent-rgb), 0.3);
   }
 }
 
@@ -715,34 +677,14 @@ $rarity-legendary: #f59e0b;
   align-items: center;
   gap: 0.75rem;
   padding: 2rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(var(--overlay-rgb), 0.1);
   margin-top: 1rem;
 }
 
 .exit-warning {
   margin: 0;
   font-size: 0.85rem;
-  color: #f97316;
+  color: var(--color-warning);
   text-align: center;
-}
-
-.exit-btn {
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.45);
-  color: #ef4444;
-  padding: 0.65rem 2rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  transition:
-    background 0.2s,
-    transform 0.1s;
-
-  &:hover {
-    background: rgba(239, 68, 68, 0.3);
-    transform: translateY(-1px);
-  }
 }
 </style>

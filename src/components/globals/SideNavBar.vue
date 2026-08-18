@@ -32,9 +32,11 @@
         >
           <span class="nav-icon">
             {{ link.icon }}
-            <span v-if="link.to === '/reports' && unreadReportsCount > 0" class="nav-badge">{{
-              unreadReportsCount
-            }}</span>
+            <CountBadge
+              v-if="link.to === '/reports'"
+              :count="unreadReportsCount"
+              variant="active"
+            />
           </span>
           <Transition name="fade-text">
             <span v-if="!isCollapsed" class="nav-label">{{ link.label }}</span>
@@ -91,7 +93,11 @@
       </div>
     </div>
 
-    <!-- Bouton menu principal (retour accueil) -->
+    <!--
+      Bouton menu principal — volontairement custom, pas de Button : doit reprendre au
+      pixel le style icône+libellé collapsible des .nav-link voisins pour rester visuellement
+      dans la même famille de navigation, ce que Button (bouton d'action générique) ne fait pas.
+    -->
     <button v-if="isInGame" class="nav-home-btn" @click="goHome" title="Menu principal">
       <span class="nav-icon">🏠</span>
       <Transition name="fade-text">
@@ -99,7 +105,11 @@
       </Transition>
     </button>
 
-    <!-- Chiffres flottants pour les animations or/leadership -->
+    <!--
+      Chiffres flottants or/leadership — volontairement custom, pas de FloatingNumber :
+      ce composant n'a pas de slot pour l'emoji suffixe (🪙/👑) ni de fond en pilule,
+      les deux présents ici.
+    -->
     <div class="floating-numbers-container">
       <div
         v-for="floating in floatingNumbers"
@@ -130,7 +140,13 @@
       <span class="bottom-stat-icon">👑</span>
       <span class="bottom-stat-value">{{ leadership }}</span>
     </div>
-    <button class="bottom-stat-home" @click="goHome" title="Menu principal" aria-label="Menu principal">
+    <!-- Équivalent mobile de .nav-home-btn — même exception (cohérence avec les .bottom-stat-item voisins). -->
+    <button
+      class="bottom-stat-home"
+      @click="goHome"
+      title="Menu principal"
+      aria-label="Menu principal"
+    >
       🏠
     </button>
   </div>
@@ -153,9 +169,7 @@
     >
       <span class="bottom-nav-icon">
         {{ link.icon }}
-        <span v-if="link.to === '/reports' && unreadReportsCount > 0" class="nav-badge nav-badge--bottom">{{
-          unreadReportsCount
-        }}</span>
+        <CountBadge v-if="link.to === '/reports'" :count="unreadReportsCount" variant="active" />
       </span>
       <span class="bottom-nav-label">{{ link.label }}</span>
     </router-link>
@@ -168,7 +182,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 import { useMissionStore } from '@/stores/missionStore'
 import { formatNumber } from '@/utils/formatNumber'
-import NavToggleButton from './NavToggleButton.vue'
+import NavToggleButton from '@/components/ui/NavToggleButton.vue'
+import CountBadge from '@/components/ui/CountBadge.vue'
 
 // ===============================================================
 // Stores & router
@@ -254,7 +269,6 @@ const leadershipTooltip = computed(() => {
   return `Leadership: ${ls}/200 — ${status.description}`
 })
 
-
 const goHome = () => {
   if (window.confirm('Retourner au menu principal ? Votre partie en cours reste sauvegardée.')) {
     router.push('/')
@@ -316,10 +330,12 @@ watch(leadership, (newVal) => {
 // ===============================================================
 $nav-width-expanded: 220px;
 $nav-width-collapsed: 64px;
-$nav-bg: linear-gradient(180deg, #1a0f08 0%, #2c1810 100%);
-$nav-border: rgba(218, 165, 32, 0.35);
-$gold-color: #daa520;
-$text-color: #f4e4bc;
+// Sidebar légèrement distincte du canvas (--color-bg-canvas) pour se détacher
+// subtilement du contenu, sans reprendre le fond sombre pré-passage à la base claire.
+$nav-bg: var(--color-bg-surface);
+$nav-border: rgba(var(--color-accent-rgb), 0.25);
+$gold-color: var(--color-accent-ink);
+$text-color: var(--color-text);
 $transition: 0.25s ease;
 $mobile-breakpoint: 768px;
 
@@ -334,7 +350,7 @@ $mobile-breakpoint: 768px;
   width: $nav-width-expanded;
   background: $nav-bg;
   border-right: 1px solid $nav-border;
-  box-shadow: 3px 0 15px rgba(0, 0, 0, 0.5);
+  box-shadow: 3px 0 15px rgba(var(--color-black-rgb), 0.06);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -358,7 +374,6 @@ $mobile-breakpoint: 768px;
     }
   }
 }
-
 
 // Logo
 .nav-logo {
@@ -386,7 +401,6 @@ $mobile-breakpoint: 768px;
 
   .logo-text {
     color: $gold-color;
-    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
   }
 }
 
@@ -631,16 +645,17 @@ $mobile-breakpoint: 768px;
   font-weight: 700;
   padding: 0.2rem 0.5rem;
   border-radius: 6px;
-  background: rgba(26, 15, 8, 0.9);
+  background: rgba(var(--color-white-rgb), 0.95);
   border: 1px solid $nav-border;
+  box-shadow: 0 2px 8px rgba(var(--color-black-rgb), 0.1);
   animation: floatUp 2s ease-out forwards;
   white-space: nowrap;
 
   &--positive {
-    color: #22c55e;
+    color: var(--color-success-strong);
   }
   &--negative {
-    color: #ef4444;
+    color: var(--color-danger);
   }
 }
 
@@ -689,7 +704,7 @@ $mobile-breakpoint: 768px;
     height: 64px;
     background: $nav-bg;
     border-top: 1px solid $nav-border;
-    box-shadow: 0 -3px 15px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 -3px 15px rgba(var(--color-black-rgb), 0.06);
     z-index: 200;
     align-items: stretch;
     justify-content: space-around;
@@ -706,7 +721,7 @@ $mobile-breakpoint: 768px;
     left: 0;
     right: 0;
     height: 34px;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(var(--color-white-rgb), 0.9);
     border-top: 1px solid $nav-border;
     z-index: 200;
     align-items: center;
@@ -729,7 +744,7 @@ $mobile-breakpoint: 768px;
 }
 
 .bottom-stat-item.leadership-critical {
-  color: #ff6b6b;
+  color: var(--color-danger);
   animation: leadershipAlert 2s infinite;
 }
 
@@ -779,31 +794,6 @@ $mobile-breakpoint: 768px;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 60px;
-  }
-}
-
-// Badge "non lus" sur l'icône Rapports (desktop + mobile)
-.nav-badge {
-  position: absolute;
-  top: -4px;
-  right: -6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  border-radius: 8px;
-  background: #ef4444;
-  color: white;
-  font-size: 0.6rem;
-  font-weight: 700;
-  line-height: 1;
-  border: 1px solid #1a0f08;
-
-  &--bottom {
-    top: -3px;
-    right: -8px;
   }
 }
 </style>

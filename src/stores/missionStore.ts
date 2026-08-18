@@ -340,10 +340,22 @@ export const useMissionStore = () => {
 
     const production = missionState.town.production
     return {
-      wood: Math.min(cap, Math.floor(missionState.town.resources.wood + production.wood * timeElapsed)),
-      clay: Math.min(cap, Math.floor(missionState.town.resources.clay + production.clay * timeElapsed)),
-      iron: Math.min(cap, Math.floor(missionState.town.resources.iron + production.iron * timeElapsed)),
-      crop: Math.min(cap, Math.floor(missionState.town.resources.crop + production.crop * timeElapsed)),
+      wood: Math.min(
+        cap,
+        Math.floor(missionState.town.resources.wood + production.wood * timeElapsed),
+      ),
+      clay: Math.min(
+        cap,
+        Math.floor(missionState.town.resources.clay + production.clay * timeElapsed),
+      ),
+      iron: Math.min(
+        cap,
+        Math.floor(missionState.town.resources.iron + production.iron * timeElapsed),
+      ),
+      crop: Math.min(
+        cap,
+        Math.floor(missionState.town.resources.crop + production.crop * timeElapsed),
+      ),
     }
   })
 
@@ -786,6 +798,46 @@ export const useMissionStore = () => {
   const trainingQueue = computed(() => missionState.town.trainingQueue)
 
   /**
+   * Ajoute (ou crée) des unités d'un type donné dans la garnison de ville.
+   * Seul point de mutation pour les gains d'unités (formation terminée, retour de mission,
+   * soin de relique) — ne sauvegarde pas, à l'appelant de le faire. Voir aussi removeUnits().
+   */
+  const addUnits = (type: MilitaryUnit['type'], count: number): void => {
+    if (count <= 0) return
+    const existing = missionState.town.units.find((u) => u.type === type)
+    if (existing) {
+      existing.count += count
+      return
+    }
+    const def = UNIT_DEFINITIONS[type]
+    missionState.town.units.push({
+      id: `${type}-${Date.now()}`,
+      type,
+      count,
+      attack: def.stats.attack,
+      defense: def.stats.defense,
+      health: def.stats.health,
+      cost: def.cost,
+      trainingTime: def.baseTrainingTime,
+    })
+  }
+
+  /**
+   * Retire des unités d'un type donné de la garnison de ville (pertes au combat, départ en
+   * mouvement). Clampe à 0 et supprime l'entrée si elle tombe à 0 — seul point de mutation
+   * pour les pertes d'unités, ne sauvegarde pas. Voir aussi addUnits().
+   */
+  const removeUnits = (type: MilitaryUnit['type'], count: number): void => {
+    if (count <= 0) return
+    const existing = missionState.town.units.find((u) => u.type === type)
+    if (!existing) return
+    existing.count = Math.max(0, existing.count - count)
+    if (existing.count === 0) {
+      missionState.town.units = missionState.town.units.filter((u) => u.type !== type)
+    }
+  }
+
+  /**
    * Ajoute une unité en file de construction.
    * Les ressources sont déduites immédiatement.
    * Retourne false si caserne trop basse ou ressources insuffisantes.
@@ -831,22 +883,7 @@ export const useMissionStore = () => {
     missionState.town.trainingQueue = missionState.town.trainingQueue.filter((e) => e.endsAt > now)
 
     for (const entry of completed) {
-      const def = UNIT_DEFINITIONS[entry.type]
-      const existing = missionState.town.units.find((u) => u.type === entry.type)
-      if (existing) {
-        existing.count++
-      } else {
-        missionState.town.units.push({
-          id: `${entry.type}-${Date.now()}`,
-          type: entry.type,
-          count: 1,
-          attack: def.stats.attack,
-          defense: def.stats.defense,
-          health: def.stats.health,
-          cost: def.cost,
-          trainingTime: def.baseTrainingTime,
-        })
-      }
+      addUnits(entry.type, 1)
     }
 
     saveMissionState()
@@ -866,10 +903,7 @@ export const useMissionStore = () => {
     const def = UNIT_DEFINITIONS[entry.type]
 
     // Rembourser les ressources
-    missionState.town.resources.wood += def.cost.wood
-    missionState.town.resources.clay += def.cost.clay
-    missionState.town.resources.iron += def.cost.iron
-    missionState.town.resources.crop += def.cost.crop
+    applyResourceDelta(def.cost)
 
     // Retirer de la file
     queue.splice(index, 1)
@@ -1068,6 +1102,8 @@ export const useMissionStore = () => {
     enqueueUnit,
     cancelQueueEntry,
     processTrainingQueue,
+    addUnits,
+    removeUnits,
     barrackLevel,
     trainingQueue,
 

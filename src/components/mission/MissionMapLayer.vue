@@ -1,26 +1,6 @@
 <template>
-  <div class="map-layer" :class="{ 'current-layer': layer.row === currentPlayerRow }">
-    <!-- Lignes de connexion -->
-    <svg class="connections-svg" v-if="layer.row < totalLayers - 1">
-      <g v-for="node in layer.nodes" :key="node.id">
-        <line
-          v-for="connectionId in node.connections"
-          :key="`${node.id}-${connectionId}`"
-          :x1="(node.col + 0.5) * 240"
-          :y1="100"
-          :x2="getConnectionX(connectionId)"
-          :y2="260"
-          class="connection-line"
-          :class="{
-            'active-connection': node.completed,
-            'accessible-connection': node.accessible,
-          }"
-        />
-      </g>
-    </svg>
-
-    <!-- Nodes de cette ligne -->
-    <div class="layer-nodes">
+  <div class="map-layer" :style="{ zIndex: isLayerActive ? 20 : 1 }">
+    <div class="layer-nodes" :style="{ width: `${MAP_WIDTH}px` }">
       <div
         v-for="node in layer.nodes"
         :key="node.id"
@@ -33,102 +13,129 @@
             'node-accessible': node.accessible && !node.completed && !node.inProgress,
             'node-locked': !node.accessible && !node.inProgress,
             'node-selected': node.id === selectedNodeId,
+            'node-open': activeNodeId === node.id,
           },
         ]"
-        :style="{ left: `${node.col * 240 + 120}px` }"
-        v-clickable="node.inProgress || (node.accessible && !node.completed)"
-        @click="
-          node.inProgress || (node.accessible && !node.completed)
-            ? emit('selectNode', node)
-            : undefined
-        "
+        :style="{ left: `${nodeCenterX(node)}px` }"
+        tabindex="0"
+        @click="emit('toggleNode', node)"
+        @keydown.enter="emit('toggleNode', node)"
       >
         <!-- Badge statut en haut-droite -->
         <div class="node-status">
           <span v-if="node.completed" class="status-completed">✓</span>
+          <span v-else-if="node.inProgress" class="status-in-progress">⚔️</span>
           <span v-else-if="node.accessible" class="status-accessible">→</span>
           <span v-else class="status-locked">🔒</span>
         </div>
 
-        <!-- Description : visible au survol ET au focus clavier (pas seulement au survol souris) -->
-        <div class="node-tooltip">
-          <strong>{{ node.title }}</strong>
-          <span>{{ node.description }}</span>
-          <span v-if="!node.accessible && !node.completed && !node.inProgress" class="node-tooltip-locked">
-            🔒 Terminez un nœud connecté pour débloquer
-          </span>
-        </div>
+        <!-- Corps : icône seule -->
+        <div class="node-icon">{{ node.icon }}</div>
 
-        <!-- Corps : icône + titre -->
-        <div class="node-body">
-          <div class="node-icon">{{ node.icon }}</div>
-          <div class="node-title">{{ node.title }}</div>
-        </div>
+        <!-- Détails : affichés uniquement au clic -->
+        <Transition name="popover">
+          <div v-if="activeNodeId === node.id" class="node-popover" @click.stop>
+            <strong class="popover-title">{{ node.title }}</strong>
+            <p class="popover-description">{{ node.description }}</p>
 
-        <!-- Pied de carte : sections verticales séparées -->
-        <div class="node-footer" v-if="node.reward || getNodeDifficultyLabel(node.type)">
-          <div class="footer-section footer-section--reward" v-if="node.reward">
-            <span class="section-label">Récompense</span>
-            <span class="chip chip--reward">
-              {{ getRewardIcon(node.reward.type) }}
-              {{ node.reward.name || `+${node.reward.amount}` }}
-            </span>
+            <div class="popover-badges" v-if="node.reward || getNodeDifficultyLabel(node.type)">
+              <Badge tone="accent" v-if="node.reward">
+                {{ getRewardIcon(node.reward.type) }}
+                {{ node.reward.name || `+${node.reward.amount}` }}
+              </Badge>
+              <Badge tone="danger" v-if="getNodeDifficultyLabel(node.type)">
+                ⚔️ {{ getNodeDifficultyLabel(node.type) }}
+              </Badge>
+            </div>
+
+            <p
+              v-if="!node.accessible && !node.completed && !node.inProgress"
+              class="popover-locked"
+            >
+              🔒 Terminez un nœud connecté pour débloquer
+            </p>
+            <p v-else-if="node.completed" class="popover-completed">✓ Terminé</p>
+            <Button v-else size="sm" variant="primary" @click="commitNode(node)">
+              {{ getActionLabel(node) }}
+            </Button>
           </div>
-          <div
-            class="footer-sep"
-            v-if="node.reward && getNodeDifficultyLabel(node.type)"
-          ></div>
-          <div class="footer-section footer-section--vp" v-if="getNodeDifficultyLabel(node.type)">
-            <span class="section-label">Difficulté</span>
-            <span class="chip chip--vp">⚔️ {{ getNodeDifficultyLabel(node.type) }}</span>
-          </div>
-        </div>
+        </Transition>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { nodeTypeConfig } from '@/utils'
+import { computed } from 'vue'
+import { nodeCenterX, ROW_HEIGHT, MAP_WIDTH } from '@/utils'
 import type { MapNode, MapLayer } from '@/stores/gameStore'
+import Badge from '@/components/ui/Badge.vue'
+import Button from '@/components/ui/Button.vue'
 
 const props = defineProps<{
   layer: MapLayer
   currentPlayerRow: number
-  totalLayers: number
   selectedNodeId: string
-  allNodes: MapNode[]
+  activeNodeId: string | null
 }>()
 
-const emit = defineEmits<{ selectNode: [node: MapNode] }>()
+const emit = defineEmits<{ selectNode: [node: MapNode]; toggleNode: [node: MapNode] }>()
 
-const getConnectionX = (connectionId: string) => {
-  const targetNode = props.allNodes.find((n) => n.id === connectionId)
-  return targetNode ? (targetNode.col + 0.5) * 240 : 120
+// La rangée qui contient le popover ouvert doit passer au-dessus des rangées suivantes
+// (celles-ci partagent le même z-index et sont plus tard dans le DOM, donc gagnent par défaut).
+const isLayerActive = computed(() =>
+  props.layer.nodes.some((node) => node.id === props.activeNodeId),
+)
+
+const commitNode = (node: MapNode) => {
+  emit('selectNode', node)
 }
 
-/**
- * Libellé de difficulté affiché sur le nœud. Ne promet pas de PV garantis : les points de
- * victoire viennent des actions sur la carte d'exploration, pas de la complétion du nœud
- * lui-même (voir gameStore.handleMapNodeAction).
- */
-const getNodeDifficultyLabel = (nodeType: MapNode['type']): string => {
-  switch (nodeType) {
-    case 'combat': return 'Moyenne'
-    case 'elite':  return 'Élite'
-    case 'boss':   return 'Boss'
-    default:       return ''
+const getActionLabel = (node: MapNode): string => {
+  if (node.inProgress) return '▶️ Reprendre'
+  switch (node.type) {
+    case 'combat':
+      return '⚔️ Combattre'
+    case 'elite':
+      return '⚔️ Défier'
+    case 'shop':
+      return '🏪 Visiter'
+    case 'event':
+      return '❓ Explorer'
+    case 'rest':
+      return '🏕️ Se reposer'
+    case 'boss':
+      return '💀 Affronter'
+    default:
+      return 'Choisir'
   }
 }
 
-/** Icône emoji selon le type de récompense */
+const getNodeDifficultyLabel = (nodeType: MapNode['type']): string => {
+  switch (nodeType) {
+    case 'combat':
+      return 'Moyenne'
+    case 'elite':
+      return 'Élite'
+    case 'boss':
+      return 'Boss'
+    default:
+      return ''
+  }
+}
+
 const getRewardIcon = (type: string): string => {
   switch (type) {
-    case 'gold':       return '💰'
-    case 'card':       return '🃏'
-    case 'relic':      return '💎'
-    case 'leadership': return '👑'
-    default:           return '?'
+    case 'gold':
+      return '💰'
+    case 'card':
+      return '🃏'
+    case 'relic':
+      return '💎'
+    case 'leadership':
+      return '👑'
+    default:
+      return '?'
   }
 }
 </script>
@@ -137,264 +144,220 @@ const getRewardIcon = (type: string): string => {
 /* ─── Couche (ligne de la map) ─────────────────────────── */
 .map-layer {
   position: relative;
-  height: 290px;
-  min-width: 640px;
+  height: v-bind('ROW_HEIGHT + "px"');
+  min-width: v-bind('MAP_WIDTH + "px"');
   display: flex;
   flex-direction: column;
-}
-.current-layer {
-  background: rgba(218, 165, 32, 0.05);
-  border-radius: 10px;
-}
-
-/* ─── Lignes de connexion SVG ───────────────────────────── */
-.connections-svg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 290px;
-  pointer-events: none;
   z-index: 1;
-}
-.connection-line {
-  stroke: rgba(139, 69, 19, 0.4);
-  stroke-width: 2;
-  transition: all 0.3s ease;
-}
-.active-connection {
-  stroke: #daa520;
-  stroke-width: 3;
-}
-.accessible-connection {
-  stroke: rgba(218, 165, 32, 0.6);
-  stroke-width: 2;
-  stroke-dasharray: 5, 5;
 }
 
 /* ─── Conteneur des nœuds ───────────────────────────────── */
 .layer-nodes {
   position: relative;
-  height: 220px;
+  height: 100%;
   z-index: 2;
 }
 
-/* ─── Carte de nœud ─────────────────────────────────────── */
+/* ─── Nœud compact (cercle + icône) ─────────────────────── */
 .map-node {
   position: absolute;
-  width: 210px;
-  height: 200px;
-  border: 2px solid;
-  border-radius: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
+  border: 2px solid rgba(235, 230, 210, 0.5);
+  border-radius: 50%;
   display: flex;
-  flex-direction: column;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(5px);
-  margin-left: -105px;
-  overflow: hidden;
-  background: rgba(12, 9, 4, 0.88);
-}
-
-/* Corps : icône + titre (prend tout l'espace disponible) */
-.node-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 8px 6px 4px;
-  gap: 4px;
-  min-height: 0;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  background: rgba(28, 30, 24, 0.85);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
+
 .node-icon {
-  font-size: 3rem;
+  font-size: 1.5rem;
   line-height: 1;
-}
-.node-title {
-  font-size: 0.85rem;
-  font-weight: bold;
-  text-align: center;
-  color: #f0e6d3;
-  line-height: 1.3;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
 }
 
-/* Pied de carte : sections verticales */
-.node-footer {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  overflow: hidden;
+/* ─── Type "boss" : cercle légèrement plus marqué ───────── */
+.node-boss {
+  border-width: 3px;
 }
-.footer-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 6px 10px;
-}
-.section-label {
-  font-size: 0.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  opacity: 0.5;
-  color: #f0e6d3;
-}
-.footer-sep {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 0 10px;
-}
-.chip {
-  border-radius: 5px;
-  padding: 3px 10px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.chip--reward {
-  background: rgba(218, 165, 32, 0.15);
-  border: 1px solid rgba(218, 165, 32, 0.4);
-  color: #c8961a;
-}
-.chip--vp {
-  background: rgba(220, 20, 60, 0.12);
-  border: 1px solid rgba(220, 20, 60, 0.45);
-  color: #e85570;
-}
-
-/* ─── Couleurs par type ─────────────────────────────────── */
-.node-combat { border-color: var(--node-combat); }
-.node-elite  { border-color: var(--node-elite); }
-.node-shop   { border-color: var(--node-shop); }
-.node-event  { border-color: var(--node-event); }
-.node-rest   { border-color: var(--node-rest); }
-.node-boss   { border-color: var(--node-boss); border-width: 3px; }
 
 /* ─── États ─────────────────────────────────────────────── */
 .node-accessible {
   cursor: pointer;
+  border-color: rgba(var(--color-accent-rgb), 0.9);
   animation: pulse 2s infinite;
 }
 .node-accessible:hover {
-  transform: scale(1.08);
-  box-shadow: 0 5px 20px rgba(218, 165, 32, 0.4);
+  transform: translateY(-50%) scale(1.15);
+  box-shadow: 0 5px 20px rgba(var(--color-accent-rgb), 0.4);
 }
 .node-completed {
-  opacity: 0.65;
-  background: rgba(34, 139, 34, 0.2) !important;
-  border-color: #228b22 !important;
+  opacity: 0.6;
+  background: rgba(var(--color-success-strong-rgb), 0.25) !important;
+  border-color: var(--color-success-strong) !important;
 }
 .node-in-progress {
   animation: progressPulse 1.5s infinite;
-  border: 2px solid #ffd700 !important;
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
-  cursor: default;
-}
-.node-in-progress::after {
-  content: '⚔️ EN COURS';
-  position: absolute;
-  bottom: -20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #ffd700;
-  color: #1a1a1a;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.6rem;
-  font-weight: bold;
-  white-space: nowrap;
+  border: 2px solid var(--node-elite) !important;
+  box-shadow: 0 0 20px rgba(var(--node-elite-rgb), 0.6);
 }
 .node-locked {
-  opacity: 0.3;
   cursor: not-allowed;
-  filter: grayscale(100%);
+  background: rgb(22, 23, 19);
+  border-color: rgba(235, 230, 210, 0.25);
+  filter: grayscale(0.6) brightness(0.65);
 }
-.node-selected {
-  animation: selectedPulse 1s infinite;
+.node-selected,
+.node-open {
   border-width: 3px;
+  z-index: 10;
 }
 
 /* ─── Badge statut (coin haut-droite) ───────────────────── */
 .node-status {
   position: absolute;
-  top: -11px;
-  right: -11px;
-  width: 28px;
-  height: 28px;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
+  font-size: 0.6rem;
   font-weight: bold;
   z-index: 5;
 }
 
-/* ─── Description (survol ET focus clavier) ─────────────────── */
-.node-tooltip {
+/* ─── Popover de détails (affichée au clic) ─────────────── */
+.node-popover {
   position: absolute;
-  bottom: calc(100% + 8px);
+  top: calc(100% + 12px);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(0) scale(1);
+  transform-origin: top center;
   width: 220px;
-  background: rgba(10, 8, 4, 0.97);
-  border: 1px solid rgba(218, 165, 32, 0.4);
+  background: var(--color-bg-surface);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.4);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 16px rgba(var(--color-black-rgb), 0.16);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
   font-size: 0.72rem;
   line-height: 1.4;
-  color: #d4c9a8;
-  z-index: 20;
+  color: var(--color-text-muted);
+  z-index: 30;
+  cursor: default;
+  text-align: center;
+}
+
+/* ─── Animation d'ouverture / fermeture de la popover ───── */
+.popover-enter-active {
+  transition:
+    opacity 0.18s ease-out,
+    transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.popover-leave-active {
+  transition:
+    opacity 0.12s ease-in,
+    transform 0.12s ease-in;
+}
+.popover-enter-from,
+.popover-leave-to {
   opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.15s;
+  transform: translateX(-50%) translateY(-6px) scale(0.9);
 }
 
-.node-tooltip strong {
-  color: #daa520;
-  font-size: 0.78rem;
+.popover-title {
+  color: var(--color-accent-ink);
+  font-size: 0.8rem;
 }
 
-.node-tooltip-locked {
-  color: #f59e0b;
+.popover-description {
+  margin: 0;
 }
 
-.map-node:hover .node-tooltip,
-.map-node:focus-visible .node-tooltip {
-  opacity: 1;
-  visibility: visible;
+.popover-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
-.status-completed { background: #228b22; color: white; }
-.status-accessible { background: #daa520; color: white; }
-.status-locked { background: #444; color: #888; }
+
+.popover-locked {
+  color: var(--color-warning);
+  margin: 0;
+}
+
+.popover-completed {
+  color: var(--color-success-strong);
+  font-weight: bold;
+  margin: 0;
+}
+
+.status-completed {
+  background: var(--color-success-strong);
+  color: #fff;
+}
+.status-accessible {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+.status-in-progress {
+  background: var(--node-elite);
+  color: var(--color-accent-contrast);
+}
+.status-locked {
+  background: rgba(var(--overlay-rgb), 0.15);
+  color: var(--color-text-faint);
+}
 
 /* ─── Animations ─────────────────────────────────────────── */
 @keyframes pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(218, 165, 32, 0.7); }
-  70%  { box-shadow: 0 0 0 10px rgba(218, 165, 32, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(218, 165, 32, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--color-accent-rgb), 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(var(--color-accent-rgb), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--color-accent-rgb), 0);
+  }
 }
 @keyframes progressPulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.6); }
-  50%       { box-shadow: 0 0 30px rgba(255, 215, 0, 0.9); }
-}
-@keyframes selectedPulse {
-  0%, 100% { border-color: inherit; }
-  50%       { border-color: #ffd700; }
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(var(--node-elite-rgb), 0.6);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(var(--node-elite-rgb), 0.9);
+  }
 }
 
 /* ─── Responsive ─────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .map-layer { min-width: 400px; }
-  .map-node  { width: 150px; height: 150px; margin-left: -75px; }
-  .node-icon { font-size: 2.2rem; }
-  .node-title { font-size: 0.7rem; }
-  .chip { font-size: 0.6rem; }
+  .map-node {
+    width: 42px;
+    height: 42px;
+    margin-left: -21px;
+  }
+  .node-icon {
+    font-size: 1.1rem;
+  }
+  .node-popover {
+    width: 180px;
+  }
 }
 </style>

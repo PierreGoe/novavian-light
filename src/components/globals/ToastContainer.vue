@@ -1,6 +1,11 @@
 <template>
   <Teleport to="body">
     <div class="toast-container" role="status" aria-live="polite">
+      <!--
+        Volontairement custom, pas de NoticeBox : un toast a un bouton de fermeture,
+        une barre de progression animée et une transition d'empilement (TransitionGroup)
+        que l'API de NoticeBox (icône + slot de message) ne couvre pas.
+      -->
       <TransitionGroup name="toast" tag="div" class="toast-list">
         <div
           v-for="toast in toastStore.activeToasts.value"
@@ -79,9 +84,9 @@ function handleToastClick(toast: Toast) {
   gap: 0.75rem;
   padding: 1rem;
   border-radius: 12px;
-  background: rgba(26, 15, 8, 0.95);
-  border: 1px solid;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  background: var(--color-bg-surface);
+  border: 1px solid rgba(var(--overlay-rgb), 0.12);
+  box-shadow: 0 8px 32px rgba(var(--color-black-rgb), 0.12);
   backdrop-filter: blur(10px);
   pointer-events: auto;
   position: relative;
@@ -92,23 +97,23 @@ function handleToastClick(toast: Toast) {
 }
 
 .toast-success {
-  border-color: #22c55e;
-  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(var(--color-success-strong-rgb), 0.4);
+  background: rgba(var(--color-success-strong-rgb), 0.08);
 }
 
 .toast-error {
-  border-color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(var(--color-danger-rgb), 0.4);
+  background: rgba(var(--color-danger-rgb), 0.08);
 }
 
 .toast-warning {
-  border-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(var(--color-warning-rgb), 0.4);
+  background: rgba(var(--color-warning-rgb), 0.08);
 }
 
 .toast-info {
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(var(--color-info-rgb), 0.4);
+  background: rgba(var(--color-info-rgb), 0.08);
 }
 
 .toast-clickable {
@@ -120,7 +125,7 @@ function handleToastClick(toast: Toast) {
 
 .toast-clickable:hover {
   transform: scale(1.02);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 40px rgba(var(--color-black-rgb), 0.18);
 }
 
 .toast-icon {
@@ -136,7 +141,7 @@ function handleToastClick(toast: Toast) {
 
 .toast-message {
   margin: 0;
-  color: #f4e4bc;
+  color: var(--color-text);
   font-size: 0.9rem;
   line-height: 1.4;
   word-break: break-word;
@@ -145,7 +150,7 @@ function handleToastClick(toast: Toast) {
 .toast-close {
   background: none;
   border: none;
-  color: #f4e4bc;
+  color: var(--color-text-muted);
   cursor: pointer;
   font-size: 1.1rem;
   padding: 0.2rem;
@@ -163,7 +168,7 @@ function handleToastClick(toast: Toast) {
 
 .toast-close:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(var(--overlay-rgb), 0.08);
 }
 
 .toast-progress {
@@ -179,19 +184,19 @@ function handleToastClick(toast: Toast) {
 }
 
 .toast-success .toast-progress {
-  background: #22c55e;
+  background: var(--color-success-strong);
 }
 
 .toast-error .toast-progress {
-  background: #ef4444;
+  background: var(--color-danger);
 }
 
 .toast-warning .toast-progress {
-  background: #f59e0b;
+  background: var(--color-warning);
 }
 
 .toast-info .toast-progress {
-  background: #3b82f6;
+  background: var(--color-info);
 }
 
 /* Transitions */
@@ -255,7 +260,7 @@ function handleToastClick(toast: Toast) {
 
 /* États focus pour l'accessibilité */
 .toast-close:focus {
-  outline: 2px solid #daa520;
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 </style>

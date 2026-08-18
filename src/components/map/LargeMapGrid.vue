@@ -1,18 +1,15 @@
 <template>
   <div class="large-map-container">
-    <!-- Contrôles de zoom — en dehors du viewport -->
+    <!-- Contrôles de zoom — en dehors du viewport, sur la base claire. -->
     <div class="map-controls">
-      <span class="controls-label">Vue :</span>
-      <button
-        v-for="preset in ZOOM_PRESETS"
-        :key="preset.value"
-        @click="setZoomPreset(preset.value)"
-        :class="['control-btn', { 'control-btn--active': viewportSize === preset.value }]"
-      >
-        {{ preset.icon }} {{ preset.label }}
-      </button>
+      <SectionLabel>Vue</SectionLabel>
+      <SegmentedControl
+        :options="zoomOptions"
+        :model-value="String(viewportSize)"
+        @update:model-value="(v) => setZoomPreset(Number(v))"
+      />
       <div class="controls-divider" />
-      <button @click="centerOnPlayer" class="control-btn">🎯 Centrer</button>
+      <Button variant="secondary" size="sm" @click="centerOnPlayer">🎯 Centrer</Button>
     </div>
 
     <!-- Coordonnées actuelles -->
@@ -46,7 +43,10 @@
             <div
               class="tile-icon"
               :style="{ fontSize: tileIconFontSize }"
-              v-if="tile.type !== 'plains' && (gameSettings.disableFogOfWar || (tile.explored && !isChunkLocked(tile)))"
+              v-if="
+                tile.type !== 'plains' &&
+                (gameSettings.disableFogOfWar || (tile.explored && !isChunkLocked(tile)))
+              "
             >
               {{ getTileIcon(tile.type) }}
             </div>
@@ -100,7 +100,7 @@
                 refY="4"
                 orient="auto-start-reverse"
               >
-                <path d="M0,0 L8,4 L0,8 z" fill="#ff2d2d" />
+                <path d="M0,0 L8,4 L0,8 z" class="map-arrow-fill map-arrow-fill--outgoing" />
               </marker>
               <marker
                 id="map-arrow-returning"
@@ -110,7 +110,7 @@
                 refY="4"
                 orient="auto-start-reverse"
               >
-                <path d="M0,0 L8,4 L0,8 z" fill="#10b981" />
+                <path d="M0,0 L8,4 L0,8 z" class="map-arrow-fill map-arrow-fill--returning" />
               </marker>
               <marker
                 id="map-arrow-enemy"
@@ -120,7 +120,7 @@
                 refY="4"
                 orient="auto-start-reverse"
               >
-                <path d="M0,0 L8,4 L0,8 z" fill="#ff6a00" />
+                <path d="M0,0 L8,4 L0,8 z" class="map-arrow-fill map-arrow-fill--enemy" />
               </marker>
             </defs>
             <path
@@ -131,7 +131,9 @@
               :class="`path-line--${path.variant}`"
               :marker-end="`url(#map-arrow-${path.variant})`"
             >
-              <title>{{ path.variant === 'returning' ? 'Retour vers le village' : 'Attaque en cours' }}</title>
+              <title>
+                {{ path.variant === 'returning' ? 'Retour vers le village' : 'Attaque en cours' }}
+              </title>
             </path>
             <path
               v-for="threat in enemyThreats"
@@ -170,25 +172,6 @@
       </div>
     </div>
 
-    <!--Panneau debug forteresses
-    <div
-      class="debug-fortress-panel"
-      v-if="Object.keys(mapStore.mapState.fortressZones).length > 0"
-    >
-      <div class="debug-title">🔍 Debug forteresses</div>
-      <div
-        v-for="zone in mapStore.mapState.fortressZones"
-        :key="zone.fortressTileId"
-        class="debug-zone"
-        :class="`debug-zone--${zone.hostilityState}`"
-      >
-        <span class="debug-id">{{ zone.fortressTileId }}</span>
-        <span class="debug-power">⚔️ {{ zone.power }}</span>
-        <span class="debug-level">📊 {{ zone.hostilityLevel }}%</span>
-        <span class="debug-state">{{ zone.hostilityState }}</span>
-      </div>
-    </div>-->
-
     <!-- Indicateur de chargement -->
     <div v-if="isLoading" class="loading-indicator">⏳ Chargement de la carte...</div>
   </div>
@@ -206,6 +189,17 @@ import {
 import { useMapViewport, ZOOM_PRESETS } from '../../composables/useMapViewport'
 import { gameSettings } from '../../stores/gameSettingsStore'
 import { GARRISON_REGEN_DURATION_MS } from '../../config'
+import SectionLabel from '@/components/ui/SectionLabel.vue'
+import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+import Button from '@/components/ui/Button.vue'
+
+const zoomOptions = computed(() =>
+  ZOOM_PRESETS.map((preset) => ({
+    label: preset.label,
+    value: String(preset.value),
+    icon: preset.icon,
+  })),
+)
 
 // Props
 interface Props {
@@ -636,7 +630,7 @@ const influenceZoneMap = computed(() => {
 .large-map-container {
   position: relative;
   width: 100%;
-  background: #1a1a1a;
+  background: var(--color-bg-surface);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -663,34 +657,34 @@ const influenceZoneMap = computed(() => {
 
 .map-tile {
   position: relative;
-  border: 1px solid #555;
+  border: 1px solid rgba(var(--overlay-rgb), 0.18);
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.15s ease;
-  background: #333;
+  background: rgba(var(--overlay-rgb), 0.85);
 }
 
 .map-tile:hover {
-  border-color: #888;
+  border-color: rgba(var(--color-accent-rgb), 0.55);
   transform: scale(1.05);
   z-index: 10;
 }
 
 .tile-explored {
-  border-color: #4a9eff;
+  border-color: rgba(var(--color-accent-rgb), 0.3);
 }
 
 .tile-current {
-  border-color: #ffeb3b;
-  box-shadow: 0 0 10px rgba(255, 235, 59, 0.5);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 10px rgba(var(--color-accent-rgb), 0.5);
 }
 
 .tile-selected {
-  border-color: #ff6b35;
-  box-shadow: 0 0 15px rgba(255, 107, 53, 0.7);
+  border-color: var(--color-accent-dark);
+  box-shadow: 0 0 15px rgba(var(--color-accent-dark-rgb), 0.6);
   z-index: 11;
 }
 
@@ -700,37 +694,38 @@ const influenceZoneMap = computed(() => {
 
 .tile-neutral:hover {
   transform: none;
-  border-color: #555;
+  border-color: rgba(var(--overlay-rgb), 0.18);
 }
 
 .tile-being-explored {
-  background: #2a2a2a !important;
+  background: rgba(var(--overlay-rgb), 0.7) !important;
 }
 
-/* Terrains (visibles uniquement si exploré) */
+/* Terrains (visibles uniquement si exploré) — un seul jeu de teintes,
+   partagé avec TileDetails.vue via les tokens --terrain-* de tokens.css. */
 .tile-explored.terrain-plains {
-  background: linear-gradient(135deg, #8bc34a, #689f38);
+  background: linear-gradient(145deg, rgba(var(--terrain-plains-rgb), 0.92), rgba(var(--terrain-plains-rgb), 0.68));
 }
 .tile-explored.terrain-forest {
-  background: linear-gradient(135deg, #4caf50, #2e7d32);
+  background: linear-gradient(145deg, rgba(var(--terrain-forest-rgb), 0.92), rgba(var(--terrain-forest-rgb), 0.68));
 }
 .tile-explored.terrain-mountain {
-  background: linear-gradient(135deg, #78909c, #455a64);
+  background: linear-gradient(145deg, rgba(var(--terrain-mountain-rgb), 0.92), rgba(var(--terrain-mountain-rgb), 0.68));
 }
 .tile-explored.terrain-water {
-  background: linear-gradient(135deg, #2196f3, #1565c0);
+  background: linear-gradient(145deg, rgba(var(--terrain-water-rgb), 0.92), rgba(var(--terrain-water-rgb), 0.68));
 }
 .tile-explored.terrain-village_player {
-  background: linear-gradient(135deg, #ff9800, #f57c00);
+  background: linear-gradient(145deg, rgba(var(--terrain-village-player-rgb), 0.92), rgba(var(--terrain-village-player-rgb), 0.68));
 }
 .tile-explored.terrain-village_enemy {
-  background: linear-gradient(135deg, #f44336, #c62828);
+  background: linear-gradient(145deg, rgba(var(--terrain-village-enemy-rgb), 0.92), rgba(var(--terrain-village-enemy-rgb), 0.68));
 }
 .tile-explored.terrain-ruins {
-  background: linear-gradient(135deg, #9e9e9e, #424242);
+  background: linear-gradient(145deg, rgba(var(--terrain-ruins-rgb), 0.92), rgba(var(--terrain-ruins-rgb), 0.68));
 }
 .tile-explored.terrain-stronghold {
-  background: linear-gradient(135deg, #673ab7, #4527a0);
+  background: linear-gradient(145deg, rgba(var(--terrain-stronghold-rgb), 0.92), rgba(var(--terrain-stronghold-rgb), 0.68));
 }
 
 .tile-icon {
@@ -738,6 +733,11 @@ const influenceZoneMap = computed(() => {
   line-height: 1;
 }
 
+/* Overlay HUD posé sur une tuile de la carte — volontairement scrim noir/texte
+   blanc fixe (pas de tokens) : doit rester lisible par-dessus n'importe quel
+   terrain, indépendamment du thème clair de l'app. Même logique pour les
+   autres overlays HUD de ce fichier (badge de garnison, coordonnées, chargement,
+   panneau debug). */
 .tile-overlay {
   position: absolute;
   inset: 0;
@@ -847,7 +847,6 @@ const influenceZoneMap = computed(() => {
   }
 }
 
-
 /* Overlay cadrans : même grille CSS, superposée au-dessus */
 .map-chunk-overlay {
   position: absolute;
@@ -876,7 +875,9 @@ const influenceZoneMap = computed(() => {
   z-index: 2;
 }
 
-/* Badge circulaire autour de l'icône — la rend lisible sur n'importe quel fond de tuile */
+/* Badge circulaire autour de l'icône — la rend lisible sur n'importe quel fond de tuile.
+   Le fond sombre reste fixe (HUD, cf. note plus haut) ; seul l'anneau reprend les tokens
+   sémantiques déjà utilisés pour l'envoi d'attaque dans AttackPanel.vue. */
 .march-marker-badge {
   display: flex;
   align-items: center;
@@ -885,25 +886,25 @@ const influenceZoneMap = computed(() => {
   height: 78%;
   border-radius: 50%;
   background: radial-gradient(circle at 30% 30%, #4a3420, #1a0f08 85%);
-  border: 2px solid var(--node-combat, #dc143c);
+  border: 2px solid var(--color-danger);
   box-shadow:
     0 2px 5px rgba(0, 0, 0, 0.6),
-    0 0 8px rgba(220, 20, 60, 0.55);
+    0 0 8px rgba(var(--color-danger-rgb), 0.55);
 }
 
 .march-marker--returning .march-marker-badge {
-  border-color: var(--fx-economy, #10b981);
+  border-color: var(--color-success-strong);
   box-shadow:
     0 2px 5px rgba(0, 0, 0, 0.6),
-    0 0 8px rgba(16, 185, 129, 0.55);
+    0 0 8px rgba(var(--color-success-strong-rgb), 0.55);
 }
 
-/* Menace ennemie en approche — distincte des troupes du joueur (orange/rouge, pulsation d'alerte) */
+/* Menace ennemie en approche — distincte des troupes du joueur, pulsation d'alerte */
 .march-marker--enemy .march-marker-badge {
-  border-color: #ff6a00;
+  border-color: var(--color-warning);
   box-shadow:
     0 2px 5px rgba(0, 0, 0, 0.6),
-    0 0 10px rgba(255, 106, 0, 0.65);
+    0 0 10px rgba(var(--color-warning-rgb), 0.65);
   animation: enemy-pulse 1s ease-in-out infinite;
 }
 
@@ -934,20 +935,30 @@ const influenceZoneMap = computed(() => {
 }
 
 .path-line--outgoing {
-  stroke: #ff2d2d;
+  stroke: var(--color-danger);
   stroke-dasharray: none;
 }
 
 .path-line--returning {
-  stroke: #10b981;
+  stroke: var(--color-success-strong);
   stroke-dasharray: 5 4;
   opacity: 0.85;
 }
 
 .path-line--enemy {
-  stroke: #ff6a00;
+  stroke: var(--color-warning);
   stroke-dasharray: 4 5;
   animation: enemy-path-pulse 1s ease-in-out infinite;
+}
+
+.map-arrow-fill--outgoing {
+  fill: var(--color-danger);
+}
+.map-arrow-fill--returning {
+  fill: var(--color-success-strong);
+}
+.map-arrow-fill--enemy {
+  fill: var(--color-warning);
 }
 
 @keyframes enemy-path-pulse {
@@ -972,22 +983,22 @@ const influenceZoneMap = computed(() => {
   box-sizing: border-box;
 }
 
-/* Zone neutre — rouge visible */
+/* Zone neutre */
 .map-tile.tile-influence--neutral::after {
-  background: rgba(239, 68, 68, 0.25);
-  border: 1px solid rgba(239, 68, 68, 0.5);
+  background: rgba(var(--color-danger-rgb), 0.25);
+  border: 1px solid rgba(var(--color-danger-rgb), 0.5);
 }
 
-/* Zone avertie — orange marqué */
+/* Zone avertie */
 .map-tile.tile-influence--warned::after {
-  background: rgba(251, 146, 60, 0.38);
-  border: 1px solid rgba(251, 146, 60, 0.65);
+  background: rgba(var(--color-warning-rgb), 0.38);
+  border: 1px solid rgba(var(--color-warning-rgb), 0.65);
 }
 
-/* Zone hostile — rouge intense avec pulse */
+/* Zone hostile — intense, avec pulse */
 .map-tile.tile-influence--hostile::after {
-  background: rgba(239, 68, 68, 0.5);
-  border: 1px solid rgba(239, 68, 68, 0.8);
+  background: rgba(var(--color-danger-rgb), 0.5);
+  border: 1px solid rgba(var(--color-danger-rgb), 0.8);
   animation: hostile-pulse 2s ease-in-out infinite;
 }
 
@@ -999,63 +1010,6 @@ const influenceZoneMap = computed(() => {
   50% {
     opacity: 1;
   }
-}
-
-/* ── Panneau debug forteresses ── */
-.debug-fortress-panel {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  z-index: 200;
-  background: rgba(5, 5, 20, 0.9);
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-family: monospace;
-  font-size: 11px;
-  color: #ccc;
-  backdrop-filter: blur(4px);
-  max-height: 180px;
-  overflow-y: auto;
-  min-width: 220px;
-}
-
-.debug-title {
-  font-weight: bold;
-  color: #fff;
-  margin-bottom: 6px;
-  border-bottom: 1px solid #333;
-  padding-bottom: 4px;
-}
-
-.debug-zone {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 2px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.debug-id {
-  color: #888;
-  min-width: 50px;
-}
-.debug-power {
-  color: #f87171;
-}
-.debug-level {
-  color: #94a3b8;
-}
-
-.debug-zone--neutral .debug-state {
-  color: #4ade80;
-}
-.debug-zone--warned .debug-state {
-  color: #fb923c;
-}
-.debug-zone--hostile .debug-state {
-  color: #f87171;
-  font-weight: bold;
 }
 
 /* Bulle d'un cadran verrouillé */
@@ -1154,52 +1108,17 @@ const influenceZoneMap = computed(() => {
   gap: 8px;
   align-items: center;
   padding: 10px 14px;
-  background: rgba(0, 0, 0, 0.5);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(var(--overlay-rgb), 0.03);
+  border-bottom: 1px solid rgba(var(--overlay-rgb), 0.1);
   border-radius: 12px 12px 0 0;
   flex-shrink: 0;
-}
-
-.controls-label {
-  color: #7a9abf;
-  font-size: 0.8em;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-right: 4px;
 }
 
 .controls-divider {
   width: 1px;
   height: 20px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(var(--overlay-rgb), 0.15);
   margin: 0 4px;
-}
-
-.control-btn {
-  background: rgba(74, 158, 255, 0.15);
-  color: #b0c8e8;
-  border: 1px solid rgba(74, 158, 255, 0.3);
-  padding: 5px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.82em;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.control-btn:hover {
-  background: rgba(74, 158, 255, 0.4);
-  color: #fff;
-  border-color: #4a9eff;
-  transform: translateY(-1px);
-}
-
-.control-btn--active {
-  background: rgba(74, 158, 255, 0.55);
-  color: #fff;
-  border-color: #4a9eff;
-  box-shadow: 0 0 8px rgba(74, 158, 255, 0.4);
 }
 
 /* Coordonnées */
@@ -1249,11 +1168,6 @@ const influenceZoneMap = computed(() => {
   .map-controls {
     flex-wrap: wrap;
     gap: 4px;
-  }
-
-  .control-btn {
-    padding: 4px 8px;
-    font-size: 0.75em;
   }
 }
 </style>

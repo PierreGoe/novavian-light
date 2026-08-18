@@ -1,3 +1,8 @@
 http://local.novavian {
 	reverse_proxy app:5173
 }
+
+# Storybook — accessible sur http://local.novavian:8881
+:81 {
+	reverse_proxy storybook:6006
+}

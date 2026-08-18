@@ -1,74 +1,47 @@
 <template>
-  <Teleport to="body">
-    <Transition name="onboarding-fade">
-      <div
-        v-if="visible"
-        class="onboarding-backdrop"
-        @keydown.esc="skip"
-      >
-        <div
-          ref="dialogRef"
-          class="onboarding-dialog"
-          role="alertdialog"
-          aria-modal="true"
-          :aria-labelledby="titleId"
-          tabindex="-1"
-        >
-          <button class="onboarding-skip" type="button" @click="skip">Passer</button>
-
-          <h2 :id="titleId" class="onboarding-title">{{ currentStepData.title }}</h2>
-          <p class="onboarding-body">{{ currentStepData.body }}</p>
-
-          <div class="onboarding-progress">
-            <span class="onboarding-progress-text">Étape {{ currentStep + 1 }}/{{ STEPS.length }}</span>
-            <div class="onboarding-dots">
-              <span
-                v-for="(step, index) in STEPS"
-                :key="index"
-                class="onboarding-dot"
-                :class="{ 'onboarding-dot--active': index === currentStep }"
-              />
-            </div>
-          </div>
-
-          <div class="onboarding-actions">
-            <button
-              v-if="currentStep > 0"
-              class="onboarding-btn onboarding-btn--secondary"
-              type="button"
-              @click="goToPrevious"
-            >
-              Précédent
-            </button>
-            <button
-              v-if="!isLastStep"
-              ref="primaryBtnRef"
-              class="onboarding-btn onboarding-btn--primary"
-              type="button"
-              @click="goToNext"
-            >
-              Suivant
-            </button>
-            <button
-              v-else
-              ref="primaryBtnRef"
-              class="onboarding-btn onboarding-btn--primary"
-              type="button"
-              @click="finish"
-            >
-              Terminer
-            </button>
-          </div>
-        </div>
+  <BaseDialog
+    :open="visible"
+    role="alertdialog"
+    :labelledby="titleId"
+    :close-on-backdrop="false"
+    @update:open="onUpdateOpen"
+  >
+    <template #header>
+      <div class="onboarding-header-row">
+        <h2 :id="titleId" class="onboarding-title">{{ currentStepData.title }}</h2>
+        <button class="onboarding-skip" type="button" @click="skip">Passer</button>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+
+    <p class="onboarding-body">{{ currentStepData.body }}</p>
+
+    <div class="onboarding-progress">
+      <span class="onboarding-progress-text">Étape {{ currentStep + 1 }}/{{ STEPS.length }}</span>
+      <StepDots :total="STEPS.length" :current="currentStep" />
+    </div>
+
+    <template #footer>
+      <Button
+        v-if="currentStep > 0"
+        variant="secondary"
+        class="onboarding-prev"
+        @click="goToPrevious"
+      >
+        Précédent
+      </Button>
+      <Button v-if="!isLastStep" ref="primaryBtnRef" @click="goToNext">Suivant</Button>
+      <Button v-else ref="primaryBtnRef" @click="finish">Terminer</Button>
+    </template>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useOnboarding } from '@/composables/useOnboarding'
+import BaseDialog from '@/components/ui/BaseDialog.vue'
+import Button from '@/components/ui/Button.vue'
+import StepDots from '@/components/ui/StepDots.vue'
 
 interface OnboardingStep {
   title: string
@@ -94,7 +67,7 @@ const STEPS: OnboardingStep[] = [
   },
   {
     title: 'À vous de jouer !',
-    body: "Ce message ne réapparaîtra plus. Bonne chance, chef de guerre !",
+    body: 'Ce message ne réapparaîtra plus. Bonne chance, chef de guerre !',
   },
 ]
 
@@ -102,8 +75,7 @@ const route = useRoute()
 const { hasSeenOnboarding, markOnboardingSeen } = useOnboarding()
 
 const currentStep = ref(0)
-const dialogRef = ref<HTMLDivElement | null>(null)
-const primaryBtnRef = ref<HTMLButtonElement | null>(null)
+const primaryBtnRef = ref<{ focus: () => void } | null>(null)
 
 const visible = computed(() => route.name === 'mission-tree' && !hasSeenOnboarding.value)
 const currentStepData = computed(() => STEPS[currentStep.value])
@@ -131,11 +103,19 @@ function finish() {
   markOnboardingSeen()
 }
 
-// Focus posé sur le bouton principal à l'ouverture et à chaque changement d'étape
+// Fermeture via Esc (BaseDialog) — équivaut à "Passer"
+function onUpdateOpen(value: boolean) {
+  if (!value) skip()
+}
+
+// Focus posé sur le bouton principal à l'ouverture et à chaque changement d'étape.
+// Deux nextTick : le premier laisse BaseDialog poser son propre focus par défaut
+// sur le panneau, le second nous laisse le reprendre sur le bouton principal.
 watch(
   () => [visible.value, currentStep.value],
   async ([isVisible]) => {
     if (isVisible) {
+      await nextTick()
       await nextTick()
       primaryBtnRef.value?.focus()
     }
@@ -145,146 +125,56 @@ watch(
 </script>
 
 <style scoped>
-.onboarding-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+.onboarding-header-row {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  padding: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
-.onboarding-dialog {
-  position: relative;
-  background: #1e293b;
-  border: 2px solid rgba(218, 165, 32, 0.5);
-  border-radius: 14px;
-  padding: 1.75rem 1.5rem 1.5rem;
-  max-width: 440px;
-  width: 100%;
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+.onboarding-title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--color-accent-ink);
 }
 
 .onboarding-skip {
-  position: absolute;
-  top: 0.9rem;
-  right: 1rem;
+  flex-shrink: 0;
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--color-text-faint);
   font-size: 0.8rem;
   cursor: pointer;
-  padding: 0.25rem 0.4rem;
+  padding: 0.2rem 0;
   text-decoration: underline;
 }
 
 .onboarding-skip:hover {
-  color: #cbd5e1;
+  color: var(--color-text-muted);
 }
 
 .onboarding-skip:focus-visible {
-  outline: 2px solid #daa520;
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-}
-
-.onboarding-title {
-  margin: 0 1.5rem 0.6rem 0;
-  font-size: 1.1rem;
-  color: #daa520;
 }
 
 .onboarding-body {
   margin: 0 0 1.25rem;
-  font-size: 0.9rem;
-  color: #cbd5e1;
-  line-height: 1.5;
 }
 
 .onboarding-progress {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.25rem;
 }
 
 .onboarding-progress-text {
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: var(--color-text-faint);
 }
 
-.onboarding-dots {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.onboarding-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  transition: background 0.15s;
-}
-
-.onboarding-dot--active {
-  background: #daa520;
-}
-
-.onboarding-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-}
-
-.onboarding-btn {
-  padding: 0.55rem 1.1rem;
-  border-radius: 8px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition:
-    background 0.15s,
-    transform 0.1s;
-}
-
-.onboarding-btn:focus-visible {
-  outline: 2px solid #daa520;
-  outline-offset: 2px;
-}
-
-.onboarding-btn--secondary {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #e2e8f0;
+.onboarding-prev {
   margin-right: auto;
-}
-
-.onboarding-btn--secondary:hover {
-  background: rgba(255, 255, 255, 0.13);
-}
-
-.onboarding-btn--primary {
-  background: linear-gradient(135deg, #daa520, #b8860b);
-  color: #1a0f08;
-}
-
-.onboarding-btn--primary:hover {
-  filter: brightness(1.1);
-}
-
-.onboarding-btn:active {
-  transform: scale(0.97);
-}
-
-.onboarding-fade-enter-active,
-.onboarding-fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-
-.onboarding-fade-enter-from,
-.onboarding-fade-leave-to {
-  opacity: 0;
 }
 </style>

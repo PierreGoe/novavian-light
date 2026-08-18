@@ -18,16 +18,28 @@
         :title="`${item.label} — ${formatDuration(item.remainingMs)}`"
         @click="toggleCollapsed"
       >
-        <TimerClock :size="36" :progress="item.progress" :icon="item.icon" :progress-color="item.color" />
+        <TimerClock
+          :size="36"
+          :progress="item.progress"
+          :icon="item.icon"
+          :progress-color="item.color"
+        />
       </button>
-      <div v-if="totalCount === 0" class="timers-compact-empty" title="Aucun timer en cours">⏱️</div>
+      <div v-if="totalCount === 0" class="timers-compact-empty" title="Aucun timer en cours">
+        ⏱️
+      </div>
     </div>
 
     <div v-else class="timers-body">
       <h2 class="timers-title">⏱️ Timers</h2>
 
+      <!--
+        timer-row volontairement custom, pas de IconRow : sa "colonne icône" est un
+        TimerClock complet (anneau de progression), pas une simple icône statique —
+        IconRow n'a pas d'emplacement pour ça.
+      -->
       <section v-if="constructions.length > 0" class="timers-section">
-        <h3 class="timers-section-title">🏗️ Constructions</h3>
+        <SectionLabel>🏗️ Constructions</SectionLabel>
         <div class="timers-list">
           <div v-for="item in constructions" :key="item.id" class="timer-row">
             <TimerClock :size="40" :progress="item.progress" :icon="item.icon" />
@@ -40,7 +52,7 @@
       </section>
 
       <section v-if="training.length > 0" class="timers-section">
-        <h3 class="timers-section-title">⚔️ Entraînement</h3>
+        <SectionLabel>⚔️ Entraînement</SectionLabel>
         <div class="timers-list">
           <div v-for="item in training" :key="item.id" class="timer-row">
             <TimerClock :size="40" :progress="item.progress" :icon="item.icon" />
@@ -53,7 +65,7 @@
       </section>
 
       <section v-if="movements.length > 0" class="timers-section">
-        <h3 class="timers-section-title">🪖 Exploration</h3>
+        <SectionLabel>🪖 Exploration</SectionLabel>
         <div class="timers-list">
           <div v-for="item in movements" :key="item.id" class="timer-row">
             <TimerClock :size="40" :progress="item.progress" :icon="item.icon" />
@@ -66,10 +78,15 @@
       </section>
 
       <section v-if="raids.length > 0" class="timers-section">
-        <h3 class="timers-section-title">🔴 Raids ennemis</h3>
+        <SectionLabel>🔴 Raids ennemis</SectionLabel>
         <div class="timers-list">
           <div v-for="item in raids" :key="item.id" class="timer-row">
-            <TimerClock :size="40" :progress="item.progress" :icon="item.icon" progress-color="#ef4444" />
+            <TimerClock
+              :size="40"
+              :progress="item.progress"
+              :icon="item.icon"
+              progress-color="var(--color-danger)"
+            />
             <div class="timer-row-info">
               <span class="timer-row-label">{{ item.label }}</span>
               <span class="timer-row-eta">{{ formatDuration(item.remainingMs) }}</span>
@@ -78,7 +95,7 @@
         </div>
       </section>
 
-      <div v-if="totalCount === 0" class="timers-empty">Aucun timer en cours</div>
+      <EmptyState v-if="totalCount === 0" message="Aucun timer en cours" />
     </div>
   </aside>
 </template>
@@ -92,7 +109,9 @@ import { BUILDING_DEFINITIONS, getBuildingUpgrade } from '@/data/buildings'
 import { UNIT_DEFINITIONS } from '@/stores/missionStore'
 import { formatDuration } from '@/utils/formatDuration'
 import TimerClock from '@/components/ui/TimerClock.vue'
-import NavToggleButton from '@/components/globals/NavToggleButton.vue'
+import NavToggleButton from '@/components/ui/NavToggleButton.vue'
+import SectionLabel from '@/components/ui/SectionLabel.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const missionStore = useMissionStore()
 const mapStore = useMapStore()
@@ -126,7 +145,8 @@ const constructions = computed<TimerItem[]>(() => {
       const def = BUILDING_DEFINITIONS[b.type]
       const duration = getBuildingUpgrade(b.type, b.level).buildTime * 1000
       const startedAt = b.constructionEndTime! - duration
-      const progress = duration > 0 ? Math.min(1, Math.max(0, (now.value - startedAt) / duration)) : 1
+      const progress =
+        duration > 0 ? Math.min(1, Math.max(0, (now.value - startedAt) / duration)) : 1
       return {
         id: b.id,
         icon: def.icon,
@@ -142,7 +162,8 @@ const training = computed<TimerItem[]>(() => {
   return missionStore.trainingQueue.value.map((entry) => {
     const def = UNIT_DEFINITIONS[entry.type]
     const duration = entry.endsAt - entry.startedAt
-    const progress = duration > 0 ? Math.min(1, Math.max(0, (now.value - entry.startedAt) / duration)) : 1
+    const progress =
+      duration > 0 ? Math.min(1, Math.max(0, (now.value - entry.startedAt) / duration)) : 1
     return {
       id: entry.id,
       icon: def.icon,
@@ -178,7 +199,9 @@ const raids = computed<TimerItem[]>(() => {
     .filter((z) => z.hostilityState === 'hostile' && z.nextAttackAt)
     .map((z) => {
       const tile = mapStore.getTileById(z.fortressTileId)
-      const label = tile ? `Forteresse (${tile.position.x}, ${tile.position.y})` : 'Forteresse hostile'
+      const label = tile
+        ? `Forteresse (${tile.position.x}, ${tile.position.y})`
+        : 'Forteresse hostile'
       const remainingMs = Math.max(0, z.nextAttackAt! - now.value)
       const progress = 1 - remainingMs / HOSTILE_ATTACK_INTERVAL_MS
       return {
@@ -187,7 +210,7 @@ const raids = computed<TimerItem[]>(() => {
         label,
         progress: Math.min(1, Math.max(0, progress)),
         remainingMs,
-        color: '#ef4444',
+        color: 'var(--color-danger)',
       }
     })
 })
@@ -201,7 +224,11 @@ const allTimers = computed<TimerItem[]>(() => [
 ])
 
 const totalCount = computed(
-  () => constructions.value.length + training.value.length + movements.value.length + raids.value.length,
+  () =>
+    constructions.value.length +
+    training.value.length +
+    movements.value.length +
+    raids.value.length,
 )
 </script>
 
@@ -215,9 +242,9 @@ const totalCount = computed(
   right: 0;
   height: 100vh;
   width: 260px;
-  background: linear-gradient(180deg, #1a0f08 0%, #2c1810 100%);
-  border-left: 1px solid rgba(218, 165, 32, 0.35);
-  box-shadow: -3px 0 15px rgba(0, 0, 0, 0.5);
+  background: var(--color-bg-surface);
+  border-left: 1px solid rgba(var(--overlay-rgb), 0.12);
+  box-shadow: -3px 0 15px rgba(var(--color-black-rgb), 0.06);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -274,19 +301,16 @@ const totalCount = computed(
 .timers-title {
   margin: 0 0 0.75rem;
   font-size: 1rem;
-  color: #daa520;
+  color: var(--color-accent-ink);
 }
 
 .timers-section {
   margin-bottom: 1.1rem;
 }
 
-.timers-section-title {
+.timers-section :deep(.section-label) {
+  display: block;
   margin: 0 0 0.5rem;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #93c5fd;
 }
 
 .timers-list {
@@ -310,7 +334,7 @@ const totalCount = computed(
 
 .timer-row-label {
   font-size: 0.78rem;
-  color: #f4e4bc;
+  color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -318,7 +342,7 @@ const totalCount = computed(
 
 .timer-row-eta {
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -329,5 +353,4 @@ const totalCount = computed(
   text-align: center;
   padding: 1rem 0;
 }
-
 </style>

@@ -8,147 +8,145 @@
       @click.self="emit('close')"
       @keydown.esc="emit('close')"
     >
-    <section class="combat-report-panel">
-      <!-- Bannière hero victoire / défaite -->
-      <div class="hero-banner" :class="playerVictory ? 'banner-victory' : 'banner-defeat'">
-        <div class="banner-particles">
-          <span v-for="i in 8" :key="i" class="particle" :style="{ '--i': i }"></span>
-        </div>
-        <div class="banner-content">
-          <div class="banner-emblem">
-            <span class="banner-emblem-icon">{{ bannerIcon }}</span>
-            <div class="banner-emblem-ring"></div>
+      <section class="combat-report-panel">
+        <!-- Bannière hero victoire / défaite -->
+        <div class="hero-banner" :class="playerVictory ? 'banner-victory' : 'banner-defeat'">
+          <div class="banner-particles">
+            <span v-for="i in 8" :key="i" class="particle" :style="{ '--i': i }"></span>
           </div>
-          <div class="banner-text">
-            <h2 class="banner-title">{{ bannerTitle }}</h2>
-            <p class="banner-subtitle">{{ bannerSubtitle }}</p>
-          </div>
-        </div>
-        <div class="banner-fade-bottom"></div>
-      </div>
-
-      <div class="report-body">
-        <p class="report-summary">{{ report.summary }}</p>
-
-        <div class="report-details">
-          <div class="report-side">
-            <h4>{{ report.attacker.army.label }}</h4>
-            <div class="report-stat">
-              ⚔️ Force : {{ report.attacker.totalPowerUsed }}
-              <span v-if="attackerBonusPct > 0" class="bonus-badge">+{{ attackerBonusPct }}%</span>
+          <div class="banner-content">
+            <div class="banner-emblem">
+              <span class="banner-emblem-icon">{{ bannerIcon }}</span>
+              <div class="banner-emblem-ring"></div>
             </div>
-            <!-- Pertes par type d'unité -->
-            <div class="losses-section">
-              <div class="losses-label">Pertes</div>
-              <div class="unit-losses">
-                <div
-                  v-for="(killed, type) in report.attacker.losses.killed"
-                  :key="type"
-                  class="unit-loss-row"
-                  :class="{ 'no-loss': killed === 0 }"
-                >
-                  <span class="unit-loss-icon">{{ unitIcon(String(type)) }}</span>
-                  <span class="unit-loss-name">{{ unitLabel(String(type)) }}</span>
-                  <span class="unit-loss-count" :class="{ 'count-zero': killed === 0 }">
-                    {{ killed === 0 ? '—' : `-${killed}` }}
-                  </span>
+            <div class="banner-text">
+              <h2 class="banner-title">{{ bannerTitle }}</h2>
+              <p class="banner-subtitle">{{ bannerSubtitle }}</p>
+            </div>
+          </div>
+          <div class="banner-fade-bottom"></div>
+        </div>
+
+        <div class="report-body">
+          <p class="report-summary">{{ report.summary }}</p>
+
+          <div class="report-details">
+            <div class="report-side">
+              <h4>{{ report.attacker.army.label }}</h4>
+              <div class="report-stat">
+                ⚔️ Force : {{ report.attacker.totalPowerUsed }}
+                <Badge v-if="attackerBonusPct > 0" tone="success">+{{ attackerBonusPct }}%</Badge>
+              </div>
+              <!-- Pertes par type d'unité -->
+              <div class="losses-section">
+                <SectionLabel>Pertes</SectionLabel>
+                <div class="unit-losses">
+                  <div
+                    v-for="(killed, type) in report.attacker.losses.killed"
+                    :key="type"
+                    class="unit-loss-row"
+                    :class="{ 'no-loss': killed === 0 }"
+                  >
+                    <span class="unit-loss-icon">{{ unitIcon(String(type)) }}</span>
+                    <span class="unit-loss-name">{{ unitLabel(String(type)) }}</span>
+                    <span class="unit-loss-count" :class="{ 'count-zero': killed === 0 }">
+                      {{ killed === 0 ? '—' : `-${killed}` }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Survivants -->
+              <div v-if="report.attacker.losses.survivors.length > 0" class="survivors-section">
+                <SectionLabel>Survivants</SectionLabel>
+                <div class="survivors-chips">
+                  <Badge
+                    v-for="unit in report.attacker.losses.survivors"
+                    :key="unit.type"
+                    tone="success"
+                  >
+                    {{ unitIcon(unit.type) }} {{ unit.count }} {{ unitLabel(unit.type) }}
+                  </Badge>
                 </div>
               </div>
             </div>
 
-            <!-- Survivants -->
-            <div v-if="report.attacker.losses.survivors.length > 0" class="survivors-section">
-              <div class="survivors-label">Survivants</div>
-              <div class="survivors-chips">
-                <div
-                  v-for="unit in report.attacker.losses.survivors"
-                  :key="unit.type"
-                  class="survivor-chip"
-                >
-                  <span class="chip-icon">{{ unitIcon(unit.type) }}</span>
-                  <span class="chip-count">{{ unit.count }}</span>
-                  <span class="chip-name">{{ unitLabel(unit.type) }}</span>
+            <div class="report-divider"></div>
+
+            <div class="report-side">
+              <h4>{{ report.defender.army.label }}</h4>
+              <div class="report-stat">🛡️ Force : {{ report.defender.totalPowerUsed }}</div>
+              <!-- Pertes par type d'unité -->
+              <div class="losses-section">
+                <SectionLabel>Pertes</SectionLabel>
+                <div class="unit-losses">
+                  <div
+                    v-for="(killed, type) in report.defender.losses.killed"
+                    :key="type"
+                    class="unit-loss-row"
+                    :class="{ 'no-loss': killed === 0 }"
+                  >
+                    <span class="unit-loss-icon">{{ unitIcon(String(type)) }}</span>
+                    <span class="unit-loss-name">{{ unitLabel(String(type)) }}</span>
+                    <span class="unit-loss-count" :class="{ 'count-zero': killed === 0 }">
+                      {{ killed === 0 ? '—' : `-${killed}` }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Survivants -->
+              <div v-if="report.defender.losses.survivors.length > 0" class="survivors-section">
+                <SectionLabel>Survivants</SectionLabel>
+                <div class="survivors-chips">
+                  <Badge
+                    v-for="unit in report.defender.losses.survivors"
+                    :key="unit.type"
+                    tone="success"
+                  >
+                    {{ unitIcon(unit.type) }} {{ unit.count }} {{ unitLabel(unit.type) }}
+                  </Badge>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="report-divider"></div>
-
-          <div class="report-side">
-            <h4>{{ report.defender.army.label }}</h4>
-            <div class="report-stat">🛡️ Force : {{ report.defender.totalPowerUsed }}</div>
-            <!-- Pertes par type d'unité -->
-            <div class="losses-section">
-              <div class="losses-label">Pertes</div>
-              <div class="unit-losses">
-                <div
-                  v-for="(killed, type) in report.defender.losses.killed"
-                  :key="type"
-                  class="unit-loss-row"
-                  :class="{ 'no-loss': killed === 0 }"
-                >
-                  <span class="unit-loss-icon">{{ unitIcon(String(type)) }}</span>
-                  <span class="unit-loss-name">{{ unitLabel(String(type)) }}</span>
-                  <span class="unit-loss-count" :class="{ 'count-zero': killed === 0 }">
-                    {{ killed === 0 ? '—' : `-${killed}` }}
-                  </span>
-                </div>
-              </div>
+          <!-- Section butin (uniquement si victoire avec pillage) -->
+          <div v-if="report.pillage && lootTotal > 0" class="report-loot">
+            <h4 class="loot-title">🪙 Butin récupéré</h4>
+            <div class="loot-resources">
+              <span v-if="report.pillage.loot.gold > 0" class="loot-item">
+                🪙 <strong>{{ report.pillage.loot.gold }}</strong>
+              </span>
+              <span v-if="report.pillage.loot.wood > 0" class="loot-item">
+                🪵 <strong>{{ report.pillage.loot.wood }}</strong>
+              </span>
+              <span v-if="report.pillage.loot.iron > 0" class="loot-item">
+                ⚒️ <strong>{{ report.pillage.loot.iron }}</strong>
+              </span>
+              <span v-if="report.pillage.loot.crop > 0" class="loot-item">
+                🌾 <strong>{{ report.pillage.loot.crop }}</strong>
+              </span>
             </div>
-
-            <!-- Survivants -->
-            <div v-if="report.defender.losses.survivors.length > 0" class="survivors-section">
-              <div class="survivors-label">Survivants</div>
-              <div class="survivors-chips">
-                <div
-                  v-for="unit in report.defender.losses.survivors"
-                  :key="unit.type"
-                  class="survivor-chip"
-                >
-                  <span class="chip-icon">{{ unitIcon(unit.type) }}</span>
-                  <span class="chip-count">{{ unit.count }}</span>
-                  <span class="chip-name">{{ unitLabel(unit.type) }}</span>
-                </div>
-              </div>
+            <div class="loot-meta">
+              <span class="loot-capacity">🎒 Capacité : {{ report.pillage.carryCapacity }}</span>
+              <span v-if="report.pillage.wasCapacityLimited" class="loot-warning"
+                >⚠️ Limité par la capacité</span
+              >
+              <span v-if="report.pillage.wasRecentlyPillaged" class="loot-warning"
+                >⚠️ Pillé récemment (−50%)</span
+              >
             </div>
           </div>
-        </div>
-
-        <!-- Section butin (uniquement si victoire avec pillage) -->
-        <div v-if="report.pillage && lootTotal > 0" class="report-loot">
-          <h4 class="loot-title">🪙 Butin récupéré</h4>
-          <div class="loot-resources">
-            <span v-if="report.pillage.loot.gold > 0" class="loot-item">
-              🪙 <strong>{{ report.pillage.loot.gold }}</strong>
-            </span>
-            <span v-if="report.pillage.loot.wood > 0" class="loot-item">
-              🪵 <strong>{{ report.pillage.loot.wood }}</strong>
-            </span>
-            <span v-if="report.pillage.loot.iron > 0" class="loot-item">
-              ⚒️ <strong>{{ report.pillage.loot.iron }}</strong>
-            </span>
-            <span v-if="report.pillage.loot.crop > 0" class="loot-item">
-              🌾 <strong>{{ report.pillage.loot.crop }}</strong>
-            </span>
+          <div v-else-if="playerVictory && report.pillage" class="report-loot report-loot--empty">
+            <span>🏜️ Village vide — aucune ressource à piller</span>
           </div>
-          <div class="loot-meta">
-            <span class="loot-capacity">🎒 Capacité : {{ report.pillage.carryCapacity }}</span>
-            <span v-if="report.pillage.wasCapacityLimited" class="loot-warning"
-              >⚠️ Limité par la capacité</span
-            >
-            <span v-if="report.pillage.wasRecentlyPillaged" class="loot-warning"
-              >⚠️ Pillé récemment (−50%)</span
-            >
-          </div>
-        </div>
-        <div v-else-if="playerVictory && report.pillage" class="report-loot report-loot--empty">
-          <span>🏜️ Village vide — aucune ressource à piller</span>
-        </div>
 
-        <button class="report-close-btn" @click="emit('close')">Fermer</button>
-      </div>
-    </section>
+          <Button class="report-close-btn" variant="secondary" @click="emit('close')"
+            >Fermer</Button
+          >
+        </div>
+      </section>
     </div>
   </Transition>
 </template>
@@ -157,6 +155,9 @@
 import { computed, ref, watch, nextTick } from 'vue'
 import type { CombatReport, SavedBattleReport } from '../../combat/types'
 import { UNIT_DEFINITIONS } from '../../stores/missionStore'
+import Badge from '@/components/ui/Badge.vue'
+import SectionLabel from '@/components/ui/SectionLabel.vue'
+import Button from '@/components/ui/Button.vue'
 
 const props = defineProps<{ report: CombatReport | SavedBattleReport | null }>()
 
@@ -245,7 +246,7 @@ const lootTotal = computed(() => {
 .combat-report-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(var(--color-black-rgb), 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -255,8 +256,8 @@ const lootTotal = computed(() => {
 }
 
 .combat-report-panel {
-  background: linear-gradient(160deg, #1a2540, #0f172a);
-  border: 2px solid #334155;
+  background: var(--color-bg-surface);
+  border: 1px solid rgba(var(--overlay-rgb), 0.12);
   border-radius: 20px;
   padding: 0;
   width: 680px;
@@ -264,13 +265,17 @@ const lootTotal = computed(() => {
   max-height: 90vh;
   overflow-y: auto;
   box-shadow:
-    0 24px 80px rgba(0, 0, 0, 0.8),
-    0 0 60px rgba(59, 130, 246, 0.08);
-  color: #e2e8f0;
+    0 24px 80px rgba(var(--color-black-rgb), 0.18),
+    0 0 60px rgba(var(--color-accent-rgb), 0.08);
+  color: var(--color-text);
   transition: transform 0.3s ease;
 }
 
-/* ── Bannière hero ── */
+/* ── Bannière hero ──
+   Vignette dramatique volontairement sombre (particules, dégradé radial),
+   indépendante du thème clair de l'app — un moment de mise en scène ponctuel,
+   pas une zone de contenu. Le reste du panneau (report-body) suit la base
+   claire normalement. */
 .hero-banner {
   position: relative;
   height: 180px;
@@ -441,7 +446,7 @@ const lootTotal = computed(() => {
   left: 0;
   right: 0;
   height: 60px;
-  background: linear-gradient(to bottom, transparent, #0f172a);
+  background: linear-gradient(to bottom, transparent, var(--color-bg-surface));
   z-index: 1;
 }
 
@@ -450,28 +455,10 @@ const lootTotal = computed(() => {
   padding: 20px 28px 24px;
 }
 
-.report-icon {
-  font-size: 1.8rem;
-}
-
-.report-title {
-  font-size: 1.4rem;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-
-.report-header.victory .report-title {
-  color: #4ade80;
-}
-
-.report-header.defeat .report-title {
-  color: #f87171;
-}
-
 .report-summary {
   text-align: center;
   font-size: 0.9rem;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   margin-bottom: 20px;
   line-height: 1.5;
 }
@@ -484,8 +471,8 @@ const lootTotal = computed(() => {
 
 .report-side {
   flex: 1;
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid #334155;
+  background: rgba(var(--overlay-rgb), 0.03);
+  border: 1px solid rgba(var(--overlay-rgb), 0.12);
   border-radius: 10px;
   padding: 14px;
 }
@@ -493,15 +480,15 @@ const lootTotal = computed(() => {
 .report-side h4 {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #cbd5e1;
+  color: var(--color-text);
   margin-bottom: 10px;
   padding-bottom: 6px;
-  border-bottom: 1px solid #334155;
+  border-bottom: 1px solid rgba(var(--overlay-rgb), 0.12);
 }
 
 .report-stat {
   font-size: 0.82rem;
-  color: #93c5fd;
+  color: var(--color-text-muted);
   margin-bottom: 8px;
   font-weight: 500;
   display: flex;
@@ -509,30 +496,9 @@ const lootTotal = computed(() => {
   gap: 6px;
 }
 
-.bonus-badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #4ade80;
-  background: rgba(74, 222, 128, 0.15);
-  border: 1px solid rgba(74, 222, 128, 0.35);
-  border-radius: 999px;
-  padding: 0 6px;
-  line-height: 1.6;
-}
-
 /* ── Pertes visuelles ── */
 .losses-section {
   margin-top: 10px;
-}
-
-.losses-label,
-.survivors-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #64748b;
-  margin-bottom: 6px;
 }
 
 .unit-losses {
@@ -547,14 +513,14 @@ const lootTotal = computed(() => {
   gap: 6px;
   padding: 4px 6px;
   border-radius: 6px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: rgba(var(--color-danger-rgb), 0.08);
+  border: 1px solid rgba(var(--color-danger-rgb), 0.2);
   transition: background 0.15s;
 }
 
 .unit-loss-row.no-loss {
-  background: rgba(255, 255, 255, 0.02);
-  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--overlay-rgb), 0.03);
+  border-color: rgba(var(--overlay-rgb), 0.08);
   opacity: 0.5;
 }
 
@@ -566,7 +532,7 @@ const lootTotal = computed(() => {
 
 .unit-loss-name {
   font-size: 0.78rem;
-  color: #cbd5e1;
+  color: var(--color-text-muted);
   flex: 1;
   text-transform: capitalize;
 }
@@ -574,8 +540,8 @@ const lootTotal = computed(() => {
 .unit-loss-count {
   font-size: 0.8rem;
   font-weight: 700;
-  color: #f87171;
-  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-danger);
+  background: rgba(var(--color-danger-rgb), 0.15);
   border-radius: 4px;
   padding: 1px 6px;
   min-width: 28px;
@@ -583,7 +549,7 @@ const lootTotal = computed(() => {
 }
 
 .unit-loss-count.count-zero {
-  color: #475569;
+  color: var(--color-text-faint);
   background: transparent;
 }
 
@@ -591,7 +557,7 @@ const lootTotal = computed(() => {
 .survivors-section {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px dashed #334155;
+  border-top: 1px dashed rgba(var(--overlay-rgb), 0.2);
 }
 
 .survivors-chips {
@@ -600,37 +566,9 @@ const lootTotal = computed(() => {
   gap: 6px;
 }
 
-.survivor-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  background: rgba(74, 222, 128, 0.1);
-  border: 1px solid rgba(74, 222, 128, 0.3);
-  border-radius: 999px;
-  color: #4ade80;
-}
-
-.chip-icon {
-  font-size: 0.8rem;
-  line-height: 1;
-}
-
-.chip-count {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #86efac;
-}
-
-.chip-name {
-  font-size: 0.75rem;
-  color: #4ade80;
-  text-transform: capitalize;
-}
-
 .report-divider {
   width: 2px;
-  background: linear-gradient(to bottom, transparent, #475569, transparent);
+  background: linear-gradient(to bottom, transparent, rgba(var(--overlay-rgb), 0.25), transparent);
   flex-shrink: 0;
 }
 
@@ -638,21 +576,6 @@ const lootTotal = computed(() => {
   display: block;
   width: 100%;
   margin-top: 20px;
-  padding: 10px;
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.report-close-btn:hover {
-  background: linear-gradient(135deg, #60a5fa, #3b82f6);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .slide-fade-enter-active,
@@ -673,8 +596,8 @@ const lootTotal = computed(() => {
 /* ── Section butin ── */
 .report-loot {
   margin-top: 16px;
-  background: rgba(234, 179, 8, 0.07);
-  border: 1px solid rgba(234, 179, 8, 0.25);
+  background: rgba(var(--color-accent-rgb), 0.07);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.25);
   border-radius: 10px;
   padding: 12px 14px;
   display: flex;
@@ -685,15 +608,15 @@ const lootTotal = computed(() => {
 .report-loot--empty {
   text-align: center;
   font-size: 0.84em;
-  color: #78716c;
-  background: rgba(255, 255, 255, 0.02);
-  border-color: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-faint);
+  background: rgba(var(--overlay-rgb), 0.03);
+  border-color: rgba(var(--overlay-rgb), 0.1);
 }
 
 .loot-title {
   font-size: 0.9rem;
   font-weight: 700;
-  color: #fbbf24;
+  color: var(--color-accent-ink);
   margin: 0;
 }
 
@@ -708,11 +631,11 @@ const lootTotal = computed(() => {
   align-items: center;
   gap: 4px;
   font-size: 0.95rem;
-  color: #e2e8f0;
+  color: var(--color-text);
 }
 
 .loot-item strong {
-  color: #fde68a;
+  color: var(--color-accent-ink);
   font-size: 1.05em;
 }
 
@@ -721,15 +644,15 @@ const lootTotal = computed(() => {
   flex-wrap: wrap;
   gap: 10px;
   font-size: 0.76rem;
-  color: #94a3b8;
+  color: var(--color-text-muted);
 }
 
 .loot-capacity {
-  color: #7dd3fc;
+  color: var(--color-info);
 }
 
 .loot-warning {
-  color: #fb923c;
+  color: var(--color-warning);
   font-weight: 600;
 }
 
@@ -742,7 +665,7 @@ const lootTotal = computed(() => {
   .report-divider {
     width: auto;
     height: 2px;
-    background: linear-gradient(to right, transparent, #475569, transparent);
+    background: linear-gradient(to right, transparent, rgba(var(--overlay-rgb), 0.25), transparent);
   }
 }
 </style>

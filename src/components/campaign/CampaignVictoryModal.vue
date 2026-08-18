@@ -1,93 +1,97 @@
 <template>
-  <Transition name="modal-pop">
-    <div v-if="visible" class="modal-backdrop" @click.self="emit('close')">
-      <div class="victory-modal">
-        <!-- Bannière hero -->
-        <div class="victory-banner">
-          <div class="banner-particles">
-            <span v-for="i in 10" :key="i" class="particle" :style="{ '--i': i }"></span>
-          </div>
-          <div class="banner-emblem">
-            <span class="emblem-icon">🏆</span>
-            <div class="emblem-ring"></div>
-          </div>
-          <div class="banner-text">
-            <h2 class="banner-title">Campagne terminée !</h2>
-            <p class="banner-subtitle">{{ nodeTitle }}</p>
-          </div>
-          <div class="banner-fade"></div>
+  <BaseDialog :open="visible" size="md" @update:open="onUpdateOpen">
+    <template #header>
+      <div class="victory-banner">
+        <div class="banner-particles">
+          <span v-for="i in 10" :key="i" class="particle" :style="{ '--i': i }"></span>
         </div>
-
-        <!-- Corps -->
-        <div class="modal-body">
-          <!-- Section gains -->
-          <div class="gains-section">
-            <div class="section-label">Récompenses obtenues</div>
-
-            <div class="gains-list">
-              <!-- Or de base campagne -->
-              <div class="gain-row gain-gold">
-                <span class="gain-icon">🪙</span>
-                <span class="gain-name">Bonus de campagne</span>
-                <span class="gain-value">+{{ bonusGold }} or</span>
-              </div>
-
-              <!-- Or du nœud -->
-              <div v-if="nodeRewardGold > 0" class="gain-row gain-gold">
-                <span class="gain-icon">🪙</span>
-                <span class="gain-name">Récompense du nœud</span>
-                <span class="gain-value">+{{ nodeRewardGold }} or</span>
-              </div>
-
-              <!-- Artefact -->
-              <div
-                v-if="nodeRewardArtifact"
-                class="gain-row gain-artifact"
-                :class="`rarity-${nodeRewardArtifact.rarity}`"
-              >
-                <span class="gain-icon">{{ nodeRewardArtifact.icon }}</span>
-                <div class="gain-artifact-info">
-                  <span class="gain-name">{{ nodeRewardArtifact.name }}</span>
-                  <span class="artifact-rarity">{{ rarityLabel(nodeRewardArtifact.rarity) }}</span>
-                </div>
-                <span class="gain-value gain-value--artifact">Relique</span>
-              </div>
-
-              <!-- Bonus artefacts actifs -->
-              <template v-for="bonus in artifactBonuses" :key="bonus.id">
-                <div v-if="bonus.goldBonus > 0" class="gain-row gain-artifact-bonus">
-                  <span class="gain-icon">{{ bonus.icon }}</span>
-                  <span class="gain-name">{{ bonus.name }}</span>
-                  <span class="gain-value">+{{ bonus.goldBonus }} or</span>
-                </div>
-                <div v-if="bonus.leadershipBonus > 0" class="gain-row gain-artifact-bonus">
-                  <span class="gain-icon">{{ bonus.icon }}</span>
-                  <span class="gain-name">{{ bonus.name }}</span>
-                  <span class="gain-value gain-value--leadership"
-                    >+{{ bonus.leadershipBonus }} leadership</span
-                  >
-                </div>
-              </template>
-            </div>
-
-            <!-- Total or -->
-            <div class="total-row">
-              <span class="total-label">Or total reçu</span>
-              <span class="total-value">🪙 {{ totalGold }}</span>
-            </div>
-          </div>
-
-          <!-- Bouton fermer -->
-          <button class="btn-continue" @click="emit('close')">Continuer l'aventure →</button>
+        <div class="banner-emblem">
+          <span class="emblem-icon">🏆</span>
+          <div class="emblem-ring"></div>
+        </div>
+        <div class="banner-text">
+          <h2 class="banner-title">Campagne terminée !</h2>
+          <p class="banner-subtitle">{{ nodeTitle }}</p>
         </div>
       </div>
+    </template>
+
+    <!-- Section gains -->
+    <div class="gains-section">
+      <SectionLabel>Récompenses obtenues</SectionLabel>
+
+      <!--
+        Volontairement custom, pas de Badge/ListRow : chaque type de gain (or, artefact,
+        bonus actif) a sa propre teinte de fond/bordure ouverte (or/violet/rareté) et une
+        mise en page à 3 zones (icône/nom/valeur) que ces composants ne paramètrent pas.
+      -->
+      <div class="gains-list">
+        <!-- Or de base campagne -->
+        <div class="gain-row gain-gold">
+          <span class="gain-icon">🪙</span>
+          <span class="gain-name">Bonus de campagne</span>
+          <span class="gain-value">+{{ bonusGold }} or</span>
+        </div>
+
+        <!-- Or du nœud -->
+        <div v-if="nodeRewardGold > 0" class="gain-row gain-gold">
+          <span class="gain-icon">🪙</span>
+          <span class="gain-name">Récompense du nœud</span>
+          <span class="gain-value">+{{ nodeRewardGold }} or</span>
+        </div>
+
+        <!-- Artefact -->
+        <div
+          v-if="nodeRewardArtifact"
+          class="gain-row gain-artifact"
+          :class="`rarity-${nodeRewardArtifact.rarity}`"
+        >
+          <span class="gain-icon">{{ nodeRewardArtifact.icon }}</span>
+          <div class="gain-artifact-info">
+            <span class="gain-name">{{ nodeRewardArtifact.name }}</span>
+            <RarityBadge :rarity="nodeRewardArtifact.rarity" />
+          </div>
+          <span class="gain-value gain-value--artifact">Relique</span>
+        </div>
+
+        <!-- Bonus artefacts actifs -->
+        <template v-for="bonus in artifactBonuses" :key="bonus.id">
+          <div v-if="bonus.goldBonus > 0" class="gain-row gain-artifact-bonus">
+            <span class="gain-icon">{{ bonus.icon }}</span>
+            <span class="gain-name">{{ bonus.name }}</span>
+            <span class="gain-value">+{{ bonus.goldBonus }} or</span>
+          </div>
+          <div v-if="bonus.leadershipBonus > 0" class="gain-row gain-artifact-bonus">
+            <span class="gain-icon">{{ bonus.icon }}</span>
+            <span class="gain-name">{{ bonus.name }}</span>
+            <span class="gain-value gain-value--leadership"
+              >+{{ bonus.leadershipBonus }} leadership</span
+            >
+          </div>
+        </template>
+      </div>
+
+      <!-- Total or -->
+      <div class="total-row">
+        <span class="total-label">Or total reçu</span>
+        <CurrencyBadge :amount="totalGold" />
+      </div>
     </div>
-  </Transition>
+
+    <template #footer>
+      <Button @click="emit('close')">Continuer l'aventure →</Button>
+    </template>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Artifact } from '@/stores/gameStore'
+import BaseDialog from '@/components/ui/BaseDialog.vue'
+import Button from '@/components/ui/Button.vue'
+import SectionLabel from '@/components/ui/SectionLabel.vue'
+import RarityBadge from '@/components/ui/RarityBadge.vue'
+import CurrencyBadge from '@/components/ui/CurrencyBadge.vue'
 
 interface ArtifactBonus {
   id: string
@@ -114,58 +118,27 @@ const totalGold = computed(() => {
   return total
 })
 
-function rarityLabel(rarity: Artifact['rarity']): string {
-  const labels: Record<Artifact['rarity'], string> = {
-    common: 'Commun',
-    rare: 'Rare',
-    epic: 'Épique',
-    legendary: 'Légendaire',
-  }
-  return labels[rarity]
+// Fermeture via le backdrop/Esc de BaseDialog — équivaut à un clic sur "Continuer"
+function onUpdateOpen(value: boolean) {
+  if (!value) emit('close')
 }
 </script>
 
 <style scoped>
-/* ── Backdrop ── */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(4px);
-  z-index: 1200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* ── Modal ── */
-.victory-modal {
-  width: 520px;
-  max-width: 95vw;
-  max-height: 90vh;
-  overflow-y: auto;
-  background: linear-gradient(160deg, #1a2540, #0f172a);
-  border: 2px solid rgba(234, 179, 8, 0.35);
-  border-radius: 20px;
-  box-shadow:
-    0 24px 80px rgba(0, 0, 0, 0.85),
-    0 0 60px rgba(234, 179, 8, 0.08);
-  color: #e2e8f0;
-}
-
-/* ── Bannière ── */
+/* ── Bannière — bleed hors du padding du panneau BaseDialog (1.5rem) ── */
 .victory-banner {
   position: relative;
   height: 170px;
-  border-radius: 18px 18px 0 0;
+  margin: -1.5rem -1.5rem 0;
+  border-radius: 14px 14px 0 0;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(ellipse at 30% 60%, rgba(234, 179, 8, 0.4) 0%, transparent 60%),
-    radial-gradient(ellipse at 70% 30%, rgba(34, 197, 94, 0.2) 0%, transparent 55%),
-    linear-gradient(160deg, #0f2a1a 0%, #0a1f35 50%, #1a1200 100%);
+    radial-gradient(ellipse at 30% 60%, rgba(234, 179, 8, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 30%, rgba(34, 197, 94, 0.1) 0%, transparent 55%),
+    linear-gradient(160deg, #fff7e0 0%, #fdf3d8 50%, #fff9ea 100%);
 }
 
 /* Particules */
@@ -180,7 +153,7 @@ function rarityLabel(rarity: Artifact['rarity']): string {
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: #fde68a;
+  background: #f59e0b;
   box-shadow: 0 0 6px #fbbf24;
   animation: float-particle 3s ease-in-out infinite;
   animation-delay: calc(var(--i) * 0.32s);
@@ -233,8 +206,8 @@ function rarityLabel(rarity: Artifact['rarity']): string {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 2px solid rgba(234, 179, 8, 0.6);
-  box-shadow: 0 0 20px rgba(234, 179, 8, 0.25);
+  border: 2px solid rgba(var(--color-accent-rgb), 0.5);
+  box-shadow: 0 0 20px rgba(var(--color-accent-rgb), 0.2);
   animation: spin-ring 8s linear infinite;
 }
 
@@ -255,58 +228,28 @@ function rarityLabel(rarity: Artifact['rarity']): string {
 .banner-title {
   font-size: 1.8rem;
   font-weight: 800;
-  color: #fde68a;
-  text-shadow:
-    0 0 20px rgba(234, 179, 8, 0.5),
-    0 2px 12px rgba(0, 0, 0, 0.5);
+  color: var(--color-accent-ink);
   margin: 0 0 4px;
   line-height: 1;
 }
 
 .banner-subtitle {
   font-size: 0.82rem;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   margin: 0;
   font-style: italic;
 }
 
-.banner-fade {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 55px;
-  background: linear-gradient(to bottom, transparent, #0f172a);
-  z-index: 1;
-}
-
-/* ── Corps ── */
-.modal-body {
-  padding: 20px 26px 26px;
-}
-
 /* ── Section gains ── */
 .gains-section {
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid #1e293b;
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.section-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: #64748b;
-  margin-bottom: 12px;
+  margin-top: 1rem;
 }
 
 .gains-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 14px;
+  margin: 12px 0 14px;
 }
 
 /* Ligne de gain générique */
@@ -320,34 +263,33 @@ function rarityLabel(rarity: Artifact['rarity']): string {
 }
 
 .gain-gold {
-  background: rgba(234, 179, 8, 0.08);
-  border-color: rgba(234, 179, 8, 0.22);
+  background: rgba(var(--color-accent-rgb), 0.06);
+  border-color: rgba(var(--color-accent-rgb), 0.22);
 }
 
 .gain-artifact-bonus {
-  background: rgba(99, 102, 241, 0.07);
-  border-color: rgba(99, 102, 241, 0.2);
+  background: rgba(99, 102, 241, 0.05);
+  border-color: rgba(99, 102, 241, 0.18);
 }
 
 .gain-artifact {
-  background: rgba(168, 85, 247, 0.08);
-  border-color: rgba(168, 85, 247, 0.25);
+  background: rgba(var(--rarity-epic-rgb), 0.06);
+  border-color: rgba(var(--rarity-epic-rgb), 0.2);
 }
 
 .gain-artifact.rarity-legendary {
-  background: rgba(234, 179, 8, 0.1);
-  border-color: rgba(234, 179, 8, 0.4);
-  box-shadow: 0 0 12px rgba(234, 179, 8, 0.1);
+  background: rgba(var(--rarity-legendary-rgb), 0.08);
+  border-color: rgba(var(--rarity-legendary-rgb), 0.35);
 }
 
 .gain-artifact.rarity-epic {
-  background: rgba(168, 85, 247, 0.1);
-  border-color: rgba(168, 85, 247, 0.4);
+  background: rgba(var(--rarity-epic-rgb), 0.08);
+  border-color: rgba(var(--rarity-epic-rgb), 0.35);
 }
 
 .gain-artifact.rarity-rare {
-  background: rgba(59, 130, 246, 0.08);
-  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(var(--rarity-rare-rgb), 0.06);
+  border-color: rgba(var(--rarity-rare-rgb), 0.25);
 }
 
 .gain-icon {
@@ -362,7 +304,7 @@ function rarityLabel(rarity: Artifact['rarity']): string {
   flex: 1;
   min-width: 0;
   font-size: 0.85rem;
-  color: #cbd5e1;
+  color: var(--color-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -371,34 +313,33 @@ function rarityLabel(rarity: Artifact['rarity']): string {
 .gain-artifact-info {
   flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
-.artifact-rarity {
-  font-size: 0.7rem;
-  color: #94a3b8;
-  font-style: italic;
+.gain-artifact-info .gain-name {
+  flex: initial;
 }
 
 .gain-value {
   font-size: 0.88rem;
   font-weight: 700;
-  color: #fde68a;
+  color: var(--color-accent-ink);
   white-space: nowrap;
 }
 
 .gain-value--artifact {
-  color: #c084fc;
+  color: var(--rarity-epic);
   font-size: 0.75rem;
-  background: rgba(168, 85, 247, 0.15);
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: rgba(var(--rarity-epic-rgb), 0.12);
+  border: 1px solid rgba(var(--rarity-epic-rgb), 0.3);
   border-radius: 999px;
   padding: 2px 8px;
 }
 
 .gain-value--leadership {
-  color: #67e8f9;
+  color: var(--color-info);
 }
 
 /* ── Total ── */
@@ -407,8 +348,8 @@ function rarityLabel(rarity: Artifact['rarity']): string {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: rgba(234, 179, 8, 0.12);
-  border: 1px solid rgba(234, 179, 8, 0.3);
+  background: rgba(var(--color-accent-rgb), 0.08);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.3);
   border-radius: 8px;
   margin-top: 4px;
 }
@@ -416,58 +357,13 @@ function rarityLabel(rarity: Artifact['rarity']): string {
 .total-label {
   font-size: 0.8rem;
   font-weight: 700;
-  color: #fbbf24;
+  color: var(--color-accent-ink);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
-.total-value {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: #fde68a;
-}
-
-/* ── Bouton ── */
-.btn-continue {
-  display: block;
-  width: 100%;
-  margin-top: 18px;
-  padding: 13px;
-  background: linear-gradient(135deg, #d97706, #b45309);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  cursor: pointer;
-  letter-spacing: 0.03em;
-  transition: all 0.2s;
-}
-
-.btn-continue:hover {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(217, 119, 6, 0.4);
-}
-
-/* ── Transition ── */
-.modal-pop-enter-active,
-.modal-pop-leave-active {
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.modal-pop-enter-from,
-.modal-pop-leave-to {
-  opacity: 0;
-  transform: scale(0.88);
-}
-
 /* ── Responsive ── */
 @media (max-width: 480px) {
-  .modal-body {
-    padding: 14px 16px 18px;
-  }
-
   .banner-title {
     font-size: 1.4rem;
   }

@@ -91,6 +91,8 @@ onUnmounted(() => {
 </template>
 
 <style>
+@import '@/styles/tokens.css';
+
 /* Reset et styles globaux */
 * {
   margin: 0;
@@ -98,43 +100,17 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
-:root {
-  /* Couleurs de bonus/effet (artefacts) — partagées entre Inventaire et Bazar */
-  --fx-economy: #10b981;
-  --fx-economy-rgb: 16, 185, 129;
-  --fx-military: #ef4444;
-  --fx-military-rgb: 239, 68, 68;
-  --fx-defense: #3b82f6;
-  --fx-defense-rgb: 59, 130, 246;
-  --fx-resource: #f59e0b;
-  --fx-resource-rgb: 245, 158, 11;
-
-  /* Couleurs par type de nœud — partagées entre MissionTree et MissionMapLayer */
-  --node-combat: #dc143c;
-  --node-combat-rgb: 220, 20, 60;
-  --node-elite: #ffd700;
-  --node-elite-rgb: 255, 215, 0;
-  --node-shop: #32cd32;
-  --node-shop-rgb: 50, 205, 50;
-  --node-event: #9932cc;
-  --node-event-rgb: 153, 50, 204;
-  --node-rest: #4169e1;
-  --node-rest-rgb: 65, 105, 225;
-  --node-boss: #8b0000;
-  --node-boss-rgb: 139, 0, 0;
-}
-
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   line-height: 1.6;
-  color: #f4e4bc;
-  background: #1a0f08;
+  color: var(--color-text);
+  background: var(--color-bg-canvas);
   overflow-x: hidden;
 }
 
 /* Élements rendus cliquables au clavier par la directive v-clickable */
 [role='button']:focus-visible {
-  outline: 2px solid #daa520;
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
