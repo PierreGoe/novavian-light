@@ -1,6 +1,8 @@
 <template>
-  <aside class="timers-panel" :class="{ 'timers-panel--collapsed': isCollapsed }">
+  <aside class="timers-panel" :class="{ 'timers-panel--collapsed': effectiveCollapsed }">
+    <!-- Toggle masqué sur desktop étroit : le repli y est forcé (voir effectiveCollapsed) -->
     <NavToggleButton
+      v-if="!isNarrowDesktop"
       :collapsed="isCollapsed"
       side="right"
       expand-title="Déployer les timers"
@@ -10,7 +12,7 @@
 
     <!-- Replié : liste compacte d'horloges (icône + anneau), sans libellé — au survol, le
          titre natif du bouton affiche le détail. Toujours visible, pas besoin de déplier. -->
-    <div v-if="isCollapsed" class="timers-compact">
+    <div v-if="effectiveCollapsed" class="timers-compact">
       <button
         v-for="item in allTimers"
         :key="item.id"
@@ -108,6 +110,7 @@ import { useExplorationTicker } from '@/composables/useExplorationTicker'
 import { BUILDING_DEFINITIONS, getBuildingUpgrade } from '@/data/buildings'
 import { UNIT_DEFINITIONS } from '@/stores/missionStore'
 import { formatDuration } from '@/utils/formatDuration'
+import { useMediaQuery, NARROW_DESKTOP_QUERY } from '@/composables/useMediaQuery'
 import TimerClock from '@/components/ui/TimerClock.vue'
 import NavToggleButton from '@/components/ui/NavToggleButton.vue'
 import SectionLabel from '@/components/ui/SectionLabel.vue'
@@ -135,6 +138,12 @@ const toggleCollapsed = () => {
   localStorage.setItem(STORAGE_KEY, String(isCollapsed.value))
   window.dispatchEvent(new CustomEvent('timers-panel-toggle', { detail: isCollapsed.value }))
 }
+
+// Desktop étroit (769px–1200px) : panneau forcé en mode replié, comme SideNavBar.
+// Le choix utilisateur (isCollapsed) est conservé et reprend effet au-delà de 1200px.
+// L'offset du contenu est plafonné en CSS dans CampaignLayout.vue.
+const isNarrowDesktop = useMediaQuery(NARROW_DESKTOP_QUERY)
+const effectiveCollapsed = computed(() => isNarrowDesktop.value || isCollapsed.value)
 
 // --- Constructions en cours (même calcul que VillagePlanView.vue) ---
 const constructions = computed<TimerItem[]>(() => {

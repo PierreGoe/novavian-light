@@ -5,18 +5,23 @@
   <nav
     v-if="!isFullscreenRoute"
     class="side-nav"
-    :class="{ 'side-nav--collapsed': isCollapsed }"
+    :class="{ 'side-nav--collapsed': effectiveCollapsed }"
     role="navigation"
     aria-label="Navigation principale"
   >
-    <!-- Bouton toggle collapse / expand -->
-    <NavToggleButton :collapsed="isCollapsed" side="left" @toggle="toggleCollapsed" />
+    <!-- Bouton toggle collapse / expand — masqué sur desktop étroit (repli forcé en CSS) -->
+    <NavToggleButton
+      v-if="!isNarrowDesktop"
+      :collapsed="isCollapsed"
+      side="left"
+      @toggle="toggleCollapsed"
+    />
 
     <!-- Logo -->
     <router-link to="/mission-tree" class="nav-logo" title="Accueil">
       <span class="logo-icon">⚔️</span>
       <Transition name="fade-text">
-        <span v-if="!isCollapsed" class="logo-text">MiniTravian</span>
+        <span v-if="!effectiveCollapsed" class="logo-text">Novavian</span>
       </Transition>
     </router-link>
 
@@ -27,7 +32,7 @@
           :to="link.to"
           class="nav-link"
           :class="{ 'nav-link--active': isChildRouteActive(link) }"
-          :title="isCollapsed ? link.label : ''"
+          :title="effectiveCollapsed ? link.label : ''"
           active-class="nav-link--active"
         >
           <span class="nav-icon">
@@ -39,21 +44,29 @@
             />
           </span>
           <Transition name="fade-text">
-            <span v-if="!isCollapsed" class="nav-label">{{ link.label }}</span>
+            <span v-if="!effectiveCollapsed" class="nav-label">{{ link.label }}</span>
           </Transition>
         </router-link>
 
-        <!-- Sous-menu (ex. Campagne → Carte / Village) — masqué quand la sidebar est réduite -->
-        <div v-if="link.children && !isCollapsed" class="nav-submenu">
+        <!-- Sous-menu (ex. Campagne → Carte / Village) — en mode réduit, version icône
+             seule (tooltip natif pour le libellé) pour garder l'accès Carte/Village -->
+        <div
+          v-if="link.children"
+          class="nav-submenu"
+          :class="{ 'nav-submenu--collapsed': effectiveCollapsed }"
+        >
           <router-link
             v-for="child in link.children"
             :key="child.to"
             :to="child.to"
             class="nav-sublink"
+            :title="effectiveCollapsed ? child.label : ''"
             active-class="nav-sublink--active"
           >
             <span class="nav-icon">{{ child.icon }}</span>
-            <span class="nav-label">{{ child.label }}</span>
+            <Transition name="fade-text">
+              <span v-if="!effectiveCollapsed" class="nav-label">{{ child.label }}</span>
+            </Transition>
           </router-link>
         </div>
       </template>
@@ -65,10 +78,10 @@
     <!-- Stats joueur (visibles uniquement en jeu) -->
     <div class="nav-stats" v-if="isInGame">
       <!-- Or -->
-      <div class="stat-item stat-gold" :title="isCollapsed ? `${formatNumber(gold)} Or` : ''">
+      <div class="stat-item stat-gold" :title="effectiveCollapsed ? `${formatNumber(gold)} Or` : ''">
         <span class="stat-icon" ref="goldIconRef">🪙</span>
         <Transition name="fade-text">
-          <span v-if="!isCollapsed" class="stat-value">{{ formatNumber(gold) }}</span>
+          <span v-if="!effectiveCollapsed" class="stat-value">{{ formatNumber(gold) }}</span>
         </Transition>
       </div>
 
@@ -76,19 +89,19 @@
       <div
         class="stat-item stat-leadership"
         :class="`leadership-${leadershipStatus}`"
-        :title="isCollapsed ? `${leadership} Leadership` : leadershipTooltip"
+        :title="effectiveCollapsed ? `${leadership} Leadership` : leadershipTooltip"
       >
         <span class="stat-icon" ref="leadershipIconRef">👑</span>
         <Transition name="fade-text">
-          <span v-if="!isCollapsed" class="stat-value">{{ leadership }}</span>
+          <span v-if="!effectiveCollapsed" class="stat-value">{{ leadership }}</span>
         </Transition>
       </div>
 
       <!-- Race -->
-      <div class="stat-item stat-race" v-if="race" :title="isCollapsed ? race.name : ''">
+      <div class="stat-item stat-race" v-if="race" :title="effectiveCollapsed ? race.name : ''">
         <span class="stat-icon">{{ race.icon }}</span>
         <Transition name="fade-text">
-          <span v-if="!isCollapsed" class="stat-value">{{ race.name }}</span>
+          <span v-if="!effectiveCollapsed" class="stat-value">{{ race.name }}</span>
         </Transition>
       </div>
     </div>
@@ -101,7 +114,7 @@
     <button v-if="isInGame" class="nav-home-btn" @click="goHome" title="Menu principal">
       <span class="nav-icon">🏠</span>
       <Transition name="fade-text">
-        <span v-if="!isCollapsed" class="nav-label">Menu principal</span>
+        <span v-if="!effectiveCollapsed" class="nav-label">Menu principal</span>
       </Transition>
     </button>
 
@@ -182,6 +195,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 import { useMissionStore } from '@/stores/missionStore'
 import { formatNumber } from '@/utils/formatNumber'
+import { useMediaQuery, NARROW_DESKTOP_QUERY } from '@/composables/useMediaQuery'
 import NavToggleButton from '@/components/ui/NavToggleButton.vue'
 import CountBadge from '@/components/ui/CountBadge.vue'
 
@@ -198,6 +212,12 @@ const router = useRouter()
 // ===============================================================
 const STORAGE_KEY = 'sidebar-collapsed'
 const isCollapsed = ref<boolean>(localStorage.getItem(STORAGE_KEY) === 'true')
+
+// Desktop étroit (769px–1200px) : sidebar forcée en mode replié pour laisser la place
+// au contenu — le choix utilisateur (isCollapsed) est conservé et reprend effet au-delà.
+// L'offset du contenu est géré en CSS dans App.vue (min(var(--sidebar-width), 64px)).
+const isNarrowDesktop = useMediaQuery(NARROW_DESKTOP_QUERY)
+const effectiveCollapsed = computed(() => isNarrowDesktop.value || isCollapsed.value)
 
 const toggleCollapsed = () => {
   isCollapsed.value = !isCollapsed.value
@@ -464,6 +484,15 @@ $mobile-breakpoint: 768px;
   gap: 0.15rem;
   padding-left: 1.75rem;
   margin: 0.1rem 0 0.35rem;
+
+  // Mode réduit : plus d'indentation, icônes centrées comme les liens principaux
+  &--collapsed {
+    padding-left: 0;
+
+    .nav-sublink {
+      justify-content: center;
+    }
+  }
 }
 
 .nav-sublink {
@@ -471,7 +500,7 @@ $mobile-breakpoint: 768px;
   align-items: center;
   gap: 0.6rem;
   padding: 0.4rem 0.6rem;
-  color: rgba(244, 228, 188, 0.75);
+  color: var(--color-text-subtle);
   text-decoration: none;
   border-radius: 7px;
   font-size: 0.82rem;
@@ -766,7 +795,7 @@ $mobile-breakpoint: 768px;
   justify-content: center;
   gap: 0.15rem;
   flex: 1;
-  color: rgba(244, 228, 188, 0.7);
+  color: var(--color-text-subtle);
   text-decoration: none;
   font-size: 0.65rem;
   transition:

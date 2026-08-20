@@ -204,7 +204,7 @@ const gameState = reactive<GameState>(createInitialState())
 export const useGameStore = () => {
   // Getters (computed)
   const hasSavedGame = computed(() => {
-    const savedGame = localStorage.getItem('minitravian-save')
+    const savedGame = localStorage.getItem('novavian-save')
     return !!savedGame
   })
 
@@ -259,7 +259,7 @@ export const useGameStore = () => {
   }
 
   const loadGame = () => {
-    const savedGame = localStorage.getItem('minitravian-save')
+    const savedGame = localStorage.getItem('novavian-save')
 
     if (!savedGame) return router.push('/')
     if (savedGame) {
@@ -371,7 +371,7 @@ export const useGameStore = () => {
         victoryHistory: [...gameState.victoryHistory],
       }
 
-      localStorage.setItem('minitravian-save', JSON.stringify(gameData))
+      localStorage.setItem('novavian-save', JSON.stringify(gameData))
     } catch (error) {
       console.error('Error saving game:', error)
     }
@@ -387,7 +387,7 @@ export const useGameStore = () => {
   // Reset complet - le joueur doit resélectionner une race
   const resetGameCompletely = () => {
     Object.assign(gameState, createInitialState())
-    localStorage.removeItem('minitravian-save')
+    localStorage.removeItem('novavian-save')
   }
 
   // Reset de la progression - garde la race sélectionnée

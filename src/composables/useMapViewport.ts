@@ -25,6 +25,9 @@ export function useMapViewport() {
   const isPanning = ref(false)
   const panStart = ref({ x: 0, y: 0 })
   const panOffset = ref({ x: 0, y: 0 })
+  /** Fraction de tuile parcourue pendant le drag mais pas encore appliquée à l'offset
+      (entre deux pas entiers) — permet de translater visuellement le plateau. */
+  const panFraction = ref({ x: 0, y: 0 })
 
   function zoomIn() {
     const presetValues = ZOOM_PRESETS.map((p) => p.value)
@@ -89,6 +92,7 @@ export function useMapViewport() {
     isPanning.value = true
     panStart.value = { x: event.clientX, y: event.clientY }
     panOffset.value = { x: 0, y: 0 }
+    panFraction.value = { x: 0, y: 0 }
   }
 
   const handlePan = (event: MouseEvent) => {
@@ -101,10 +105,15 @@ export function useMapViewport() {
       moveViewport(tileDeltaX - panOffset.value.x, tileDeltaY - panOffset.value.y)
       panOffset.value = { x: tileDeltaX, y: tileDeltaY }
     }
+    panFraction.value = {
+      x: -deltaX / MAP_CONFIG.tileSize - tileDeltaX,
+      y: -deltaY / MAP_CONFIG.tileSize - tileDeltaY,
+    }
   }
 
   const endPan = () => {
     isPanning.value = false
+    panFraction.value = { x: 0, y: 0 }
   }
 
   const handleKeyboard = (event: KeyboardEvent) => {
@@ -152,6 +161,7 @@ export function useMapViewport() {
     viewportSize,
     viewportCenter,
     isPanning,
+    panFraction,
     zoomIn,
     zoomOut,
     setZoomPreset,

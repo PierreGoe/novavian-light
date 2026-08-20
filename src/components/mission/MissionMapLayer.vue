@@ -166,7 +166,7 @@ const getRewardIcon = (type: string): string => {
   width: 56px;
   height: 56px;
   margin-left: -28px;
-  border: 2px solid rgba(235, 230, 210, 0.5);
+  border: 2px solid rgba(var(--map-line-rgb), 0.5);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -175,7 +175,7 @@ const getRewardIcon = (type: string): string => {
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease;
-  background: rgba(28, 30, 24, 0.85);
+  background: rgba(var(--map-night-deep-rgb), 0.85);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
@@ -193,7 +193,9 @@ const getRewardIcon = (type: string): string => {
 /* ─── États ─────────────────────────────────────────────── */
 .node-accessible {
   cursor: pointer;
-  border-color: rgba(var(--color-accent-rgb), 0.9);
+  /* Bordure opaque : en semi-transparent, le liseré se fond dans le halo du pulse
+     et paraît flou, surtout sur écran DPR 1. */
+  border-color: var(--color-accent);
   animation: pulse 2s infinite;
 }
 .node-accessible:hover {
@@ -212,8 +214,8 @@ const getRewardIcon = (type: string): string => {
 }
 .node-locked {
   cursor: not-allowed;
-  background: rgb(22, 23, 19);
-  border-color: rgba(235, 230, 210, 0.25);
+  background: var(--map-night-deep);
+  border-color: rgba(var(--map-line-rgb), 0.25);
   filter: grayscale(0.6) brightness(0.65);
 }
 .node-selected,
@@ -326,8 +328,9 @@ const getRewardIcon = (type: string): string => {
 
 /* ─── Animations ─────────────────────────────────────────── */
 @keyframes pulse {
+  /* Halo atténué au départ : à 0.7 il colle à la bordure et la fait paraître baveuse. */
   0% {
-    box-shadow: 0 0 0 0 rgba(var(--color-accent-rgb), 0.7);
+    box-shadow: 0 0 0 0 rgba(var(--color-accent-rgb), 0.45);
   }
   70% {
     box-shadow: 0 0 0 10px rgba(var(--color-accent-rgb), 0);

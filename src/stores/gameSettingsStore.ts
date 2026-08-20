@@ -28,6 +28,10 @@ export interface GameSettings {
   // --- Carte & affichage ---
   /** Affiche les zones d'influence des forteresses ennemies (halo rouge) */
   showInfluenceZones: boolean
+  /** Vue isométrique de la carte (plateau incliné façon fake 3D) — choix mémorisé du joueur */
+  mapIsoView: boolean
+  /** Angles de la vue isométrique (deg) : x = inclinaison, z = rotation */
+  mapIsoAngles: { x: number; z: number }
 
   // --- Triches / debug ---
   /** Démarre chaque mission avec 10 000 de chaque ressource */
@@ -54,6 +58,8 @@ const DEFAULT_SETTINGS: GameSettings = {
   enemyBaseInfantry: 3,
   enemyStrongholdInfantry: 8,
   showInfluenceZones: true,
+  mapIsoView: false,
+  mapIsoAngles: { x: 55, z: 45 },
   cheatResources: false,
   cheatVictoryPoints: false,
   cheatStartingGarrison: false,

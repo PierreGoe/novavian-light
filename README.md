@@ -1,8 +1,8 @@
-# MiniTravianVue
+# Novavian
 
 ## Description
 
-MiniTravianVue est un prototype de jeu de stratégie inspiré de Travian, entièrement développé en front-end avec Vue.js, HTML/CSS et animations simples.
+Novavian est un prototype de jeu de stratégie inspiré de Travian, entièrement développé en front-end avec Vue.js, HTML/CSS et animations simples.
 L'objectif est de tester et expérimenter les mécaniques de gameplay sans backend ni multijoueur. Ce projet est pensé comme un terrain d'expérimentation pour des développeurs souhaitant explorer la logique d'un jeu de stratégie dans le navigateur.
 
 > **Note** : le projet a largement dépassé le MVP initial décrit ci-dessous. Sont aujourd'hui implémentés : l'exploration de carte (fog of war, grande carte), le combat et les raids, les points de victoire, le siège/destruction de village, l'inventaire, les artefacts et le bazar mystique.

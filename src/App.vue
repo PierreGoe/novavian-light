@@ -131,6 +131,14 @@ body {
   min-height: 100vh;
 }
 
+/* Desktop étroit (769px–1200px) : la sidebar est forcée en mode replié (SideNavBar.vue),
+   on plafonne donc le décalage à 64px. min() garde 0px sur les routes plein écran. */
+@media (min-width: 769px) and (max-width: 1200px) {
+  .app-content {
+    margin-left: min(var(--sidebar-width), 64px);
+  }
+}
+
 /* Mobile : pas de décalage latéral, padding en bas pour la bottom nav
    (+ la barre de stats compacte au-dessus, affichée seulement en jeu) */
 @media (max-width: 768px) {

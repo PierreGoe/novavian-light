@@ -946,7 +946,7 @@ export const useMissionStore = () => {
       gameElapsedMs: missionState.gameElapsedMs,
       battleReports: missionState.battleReports,
     }
-    localStorage.setItem('minitravian-missions', JSON.stringify(data))
+    localStorage.setItem('novavian-missions', JSON.stringify(data))
   }
 
   const debouncedWriteMissionState = debounce(writeMissionState, 400)
@@ -957,7 +957,7 @@ export const useMissionStore = () => {
   const flushMissionState = () => debouncedWriteMissionState.flush()
 
   const loadMissionState = () => {
-    const saved = localStorage.getItem('minitravian-missions')
+    const saved = localStorage.getItem('novavian-missions')
     if (saved) {
       try {
         const data = JSON.parse(saved)
@@ -1022,7 +1022,7 @@ export const useMissionStore = () => {
     }
 
     Object.assign(missionState, freshInitialState)
-    localStorage.removeItem('minitravian-missions')
+    localStorage.removeItem('novavian-missions')
   }
 
   const startAutoSave = () => {

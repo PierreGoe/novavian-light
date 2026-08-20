@@ -10,6 +10,25 @@
       />
       <div class="controls-divider" />
       <Button variant="secondary" size="sm" @click="centerOnPlayer">🎯 Centrer</Button>
+      <div class="controls-divider" />
+      <!-- Vue isométrique — architecture du pen « Stack Sprite », choix persisté -->
+      <Button
+        :variant="gameSettings.mapIsoView ? 'primary' : 'secondary'"
+        size="sm"
+        @click="gameSettings.mapIsoView = !gameSettings.mapIsoView"
+      >
+        🧊 Iso
+      </Button>
+      <template v-if="gameSettings.mapIsoView">
+        <label class="iso-slider" title="Rotation du plateau">
+          ↻
+          <input type="range" min="0" max="90" v-model.number="gameSettings.mapIsoAngles.z" />
+        </label>
+        <label class="iso-slider" title="Inclinaison du plateau">
+          ⤓
+          <input type="range" min="15" max="70" v-model.number="gameSettings.mapIsoAngles.x" />
+        </label>
+      </template>
     </div>
 
     <!-- Coordonnées actuelles -->
@@ -21,152 +40,170 @@
     <div
       ref="mapViewportRef"
       class="map-viewport"
+      :class="{ 'map-viewport--iso': gameSettings.mapIsoView }"
       @mousedown="startPan"
       @mousemove="handlePan"
       @mouseup="endPan"
       @mouseleave="endPan"
-      :style="{ cursor: isPanning ? 'grabbing' : 'grab' }"
+      :style="{ cursor: isPanning ? 'grabbing' : 'grab', ...isoStyleVars }"
     >
-      <!-- Wrapper pour superposer la grille principale et l'overlay cadrans -->
-      <div class="map-grid-wrapper">
-        <div class="map-grid-large" :key="`grid-${gridRenderKey}`" :style="gridStyle">
-          <!-- Rendu uniquement des tuiles visibles -->
-          <div
-            v-for="tile in visibleTiles"
-            :key="tile.id"
-            class="map-tile"
-            :class="getTileClasses(tile)"
-            v-clickable="tile.type !== 'plains' && !isChunkLocked(tile)"
-            @click="tile.type !== 'plains' && !isChunkLocked(tile) && selectTile(tile.id)"
-          >
-            <!-- Icône du terrain visible uniquement si exploré et dans un cadran déverrouillé -->
+      <!-- Wrapper pour superposer la grille principale et l'overlay cadrans.
+           Dimensionné sur la zone visible et en overflow hidden : la grille rendue
+           est plus grande (marge de tuiles tampon) et glisse dessous pendant le pan. -->
+      <div class="map-grid-wrapper" :style="wrapperStyle">
+        <div class="map-pan-layer" :style="panLayerStyle">
+          <div class="map-grid-large" :key="`grid-${gridRenderKey}`" :style="gridStyle">
+            <!-- Rendu des tuiles visibles + une marge tampon hors écran -->
             <div
-              class="tile-icon"
-              :style="{ fontSize: tileIconFontSize }"
-              v-if="
-                tile.type !== 'plains' &&
-                (gameSettings.disableFogOfWar || (tile.explored && !isChunkLocked(tile)))
-              "
+              v-for="tile in renderedTiles"
+              :key="tile.id"
+              class="map-tile"
+              :class="getTileClasses(tile)"
+              v-clickable="tile.type !== 'plains' && !isChunkLocked(tile)"
+              @click="tile.type !== 'plains' && !isChunkLocked(tile) && selectTile(tile.id)"
             >
-              {{ getTileIcon(tile.type) }}
-            </div>
+              <!-- Icône du terrain visible uniquement si exploré et dans un cadran déverrouillé -->
+              <div
+                class="tile-icon"
+                :style="{ fontSize: tileIconFontSize }"
+                v-if="
+                  tile.type !== 'plains' &&
+                  (gameSettings.disableFogOfWar || (tile.explored && !isChunkLocked(tile)))
+                "
+              >
+                {{ getTileIcon(tile.type) }}
+              </div>
 
-            <div class="current-marker" :style="{ fontSize: tileIconFontSize }" v-if="tile.current">
-              📍
-            </div>
-            <!-- Indicateur : garnison en reconstitution -->
-            <div
-              class="garrison-regen-badge"
-              v-if="isGarrisonRegenerating(tile) && (gameSettings.disableFogOfWar || tile.explored)"
-            >
-              ↺
+              <div
+                class="current-marker"
+                :style="{ fontSize: tileIconFontSize }"
+                v-if="tile.current"
+              >
+                📍
+              </div>
+              <!-- Indicateur : garnison en reconstitution -->
+              <div
+                class="garrison-regen-badge"
+                v-if="
+                  isGarrisonRegenerating(tile) && (gameSettings.disableFogOfWar || tile.explored)
+                "
+              >
+                ↺
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Overlay bulle par cadran verrouillé (remplace les overlays par tuile) -->
-        <div
-          v-if="!gameSettings.disableFogOfWar && visibleLockedChunks.length > 0"
-          class="map-grid-large map-chunk-overlay"
-          :key="`overlay-${gridRenderKey}`"
-          :style="gridStyle"
-        >
+          <!-- Overlay bulle par cadran verrouillé (remplace les overlays par tuile).
+             Chaque bulle couvre l'étendue COMPLÈTE de son cadran, même hors écran :
+             le libellé est déjà rendu avant d'entrer dans la vue et glisse avec la
+             carte pendant le pan, le wrapper (overflow hidden) rogne ce qui dépasse. -->
           <div
-            v-for="chunk in visibleLockedChunks"
-            :key="chunk.id"
-            class="chunk-locked-bubble"
-            :style="getChunkBubbleStyle(chunk)"
-            v-clickable
-            @click.stop="emit('unlock-chunk', chunk.id)"
+            v-if="!gameSettings.disableFogOfWar && visibleLockedChunks.length > 0"
+            class="map-chunk-overlay"
+            :key="`overlay-${gridRenderKey}`"
           >
-            <div class="chunk-bubble-inner">
-              <span class="chunk-bubble-lock">🔒</span>
-              <span class="chunk-bubble-label">Zone {{ chunk.id }}</span>
-              <span class="chunk-bubble-hint">Cliquer pour révéler</span>
+            <div
+              v-for="chunk in visibleLockedChunks"
+              :key="chunk.id"
+              class="chunk-locked-bubble"
+              :style="chunk.style"
+              v-clickable
+              @click.stop="emit('unlock-chunk', chunk.id)"
+            >
+              <div class="chunk-bubble-inner">
+                <span class="chunk-bubble-lock">🔒</span>
+                <span class="chunk-bubble-label">Zone {{ chunk.id }}</span>
+                <span class="chunk-bubble-hint">Cliquer pour révéler</span>
+              </div>
+              <!-- Connecteurs en losange au milieu de chaque bord visible -->
+              <span v-if="chunk.diamondTop" class="chunk-diamond chunk-diamond--top" />
+              <span v-if="chunk.diamondRight" class="chunk-diamond chunk-diamond--right" />
+              <span v-if="chunk.diamondBottom" class="chunk-diamond chunk-diamond--bottom" />
+              <span v-if="chunk.diamondLeft" class="chunk-diamond chunk-diamond--left" />
             </div>
           </div>
-        </div>
 
-        <!-- Overlay des troupes en marche — icône interpolée entre case source et cible -->
-        <div class="map-movement-overlay">
-          <!-- Trajets (départ → arrivée) : troupes du joueur + menaces ennemies -->
-          <svg class="map-path-svg">
-            <defs>
-              <marker
-                id="map-arrow-outgoing"
-                markerWidth="8"
-                markerHeight="8"
-                refX="6"
-                refY="4"
-                orient="auto-start-reverse"
+          <!-- Overlay des troupes en marche — icône interpolée entre case source et cible -->
+          <div class="map-movement-overlay">
+            <!-- Trajets (départ → arrivée) : troupes du joueur + menaces ennemies -->
+            <svg class="map-path-svg">
+              <defs>
+                <marker
+                  id="map-arrow-outgoing"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="6"
+                  refY="4"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M0,0 L8,4 L0,8 z" class="map-arrow-fill map-arrow-fill--outgoing" />
+                </marker>
+                <marker
+                  id="map-arrow-returning"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="6"
+                  refY="4"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M0,0 L8,4 L0,8 z" class="map-arrow-fill map-arrow-fill--returning" />
+                </marker>
+                <marker
+                  id="map-arrow-enemy"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="6"
+                  refY="4"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M0,0 L8,4 L0,8 z" class="map-arrow-fill map-arrow-fill--enemy" />
+                </marker>
+              </defs>
+              <path
+                v-for="path in attackPaths"
+                :key="`path-${path.id}`"
+                :d="path.d"
+                class="path-line"
+                :class="`path-line--${path.variant}`"
+                :marker-end="`url(#map-arrow-${path.variant})`"
               >
-                <path d="M0,0 L8,4 L0,8 z" class="map-arrow-fill map-arrow-fill--outgoing" />
-              </marker>
-              <marker
-                id="map-arrow-returning"
-                markerWidth="8"
-                markerHeight="8"
-                refX="6"
-                refY="4"
-                orient="auto-start-reverse"
+                <title>
+                  {{ path.variant === 'returning' ? 'Retour vers le village' : 'Attaque en cours' }}
+                </title>
+              </path>
+              <path
+                v-for="threat in enemyThreats"
+                :key="`threat-${threat.id}`"
+                :d="threat.d"
+                class="path-line path-line--enemy"
+                marker-end="url(#map-arrow-enemy)"
               >
-                <path d="M0,0 L8,4 L0,8 z" class="map-arrow-fill map-arrow-fill--returning" />
-              </marker>
-              <marker
-                id="map-arrow-enemy"
-                markerWidth="8"
-                markerHeight="8"
-                refX="6"
-                refY="4"
-                orient="auto-start-reverse"
-              >
-                <path d="M0,0 L8,4 L0,8 z" class="map-arrow-fill map-arrow-fill--enemy" />
-              </marker>
-            </defs>
-            <path
-              v-for="path in attackPaths"
-              :key="`path-${path.id}`"
-              :d="path.d"
-              class="path-line"
-              :class="`path-line--${path.variant}`"
-              :marker-end="`url(#map-arrow-${path.variant})`"
+                <title>Attaque ennemie dans {{ Math.ceil(threat.msRemaining / 1000) }}s</title>
+              </path>
+            </svg>
+
+            <!-- Badge des troupes du joueur en marche -->
+            <div
+              v-for="marker in marchingMarkers"
+              :key="marker.id"
+              class="march-marker"
+              :class="{ 'march-marker--returning': marker.isReturning }"
+              :style="markerStyle(marker)"
+              :title="marker.isReturning ? 'Retour vers le village' : 'Troupes en marche'"
             >
-              <title>
-                {{ path.variant === 'returning' ? 'Retour vers le village' : 'Attaque en cours' }}
-              </title>
-            </path>
-            <path
+              <span class="march-marker-badge">{{ marker.isReturning ? '↩️' : '🪖' }}</span>
+            </div>
+
+            <!-- Badge des menaces ennemies en approche -->
+            <div
               v-for="threat in enemyThreats"
-              :key="`threat-${threat.id}`"
-              :d="threat.d"
-              class="path-line path-line--enemy"
-              marker-end="url(#map-arrow-enemy)"
+              :key="`threat-badge-${threat.id}`"
+              class="march-marker march-marker--enemy"
+              :style="markerStyle(threat)"
+              :title="`Attaque ennemie dans ${Math.ceil(threat.msRemaining / 1000)}s`"
             >
-              <title>Attaque ennemie dans {{ Math.ceil(threat.msRemaining / 1000) }}s</title>
-            </path>
-          </svg>
-
-          <!-- Badge des troupes du joueur en marche -->
-          <div
-            v-for="marker in marchingMarkers"
-            :key="marker.id"
-            class="march-marker"
-            :class="{ 'march-marker--returning': marker.isReturning }"
-            :style="markerStyle(marker)"
-            :title="marker.isReturning ? 'Retour vers le village' : 'Troupes en marche'"
-          >
-            <span class="march-marker-badge">{{ marker.isReturning ? '↩️' : '🪖' }}</span>
-          </div>
-
-          <!-- Badge des menaces ennemies en approche -->
-          <div
-            v-for="threat in enemyThreats"
-            :key="`threat-badge-${threat.id}`"
-            class="march-marker march-marker--enemy"
-            :style="markerStyle(threat)"
-            :title="`Attaque ennemie dans ${Math.ceil(threat.msRemaining / 1000)}s`"
-          >
-            <span class="march-marker-badge">💀</span>
+              <span class="march-marker-badge">💀</span>
+            </div>
           </div>
         </div>
       </div>
@@ -224,6 +261,7 @@ const {
   viewportSize,
   viewportCenter,
   isPanning,
+  panFraction,
   setZoomPreset,
   centerOnPlayer,
   startPan,
@@ -236,6 +274,7 @@ const isLoading = ref(false)
 // Taille réelle du viewport (suit .map-viewport, y compris son breakpoint mobile height: 400px)
 const mapViewportRef = ref<HTMLElement | null>(null)
 const viewportPixelHeight = ref(600)
+const viewportPixelWidth = ref(600)
 let viewportResizeObserver: ResizeObserver | null = null
 
 // Horloge dédiée à l'animation de marche — découplée du tick de résolution de combat (1s)
@@ -246,7 +285,10 @@ onMounted(() => {
   if (!mapViewportRef.value) return
   viewportResizeObserver = new ResizeObserver((entries) => {
     const entry = entries[0]
-    if (entry) viewportPixelHeight.value = entry.contentRect.height
+    if (entry) {
+      viewportPixelHeight.value = entry.contentRect.height
+      viewportPixelWidth.value = entry.contentRect.width
+    }
   })
   viewportResizeObserver.observe(mapViewportRef.value)
 })
@@ -271,6 +313,32 @@ const viewportDimensions = computed(() => {
   return { startX, startY, endX, endY, cols: endX - startX, rows: endY - startY }
 })
 
+// Doit refléter le CSS : .map-grid-large { padding: 20px }
+const GRID_PADDING_PX = 20
+const GRID_GAP_PX = 2
+
+// Marge de tuiles rendues au-delà de la zone visible : les cases entrent et sortent
+// de la vue en glissant sous l'overflow hidden du wrapper au lieu d'apparaître ou
+// de disparaître brutalement au bord du plateau.
+const RENDER_BUFFER_TILES = 3
+
+// Étendue réellement rendue = zone visible + marge tampon, clampée aux bords de la carte
+const renderDimensions = computed(() => {
+  const { startX, startY, endX, endY } = viewportDimensions.value
+  const rStartX = Math.max(0, startX - RENDER_BUFFER_TILES)
+  const rStartY = Math.max(0, startY - RENDER_BUFFER_TILES)
+  const rEndX = Math.min(MAP_CONFIG.size, endX + RENDER_BUFFER_TILES)
+  const rEndY = Math.min(MAP_CONFIG.size, endY + RENDER_BUFFER_TILES)
+  return {
+    startX: rStartX,
+    startY: rStartY,
+    endX: rEndX,
+    endY: rEndY,
+    cols: rEndX - rStartX,
+    rows: rEndY - rStartY,
+  }
+})
+
 // Index spatial des tuiles — Map<"x,y", MapTile> pour un accès O(1)
 // Recalculé uniquement quand le tableau de tuiles change de référence (pas à chaque mutation).
 const tileIndex = computed(() => {
@@ -281,10 +349,10 @@ const tileIndex = computed(() => {
   return map
 })
 
-// Computed — tuiles visibles en ordre ligne-par-ligne (y croissant, x croissant).
+// Computed — tuiles rendues (visibles + tampon) en ordre ligne-par-ligne (y croissant, x croissant).
 // Accès direct par coordonnées : pas de filter ni de sort sur 2500 éléments.
-const visibleTiles = computed(() => {
-  const { startX, startY, endX, endY } = viewportDimensions.value
+const renderedTiles = computed(() => {
+  const { startX, startY, endX, endY } = renderDimensions.value
   const index = tileIndex.value
   const result: MapTile[] = []
 
@@ -300,24 +368,129 @@ const visibleTiles = computed(() => {
 // Style CSS Grid — computed pour garantir la synchronisation avec viewportDimensions
 const tileSizeAdaptive = computed(() => {
   const { cols } = viewportDimensions.value
-  const containerSize = viewportPixelHeight.value - 40
+  // min(hauteur, largeur) : la grille ne doit jamais déborder de .map-viewport (overflow hidden),
+  // sinon les bulles de brouillard sont coupées et leur libellé n'apparaît plus centré
+  const containerSize = Math.min(viewportPixelHeight.value, viewportPixelWidth.value) - 40
   return Math.floor((containerSize - cols * 2) / cols)
 })
 
+// La grille couvre l'étendue rendue (tampon compris) ; elle est décalée en négatif
+// pour que la première tuile VISIBLE reste à l'origine du wrapper — toutes les maths
+// pixel des overlays (marqueurs, cadrans, trajets) restent basées sur startX/startY.
 const gridStyle = computed(() => {
   const size = tileSizeAdaptive.value
-  const { cols } = viewportDimensions.value
+  const step = size + GRID_GAP_PX
+  const render = renderDimensions.value
+  const { startX, startY } = viewportDimensions.value
   return {
     display: 'grid',
-    gridTemplateColumns: `repeat(${cols}, ${size}px)`,
+    gridTemplateColumns: `repeat(${render.cols}, ${size}px)`,
     gridAutoRows: `${size}px`,
-    gap: '2px',
+    gap: `${GRID_GAP_PX}px`,
+    left: `${-(startX - render.startX) * step}px`,
+    top: `${-(startY - render.startY) * step}px`,
   }
 })
 
-// Doit refléter le CSS : .map-grid-large { padding: 20px } et gridStyle.gap ('2px')
-const GRID_PADDING_PX = 20
-const GRID_GAP_PX = 2
+// Le wrapper garde la taille du plateau visible : c'est lui qui clippe (overflow hidden)
+// la grille tampon qui dépasse.
+const wrapperStyle = computed(() => {
+  const step = tileSizeAdaptive.value + GRID_GAP_PX
+  const { cols, rows } = viewportDimensions.value
+  return {
+    width: `${cols * step - GRID_GAP_PX + 2 * GRID_PADDING_PX}px`,
+    height: `${rows * step - GRID_GAP_PX + 2 * GRID_PADDING_PX}px`,
+  }
+})
+
+// ── Vue isométrique ────────────────────────────────────────────────────────
+// Architecture reprise du pen « Pure CSS Isometric Fake 3D — Stack Sprite »
+// (codepen.io/FlokiTV/pen/WNRedMd) : perspective portée par le conteneur,
+// plateau incliné rotateX/rotateZ réglables par curseurs (les sliders du pen),
+// icônes contre-pivotées et redressées pour rester lisibles — sprites debout.
+// Le choix du joueur (mode + angles) est persisté via gameSettings.
+
+// Doit refléter le CSS : .map-viewport--iso { perspective: 1600px }
+const ISO_PERSPECTIVE_PX = 1600
+
+const isoStyleVars = computed(() => {
+  if (!gameSettings.mapIsoView) return {}
+  const xRad = (gameSettings.mapIsoAngles.x * Math.PI) / 180
+  const zRad = (gameSettings.mapIsoAngles.z * Math.PI) / 180
+  // Compense l'écrasement vertical dû à l'inclinaison : 1 / cos(X)
+  const unsquash = 1 / Math.max(0.25, Math.cos(xRad))
+
+  // Échelle auto : le plateau pivoté laisse de grands vides autour du losange
+  // si on garde l'échelle 1. On calcule la boîte englobante projetée du plateau
+  // (rectangle tourné de Z, écrasé verticalement de cos(X)) et on l'ajuste à
+  // l'espace disponible du viewport, en intégrant le grossissement du bord
+  // proche dû à la perspective : m = P / (P - lift), résolu en échelle fermée.
+  const step = tileSizeAdaptive.value + GRID_GAP_PX
+  const { cols, rows } = viewportDimensions.value
+  const boardW = cols * step - GRID_GAP_PX + 2 * GRID_PADDING_PX
+  const boardH = rows * step - GRID_GAP_PX + 2 * GRID_PADDING_PX
+  const cosZ = Math.abs(Math.cos(zRad))
+  const sinZ = Math.abs(Math.sin(zRad))
+  const projW = boardW * cosZ + boardH * sinZ
+  const projH = (boardW * sinZ + boardH * cosZ) * Math.cos(xRad)
+  // Élévation du coin proche vers la caméra, par unité d'échelle
+  const lift = ((boardW * sinZ + boardH * cosZ) / 2) * Math.sin(xRad)
+  const P = ISO_PERSPECTIVE_PX
+  const availW = viewportPixelWidth.value - 16
+  const availH = viewportPixelHeight.value - 16
+
+  // Largeur : le grossissement de perspective ne compte que si les points les
+  // plus larges du plateau sont proches de la caméra. À 45° ce sont les coins
+  // à mi-hauteur (élévation nulle) ; à 0°/90° c'est le bord bas tout entier.
+  // Pondération continue entre les deux : |cos(2Z)|.
+  const widthLiftShare = Math.abs(Math.cos(2 * zRad))
+  const scaleW = (availW * P) / (projW * P + availW * lift * widthLiftShare)
+
+  // Hauteur projetée avec perspective : le demi-plateau proche est grossi
+  // (m⁺ = P / (P - lift·s)), le lointain rétréci (m⁻ = P / (P + lift·s)).
+  // L'échelle verticale est résolue par point fixe (3 itérations suffisent).
+  const halfH = projH / 2
+  let scaleH = availH / projH
+  for (let i = 0; i < 3; i++) {
+    const l = Math.min(lift * scaleH, P * 0.8)
+    scaleH = availH / (halfH * (P / (P - l) + P / (P + l)))
+  }
+  const scale = Math.min(scaleW, scaleH) * 0.97
+
+  // Recentrage vertical : la perspective grossit le demi-plateau proche,
+  // ce qui pousse le centre visuel vers le bas — on remonte d'autant.
+  // Facteur 0.7 empirique : la perspective-origin haute (25 %) atténue déjà
+  // une partie de l'asymétrie.
+  const l = lift * scale
+  const shiftY = (0.7 * (halfH * scale * (P / (P - l) - P / (P + l)))) / 2
+
+  return {
+    '--iso-x': `${gameSettings.mapIsoAngles.x}deg`,
+    '--iso-z': `${gameSettings.mapIsoAngles.z}deg`,
+    '--iso-unsquash': String(Math.round(unsquash * 100) / 100),
+    '--iso-scale': String(Math.round(scale * 1000) / 1000),
+    '--iso-shift': `${-Math.round(shiftY)}px`,
+  }
+})
+
+// Translation du plateau pendant le drag : la fraction de tuile pas encore appliquée
+// à l'offset devient un glissement pixel, borné à la marge tampon réellement rendue
+// de chaque côté (nulle aux bords de la carte). Au relâchement, snap adouci.
+const panLayerStyle = computed(() => {
+  const step = tileSizeAdaptive.value + GRID_GAP_PX
+  const { startX, startY, endX, endY } = viewportDimensions.value
+  const render = renderDimensions.value
+  const maxTowardRight = (startX - render.startX) * step
+  const maxTowardLeft = (render.endX - endX) * step
+  const maxTowardBottom = (startY - render.startY) * step
+  const maxTowardTop = (render.endY - endY) * step
+  const tx = Math.max(-maxTowardLeft, Math.min(maxTowardRight, -panFraction.value.x * step))
+  const ty = Math.max(-maxTowardTop, Math.min(maxTowardBottom, -panFraction.value.y * step))
+  return {
+    transform: `translate(${tx}px, ${ty}px)`,
+    transition: isPanning.value ? 'none' : 'transform 0.15s ease-out',
+  }
+})
 
 interface MarchingMarker {
   id: string
@@ -497,57 +670,31 @@ const isGarrisonRegenerating = (tile: MapTile): boolean => {
 }
 
 /** Calcule le style de bordure et border-radius d'une bulle selon ses bords visibles */
-const getChunkBubbleStyle = (chunk: {
-  id: string
-  gridColumn: string
-  gridRow: string
-  borderTop: boolean
-  borderRight: boolean
-  borderBottom: boolean
-  borderLeft: boolean
-}) => {
-  const B = '2px solid rgba(100, 70, 180, 0.55)'
-  const N = 'none'
-  const R = '12px'
-  const r = '0px'
-  return {
-    gridColumn: chunk.gridColumn,
-    gridRow: chunk.gridRow,
-    borderTop: chunk.borderTop ? B : N,
-    borderRight: chunk.borderRight ? B : N,
-    borderBottom: chunk.borderBottom ? B : N,
-    borderLeft: chunk.borderLeft ? B : N,
-    // border-radius : arrondi seulement sur les coins dont les deux bords adjacents sont visibles
-    borderTopLeftRadius: chunk.borderTop && chunk.borderLeft ? R : r,
-    borderTopRightRadius: chunk.borderTop && chunk.borderRight ? R : r,
-    borderBottomRightRadius: chunk.borderBottom && chunk.borderRight ? R : r,
-    borderBottomLeftRadius: chunk.borderBottom && chunk.borderLeft ? R : r,
-    // Pas de margin sur les côtés coupés (pour coller au bord du viewport)
-    marginTop: chunk.borderTop ? '3px' : '0',
-    marginRight: chunk.borderRight ? '3px' : '0',
-    marginBottom: chunk.borderBottom ? '3px' : '0',
-    marginLeft: chunk.borderLeft ? '3px' : '0',
-  }
-}
+/** Marge intérieure d'une bulle de cadran par rapport aux bords du cadran */
+const CHUNK_BUBBLE_INSET_PX = 3
 
 /**
- * Calcule la liste des cadrans verrouillés visibles dans le viewport,
- * avec leurs coordonnées CSS grid pour l'overlay bulle.
+ * Cadrans verrouillés dont l'étendue intersecte le viewport, positionnés en pixels
+ * sur leur étendue COMPLÈTE — y compris la partie hors écran. La bulle et son
+ * libellé (centré sur le vrai centre du cadran) existent donc avant d'entrer dans
+ * la vue et glissent avec la carte pendant le pan, au lieu d'apparaître d'un coup ;
+ * le wrapper (overflow hidden) rogne ce qui dépasse du plateau.
  */
 const visibleLockedChunks = computed(() => {
   if (gameSettings.disableFogOfWar) return []
 
   const { startX, startY, endX, endY } = viewportDimensions.value
   const totalChunks = MAP_CONFIG.size / MAP_CONFIG.chunkSize
+  const step = tileSizeAdaptive.value + GRID_GAP_PX
+  const chunkSpanPx = MAP_CONFIG.chunkSize * step - GRID_GAP_PX
 
   const result: {
     id: string
-    gridColumn: string
-    gridRow: string
-    borderTop: boolean
-    borderRight: boolean
-    borderBottom: boolean
-    borderLeft: boolean
+    style: Record<string, string>
+    diamondTop: boolean
+    diamondRight: boolean
+    diamondBottom: boolean
+    diamondLeft: boolean
   }[] = []
 
   for (let cy = 0; cy < totalChunks; cy++) {
@@ -557,33 +704,36 @@ const visibleLockedChunks = computed(() => {
 
       const chunkStartX = cx * MAP_CONFIG.chunkSize
       const chunkStartY = cy * MAP_CONFIG.chunkSize
-      const chunkEndX = chunkStartX + MAP_CONFIG.chunkSize
-      const chunkEndY = chunkStartY + MAP_CONFIG.chunkSize
 
       // Ignorer si le cadran n'est pas dans le viewport
-      if (chunkEndX <= startX || chunkStartX >= endX || chunkEndY <= startY || chunkStartY >= endY)
+      if (
+        chunkStartX + MAP_CONFIG.chunkSize <= startX ||
+        chunkStartX >= endX ||
+        chunkStartY + MAP_CONFIG.chunkSize <= startY ||
+        chunkStartY >= endY
+      )
         continue
 
-      // Coordonnées CSS grid relatives au viewport (1-indexed)
-      const colStart = Math.max(chunkStartX, startX) - startX + 1
-      const colEnd = Math.min(chunkEndX, endX) - startX + 1
-      const rowStart = Math.max(chunkStartY, startY) - startY + 1
-      const rowEnd = Math.min(chunkEndY, endY) - startY + 1
-
-      // Déterminer quels bords sont visibles (le bord correspond au bord réel du cadran dans le viewport)
-      const borderLeft = chunkStartX >= startX
-      const borderRight = chunkEndX <= endX
-      const borderTop = chunkStartY >= startY
-      const borderBottom = chunkEndY <= endY
+      // Un seul losange par bord partagé : les côtés haut/gauche dessinent toujours
+      // le connecteur vers leur voisin ; droite/bas seulement vers un cadran révélé
+      // (sinon le cadran verrouillé voisin le dessine déjà de son côté).
+      const diamondTop = cy > 0
+      const diamondLeft = cx > 0
+      const diamondRight = cx < totalChunks - 1 && mapStore.isChunkUnlocked(`${cx + 1}-${cy}`)
+      const diamondBottom = cy < totalChunks - 1 && mapStore.isChunkUnlocked(`${cx}-${cy + 1}`)
 
       result.push({
         id: chunkId,
-        gridColumn: `${colStart} / ${colEnd}`,
-        gridRow: `${rowStart} / ${rowEnd}`,
-        borderTop,
-        borderRight,
-        borderBottom,
-        borderLeft,
+        style: {
+          left: `${GRID_PADDING_PX + (chunkStartX - startX) * step + CHUNK_BUBBLE_INSET_PX}px`,
+          top: `${GRID_PADDING_PX + (chunkStartY - startY) * step + CHUNK_BUBBLE_INSET_PX}px`,
+          width: `${chunkSpanPx - 2 * CHUNK_BUBBLE_INSET_PX}px`,
+          height: `${chunkSpanPx - 2 * CHUNK_BUBBLE_INSET_PX}px`,
+        },
+        diamondTop,
+        diamondRight,
+        diamondBottom,
+        diamondLeft,
       })
     }
   }
@@ -643,28 +793,99 @@ const influenceZoneMap = computed(() => {
   user-select: none;
   display: flex;
   justify-content: space-evenly;
+  background: var(--color-bg-surface);
+  border-radius: 0 0 12px 12px;
+  padding-bottom: 2rem;
 }
 
-/* Wrapper pour superposer la grille principale et l'overlay cadrans */
+/* Wrapper pour superposer la grille principale et l'overlay cadrans.
+   Taille = plateau visible (width/height injectés via :style) ; la grille rendue
+   est plus grande (marge tampon) et l'overflow hidden la rogne au bord du plateau :
+   les cases glissent sous le bord au lieu de disparaître d'un coup. */
 .map-grid-wrapper {
   position: relative;
   flex-shrink: 0;
+  overflow: hidden;
+  /* Légère bascule 3D du plateau, façon carte de campagne isométrique.
+     Les overlays (cadrans, trajets, marqueurs) étant enfants du wrapper,
+     ils suivent la même transformation — les maths pixel restent valides. */
+  transform: perspective(1200px) rotateX(16deg);
+  /* Plateau flottant : ombre portée sous la carte, sur la base claire.
+     Le radius arrondit l'ombre et le rognage de la grille tampon. */
+  border-radius: 24px;
+  box-shadow:
+    0 45px 45px -20px rgba(var(--overlay-rgb), 0.35),
+    0 18px 20px -14px rgba(var(--overlay-rgb), 0.22);
+}
+
+/* ── Vue isométrique expérimentale (architecture du pen « Stack Sprite ») ──
+   Comme dans le pen : la perspective est portée par le conteneur, le plateau
+   est incliné rotateX + rotateZ (variables réglées par les curseurs). Le
+   wrapper garde son overflow hidden (rognage de la grille tampon), ce qui
+   aplatit ses enfants sur le plan du plateau — pas de translateZ possible ici.
+   Le relief est donc simulé (« fake 3D ») : les icônes sont contre-pivotées
+   de -rotateZ puis redressées de 1/cos(X) pour sembler debout sur le plateau. */
+.map-viewport--iso {
+  perspective: 1600px;
+  perspective-origin: 50% 25%;
+}
+
+.map-viewport--iso .map-grid-wrapper {
+  /* Échelle calculée côté script (--iso-scale) : le plateau pivoté est agrandi
+     jusqu'à occuper l'espace disponible du viewport au lieu de laisser du vide
+     autour du losange. */
+  transform: translateY(var(--iso-shift, 0px)) rotateX(var(--iso-x, 55deg))
+    rotateZ(var(--iso-z, 45deg)) scale(var(--iso-scale, 0.72));
+}
+
+/* Icônes et badges « debout » sur le plan incliné */
+.map-viewport--iso .tile-icon,
+.map-viewport--iso .current-marker,
+.map-viewport--iso .garrison-regen-badge,
+.map-viewport--iso .march-marker-badge,
+.map-viewport--iso .chunk-bubble-inner {
+  transform: rotateZ(calc(-1 * var(--iso-z, 45deg))) scaleY(var(--iso-unsquash, 1.74));
+}
+
+/* Curseurs d'angle du mode iso (équivalents des sliders du pen) */
+.iso-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  user-select: none;
+}
+
+.iso-slider input[type='range'] {
+  width: 90px;
+  accent-color: rgb(var(--color-accent-rgb));
+}
+
+/* Couche translatée pendant le drag (fraction de tuile) : grille + tous les overlays
+   glissent ensemble, les maths pixel restent alignées. */
+.map-pan-layer {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
 }
 
 .map-grid-large {
+  /* left/top injectés via :style : décalage négatif de la marge tampon */
+  position: absolute;
   padding: 20px;
 }
 
 .map-tile {
   position: relative;
-  border: 1px solid rgba(var(--overlay-rgb), 0.18);
-  border-radius: 4px;
+  border: 1px solid transparent;
+  border-radius: 18%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.15s ease;
-  background: rgba(var(--overlay-rgb), 0.85);
+  /* Brouillard sur cadran révélé : liseré sombre discret, lisible sur base claire */
+  background: rgba(var(--overlay-rgb), 0.08);
 }
 
 .map-tile:hover {
@@ -673,8 +894,23 @@ const influenceZoneMap = computed(() => {
   z-index: 10;
 }
 
-.tile-explored {
-  border-color: rgba(var(--color-accent-rgb), 0.3);
+/* Léger biseau 3D : lumière en haut, ombre en bas — façon tuile de plateau.
+   En dégradé plutôt qu'en box-shadow inset : le pan remonte toute la grille
+   (:key), et ~150 ombres floutées re-rasterisées par pas faisaient chuter
+   le framerate de 60 à ~25 FPS. Un dégradé se peint quasi gratuitement. */
+.tile-explored::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    rgba(var(--color-white-rgb), 0.28),
+    rgba(var(--color-white-rgb), 0) 32%,
+    rgba(var(--color-black-rgb), 0) 60%,
+    rgba(var(--color-black-rgb), 0.32)
+  );
+  pointer-events: none;
 }
 
 .tile-current {
@@ -694,7 +930,7 @@ const influenceZoneMap = computed(() => {
 
 .tile-neutral:hover {
   transform: none;
-  border-color: rgba(var(--overlay-rgb), 0.18);
+  border-color: transparent;
 }
 
 .tile-being-explored {
@@ -704,28 +940,60 @@ const influenceZoneMap = computed(() => {
 /* Terrains (visibles uniquement si exploré) — un seul jeu de teintes,
    partagé avec TileDetails.vue via les tokens --terrain-* de tokens.css. */
 .tile-explored.terrain-plains {
-  background: linear-gradient(145deg, rgba(var(--terrain-plains-rgb), 0.92), rgba(var(--terrain-plains-rgb), 0.68));
+  background: linear-gradient(
+    145deg,
+    rgba(var(--terrain-plains-rgb), 0.92),
+    rgba(var(--terrain-plains-rgb), 0.68)
+  );
 }
 .tile-explored.terrain-forest {
-  background: linear-gradient(145deg, rgba(var(--terrain-forest-rgb), 0.92), rgba(var(--terrain-forest-rgb), 0.68));
+  background: linear-gradient(
+    145deg,
+    rgba(var(--terrain-forest-rgb), 0.92),
+    rgba(var(--terrain-forest-rgb), 0.68)
+  );
 }
 .tile-explored.terrain-mountain {
-  background: linear-gradient(145deg, rgba(var(--terrain-mountain-rgb), 0.92), rgba(var(--terrain-mountain-rgb), 0.68));
+  background: linear-gradient(
+    145deg,
+    rgba(var(--terrain-mountain-rgb), 0.92),
+    rgba(var(--terrain-mountain-rgb), 0.68)
+  );
 }
 .tile-explored.terrain-water {
-  background: linear-gradient(145deg, rgba(var(--terrain-water-rgb), 0.92), rgba(var(--terrain-water-rgb), 0.68));
+  background: linear-gradient(
+    145deg,
+    rgba(var(--terrain-water-rgb), 0.92),
+    rgba(var(--terrain-water-rgb), 0.68)
+  );
 }
 .tile-explored.terrain-village_player {
-  background: linear-gradient(145deg, rgba(var(--terrain-village-player-rgb), 0.92), rgba(var(--terrain-village-player-rgb), 0.68));
+  background: linear-gradient(
+    145deg,
+    rgba(var(--terrain-village-player-rgb), 0.92),
+    rgba(var(--terrain-village-player-rgb), 0.68)
+  );
 }
 .tile-explored.terrain-village_enemy {
-  background: linear-gradient(145deg, rgba(var(--terrain-village-enemy-rgb), 0.92), rgba(var(--terrain-village-enemy-rgb), 0.68));
+  background: linear-gradient(
+    145deg,
+    rgba(var(--terrain-village-enemy-rgb), 0.92),
+    rgba(var(--terrain-village-enemy-rgb), 0.68)
+  );
 }
 .tile-explored.terrain-ruins {
-  background: linear-gradient(145deg, rgba(var(--terrain-ruins-rgb), 0.92), rgba(var(--terrain-ruins-rgb), 0.68));
+  background: linear-gradient(
+    145deg,
+    rgba(var(--terrain-ruins-rgb), 0.92),
+    rgba(var(--terrain-ruins-rgb), 0.68)
+  );
 }
 .tile-explored.terrain-stronghold {
-  background: linear-gradient(145deg, rgba(var(--terrain-stronghold-rgb), 0.92), rgba(var(--terrain-stronghold-rgb), 0.68));
+  background: linear-gradient(
+    145deg,
+    rgba(var(--terrain-stronghold-rgb), 0.92),
+    rgba(var(--terrain-stronghold-rgb), 0.68)
+  );
 }
 
 .tile-icon {
@@ -847,7 +1115,10 @@ const influenceZoneMap = computed(() => {
   }
 }
 
-/* Overlay cadrans : même grille CSS, superposée au-dessus */
+/* Overlay cadrans : superposé au plateau, positionnement pixel des bulles.
+   Les bulles couvrent l'étendue complète de leur cadran, y compris hors écran ;
+   c'est l'overflow hidden du wrapper qui les rogne au bord du plateau (un clip
+   local bougerait avec la translation de pan et rognerait au mauvais endroit). */
 .map-chunk-overlay {
   position: absolute;
   top: 0;
@@ -979,7 +1250,7 @@ const influenceZoneMap = computed(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  border-radius: 3px;
+  border-radius: inherit;
   box-sizing: border-box;
 }
 
@@ -1012,45 +1283,56 @@ const influenceZoneMap = computed(() => {
   }
 }
 
-/* Bulle d'un cadran verrouillé */
+/* Bulle d'un cadran verrouillé — panneau navy façon plateau de jeu */
 .chunk-locked-bubble {
   pointer-events: auto;
-  position: relative;
-  background: rgba(5, 5, 25, 0.82);
-  /* border et border-radius injectés dynamiquement via :style */
+  position: absolute; /* left/top/width/height injectés via :style (étendue du cadran) */
+  background: linear-gradient(160deg, var(--map-night-raised), var(--map-night) 70%);
+  border: 2px solid rgba(var(--map-line-rgb), 0.7);
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  backdrop-filter: blur(3px);
+  box-shadow: 0 8px 22px rgba(var(--color-black-rgb), 0.45);
   transition:
     background 0.2s ease,
     border-color 0.2s ease,
     box-shadow 0.2s ease;
-  overflow: hidden;
+  /* overflow visible : les losanges connecteurs chevauchent la bordure */
 }
 
+/* Motif croisillon diagonal subtil (grille en losanges) */
 .chunk-locked-bubble::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    45deg,
-    transparent,
-    transparent 6px,
-    rgba(100, 70, 180, 0.06) 6px,
-    rgba(100, 70, 180, 0.06) 12px
-  );
-  border-radius: 10px;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 11px,
+      rgba(var(--map-crosshatch-rgb), 0.055) 11px,
+      rgba(var(--map-crosshatch-rgb), 0.055) 12px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 11px,
+      rgba(var(--map-crosshatch-rgb), 0.055) 11px,
+      rgba(var(--map-crosshatch-rgb), 0.055) 12px
+    );
+  border-radius: inherit;
   pointer-events: none;
 }
 
 .chunk-locked-bubble:hover {
-  background: rgba(60, 30, 120, 0.88);
-  border-color: rgba(170, 130, 255, 0.8);
+  background: linear-gradient(160deg, var(--map-night-hover-raised), var(--map-night-hover) 70%);
+  border-color: rgba(var(--color-white-rgb), 0.9);
   box-shadow:
-    0 0 18px rgba(140, 90, 255, 0.45),
-    inset 0 0 12px rgba(140, 90, 255, 0.12);
+    0 8px 22px rgba(var(--color-black-rgb), 0.45),
+    0 0 18px rgba(var(--map-gold-rgb), 0.3),
+    inset 0 0 12px rgba(var(--map-gold-rgb), 0.08);
 }
 
 .chunk-bubble-inner {
@@ -1064,32 +1346,70 @@ const influenceZoneMap = computed(() => {
   padding: 4px;
 }
 
+/* Cadenas doré lumineux — un seul drop-shadow : chaque drop-shadow supplémentaire
+   re-rasterise le glyphe à chaque remontage de la grille (pan) */
 .chunk-bubble-lock {
   font-size: clamp(16px, 3vw, 30px);
   line-height: 1;
-  filter: drop-shadow(0 0 6px rgba(150, 100, 255, 0.7));
+  filter: drop-shadow(0 0 6px rgba(var(--map-gold-rgb), 0.6));
 }
 
 .chunk-bubble-label {
   font-size: clamp(9px, 1.2vw, 13px);
   font-weight: 700;
-  color: #c0b0ff;
-  text-shadow: 0 0 6px rgba(150, 100, 255, 0.8);
+  color: var(--map-zone-title);
+  text-shadow: 0 1px 2px rgba(var(--color-black-rgb), 0.6);
   letter-spacing: 0.04em;
 }
 
 .chunk-bubble-hint {
   font-size: clamp(8px, 1vw, 11px);
-  color: #7060a0;
+  color: var(--map-zone-hint);
   font-style: italic;
 }
 
 .chunk-locked-bubble:hover .chunk-bubble-hint {
-  color: #b0a0e8;
+  color: var(--map-zone-hint-bright);
+}
+
+/* Connecteur en losange — petit carré blanc pivoté, à cheval sur la bordure */
+.chunk-diamond {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  background: var(--map-line);
+  border-radius: 2px;
+  box-shadow: 0 1px 4px rgba(var(--color-black-rgb), 0.55);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.chunk-diamond--top {
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.chunk-diamond--bottom {
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.chunk-diamond--left {
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.chunk-diamond--right {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
 }
 
 .tile-chunk-locked {
-  background: #0d0d1a !important;
+  background: transparent !important;
   cursor: default;
   pointer-events: none;
   overflow: hidden;
@@ -1098,6 +1418,12 @@ const influenceZoneMap = computed(() => {
 /* Filet de sécurité cross-browser : masque tout contenu enfant des tuiles verrouillées */
 .tile-chunk-locked > * {
   visibility: hidden;
+}
+
+/* Une tuile verrouillée ne doit pas non plus laisser transparaître sa zone d'influence
+   (le ::after n'est pas un enfant, il échappe au filet ci-dessus) */
+.map-tile.tile-chunk-locked::after {
+  content: none;
 }
 
 /* Minimap supprimée */
@@ -1126,10 +1452,11 @@ const influenceZoneMap = computed(() => {
   position: absolute;
   bottom: 10px;
   left: 10px;
-  background: rgba(0, 0, 0, 0.8);
-  color: #4a9eff;
+  background: rgba(var(--map-night-deep-rgb), 0.85);
+  color: var(--map-line);
+  border: 1px solid rgba(var(--map-line-rgb), 0.25);
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 0.85em;
   z-index: 100;
 }

@@ -78,7 +78,11 @@
 
     <!-- Légende et contrôles -->
     <footer class="map-footer">
-      <div class="legends">
+      <button class="legend-toggle" :aria-expanded="showLegend" @click="showLegend = !showLegend">
+        {{ showLegend ? 'Masquer la légende' : 'Afficher la légende' }}
+      </button>
+
+      <div v-if="showLegend" class="legends">
         <div class="legend">
           <div class="legend-item">
             <span class="legend-icon" style="color: var(--node-combat)">⚔️</span>
@@ -148,6 +152,9 @@ const mapLayers = computed(() => gameStore.gameState.mapState.layers)
 const currentPlayerRow = computed(() => gameStore.gameState.mapState.currentPlayerRow)
 const selectedNodeId = computed(() => gameStore.gameState.mapState.selectedNodeId)
 const mapGenerated = computed(() => gameStore.gameState.mapState.mapGenerated)
+
+// Légende repliée par défaut pour alléger le footer ; état non persisté (info ponctuelle).
+const showLegend = ref(false)
 
 // Popover de détails d'un nœud : un seul ouvert à la fois, partagé entre toutes les rangées
 // (chaque rangée est un composant distinct, donc cet état ne peut pas vivre dans l'enfant).
@@ -454,7 +461,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', closeActiveNodeO
   padding: 1rem 2rem;
   position: relative;
   z-index: 1;
-  background: radial-gradient(ellipse at 50% 0%, #7d7c66 0%, #6b6a56 55%, #55543f 100%);
+  background: var(--gradient-canvas);
 }
 
 .map-layers {
@@ -462,7 +469,27 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', closeActiveNodeO
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin: 0 auto;
+  margin: 1.5rem auto 2.5rem;
+  /* Plateau clair (base claire du thème) : les nœuds sombres s'y détachent seuls.
+     Texture marbre procédurale (feTurbulence, tuile 420px raccordée via
+     stitchTiles) : la table de transfert alpha ne garde que les iso-contours
+     du bruit (pic étroit autour de 0.5), ce qui dessine des veines plutôt
+     qu'un nuage. Veinage dans l'encre du thème (#2a1f14, cf. --color-text) —
+     un data URI ne peut pas lire les variables CSS. */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='marble' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009 0.011' numOctaves='4' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.16 0 0 0 0 0.12 0 0 0 0 0.08 1 0 0 0 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 0 0 0 0.4 0 0 0 0'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='420' height='420' filter='url(%23marble)'/%3E%3C/svg%3E")
+      repeat,
+    var(--color-bg-surface);
+  border-radius: 24px;
+  /* Même bascule 3D que le plateau de la carte de campagne (.map-grid-wrapper),
+     angle adouci : ce plateau est bien plus haut que le viewport 600px de la
+     carte, 16° y paraîtrait excessif. Le SVG de connexions et les rangées étant
+     enfants du wrapper, ils suivent la même transformation — les maths pixel
+     restent valides. */
+  transform: perspective(1200px) rotateX(3deg);
+  box-shadow:
+    0 45px 45px -20px rgba(var(--overlay-rgb), 0.35),
+    0 18px 20px -14px rgba(var(--overlay-rgb), 0.22);
 }
 
 .tree-connections {
@@ -474,7 +501,8 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', closeActiveNodeO
 }
 
 .connection-dot {
-  fill: rgba(235, 230, 210, 0.45);
+  /* Liseré sombre discret sur base claire (cf. --overlay-rgb dans tokens.css). */
+  fill: rgba(var(--overlay-rgb), 0.45);
   transition: fill 0.3s ease;
 }
 .connection-dot.active-connection {
@@ -506,6 +534,26 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', closeActiveNodeO
   bottom: 0;
   z-index: 100;
   backdrop-filter: blur(10px);
+}
+
+.legend-toggle {
+  align-self: center;
+  background: none;
+  border: 1px solid rgba(var(--color-accent-rgb), 0.4);
+  border-radius: 8px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--color-accent-ink);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.legend-toggle:hover {
+  background: rgba(var(--color-accent-rgb), 0.12);
+  border-color: rgba(var(--color-accent-rgb), 0.6);
 }
 
 .legends {

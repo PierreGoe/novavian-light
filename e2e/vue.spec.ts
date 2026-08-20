@@ -19,7 +19,7 @@ async function startNewGame(page: import('@playwright/test').Page) {
 
 test('accueil affiche le titre du jeu', async ({ page }) => {
   await page.goto('/')
-  await expect(page.locator('h1')).toHaveText('MiniTravian')
+  await expect(page.locator('h1')).toHaveText('Novavian')
 })
 
 test('parcours: nouvelle partie -> choix de race -> arbre de mission', async ({ page }) => {
@@ -61,6 +61,6 @@ test('page de jeu sans sauvegarde: redirection propre vers l\'accueil', async ({
   await page.goto(`${APP_BASE}/mission-tree`)
 
   await expect(page).toHaveURL(new RegExp(`${APP_BASE}/$`))
-  await expect(page.locator('h1')).toHaveText('MiniTravian')
+  await expect(page.locator('h1')).toHaveText('Novavian')
   expect(errors).toEqual([])
 })

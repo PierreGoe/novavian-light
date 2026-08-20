@@ -162,4 +162,22 @@
   --debug-warning: #fb923c;
   --debug-success: #4ade80;
   --debug-accent: #fde047;
+
+  /* HUD carte (LargeMapGrid) — plateau bleu nuit du viewport d'exploration,
+     volontairement hors de la base claire (comme --cinematic-*) : le HUD doit
+     rester lisible par-dessus les terrains, indépendamment du thème. */
+  --map-night-deep: #0c1128;
+  --map-night-deep-rgb: 12, 17, 40;
+  --map-night: #141b3c;
+  --map-night-raised: #1e2650;
+  --map-night-hover: #1c2452;
+  --map-night-hover-raised: #29336a;
+  /* Liserés, losanges connecteurs et textes du HUD */
+  --map-line: #eef1fc;
+  --map-line-rgb: 214, 222, 248;
+  --map-crosshatch-rgb: 170, 185, 255;
+  --map-gold-rgb: 255, 200, 80;
+  --map-zone-title: #b6a3ff;
+  --map-zone-hint: #9aa3c7;
+  --map-zone-hint-bright: #cdd4f0;
 }

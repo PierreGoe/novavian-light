@@ -30,7 +30,7 @@ describe('gameStore - sélection de race', () => {
     // Pas d'avance de timers ici : si l'écriture était encore debouncée (400ms),
     // ce test échouerait, tout comme le loadGame() appelé au montage de MissionTree
     // juste après la navigation depuis RaceSelector.
-    const saved = localStorage.getItem('minitravian-save')
+    const saved = localStorage.getItem('novavian-save')
     expect(saved).not.toBeNull()
     expect(JSON.parse(saved as string).race?.id).toBe('romains')
   })

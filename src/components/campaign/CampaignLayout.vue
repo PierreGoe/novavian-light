@@ -232,6 +232,14 @@ onUnmounted(() => {
   transition: padding-right 0.25s ease;
 }
 
+/* Desktop étroit (769px–1200px) : le panneau de timers est forcé en mode replié
+   (TimersPanel.vue), on plafonne donc l'espace réservé à 64px. */
+@media (min-width: 769px) and (max-width: 1200px) {
+  .campaign-view {
+    padding-right: 64px;
+  }
+}
+
 @media (max-width: 768px) {
   /* Le panneau de timers se masque au même palier que la sidebar de navigation. */
   .campaign-view {

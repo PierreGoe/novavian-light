@@ -3,7 +3,7 @@
     <div class="background-overlay"></div>
 
     <header class="game-header">
-      <h1 class="game-title">MiniTravian</h1>
+      <h1 class="game-title">Novavian</h1>
       <p class="game-subtitle">Votre aventure commence ici</p>
     </header>
 

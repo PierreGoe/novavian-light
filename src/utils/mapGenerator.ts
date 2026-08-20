@@ -29,7 +29,10 @@ export interface MapLayer {
 // Configuration de génération — grille façon Slay the Spire
 export const GRID_COLUMNS = 7 // Colonnes possibles (0 à 6)
 const GRID_ROWS = 15 // Rangées de jeu (0 = départ) ; le boss est ajouté au-dessus, en rangée GRID_ROWS
-const NUM_PATHS = 6 // Nombre de chemins générés par marche aléatoire
+// Nombre de chemins générés par marche aléatoire. Chaque chemin occupe exactement une colonne
+// par rangée, donc une rangée compte au plus NUM_PATHS nodes distincts — c'est ce qui borne la
+// largeur de l'arbre à 4 branches maximum.
+const NUM_PATHS = 4
 const JITTER_RANGE = 0.15 // Décalage horizontal max, en fraction de la largeur d'un slot
 
 // Types de nodes avec leurs propriétés d'affichage et de contenu
