@@ -41,8 +41,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useMapStore, type TroopMovement } from '../../stores/mapStore'
+import { useExplorationTicker } from '../../composables/useExplorationTicker'
 import { formatDuration } from '../../utils/formatDuration'
 import TimerClock from '@/components/ui/TimerClock.vue'
 import Badge from '@/components/ui/Badge.vue'
@@ -50,9 +51,8 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 
 const mapStore = useMapStore()
 
-// Horloge commune
-const now = ref(Date.now())
-let timer: number | null = null
+// Horloge partagée du ticker de campagne (1 Hz) — plus d'intervalle local
+const { now } = useExplorationTicker()
 
 /** Durée d'affichage du statut "arrivé" avant disparition définitive de la carte */
 const DONE_DISPLAY_MS = 3000
@@ -67,7 +67,11 @@ interface DoneEntry {
 
 /** Mouvements retirés de activeMovements depuis le dernier tick, affichés brièvement en "arrivé" */
 const justArrived = ref<DoneEntry[]>([])
-let previousMovements = new Map<string, TroopMovement>()
+// Init au setup (le panneau peut monter avant loadMapState : tableau encore vide →
+// aucun faux "arrivé", seules les disparitions déclenchent l'état done)
+let previousMovements = new Map<string, TroopMovement>(
+  mapStore.mapState.activeMovements.map((m) => [m.id, m]),
+)
 
 const describeMovement = (mov: TroopMovement) => {
   const tile = mapStore.getTileById(mov.isReturning ? mov.sourceTileId : mov.targetTileId)
@@ -80,29 +84,23 @@ const describeMovement = (mov: TroopMovement) => {
   }
 }
 
-onMounted(() => {
-  previousMovements = new Map(mapStore.mapState.activeMovements.map((m) => [m.id, m]))
-
-  timer = window.setInterval(() => {
-    now.value = Date.now()
-
-    const currentMovements = new Map(mapStore.mapState.activeMovements.map((m) => [m.id, m]))
-    for (const [id, mov] of previousMovements) {
-      if (!currentMovements.has(id)) {
-        justArrived.value.push({
-          id,
-          ...describeMovement(mov),
-          expiresAt: now.value + DONE_DISPLAY_MS,
-        })
-      }
+// Le ticker met à jour `now` PUIS résout les arrivées dans le même callback : ce watch
+// (batché) voit donc l'état déjà résolu et détecte les mouvements retirés depuis le
+// tick précédent. Arrêté automatiquement au démontage (scope setup).
+watch(now, (nowMs) => {
+  const currentMovements = new Map(mapStore.mapState.activeMovements.map((m) => [m.id, m]))
+  for (const [id, mov] of previousMovements) {
+    if (!currentMovements.has(id)) {
+      justArrived.value.push({
+        id,
+        ...describeMovement(mov),
+        expiresAt: nowMs + DONE_DISPLAY_MS,
+      })
     }
-    justArrived.value = justArrived.value.filter((entry) => entry.expiresAt > now.value)
+  }
+  justArrived.value = justArrived.value.filter((entry) => entry.expiresAt > nowMs)
 
-    previousMovements = currentMovements
-  }, 1000)
-})
-onUnmounted(() => {
-  if (timer !== null) clearInterval(timer)
+  previousMovements = currentMovements
 })
 
 // Helpers progression / ETA

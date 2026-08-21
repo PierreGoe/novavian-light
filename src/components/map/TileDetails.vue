@@ -369,7 +369,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   useMapStore,
@@ -381,6 +381,7 @@ import {
 } from '../../stores/mapStore'
 import { useGameStore } from '../../stores/gameStore'
 import { useMissionStore } from '../../stores/missionStore'
+import { useExplorationTicker } from '../../composables/useExplorationTicker'
 import AttackPanel from './AttackPanel.vue'
 import type { AvailableUnit } from '../../combat/attackPlanner'
 import { GARRISON_REGEN_DURATION_MS } from '../../config'
@@ -555,17 +556,9 @@ const onAttackConfirm = (units: MovementUnit[]) => {
   emit('attackTile', props.tile.id, units)
 }
 
-// Horloge réactive pour mettre à jour les timers affichés chaque seconde
-const now = ref(Date.now())
-let clockTimer: number | null = null
-onMounted(() => {
-  clockTimer = window.setInterval(() => {
-    now.value = Date.now()
-  }, 1000)
-})
-onUnmounted(() => {
-  if (clockTimer) clearInterval(clockTimer)
-})
+// Horloge partagée du ticker de campagne (1 Hz) pour les timers affichés —
+// plus d'intervalle local, tous les timers tickent sur la même vague.
+const { now } = useExplorationTicker()
 
 /** Formatte un temps restant en ms en "1m 30s" ou "45s" */
 const formatRemaining = formatDuration

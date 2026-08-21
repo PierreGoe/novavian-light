@@ -137,7 +137,7 @@ const router = useRouter()
 const missionStore = useMissionStore()
 const mapStore = useMapStore()
 const gameStore = useGameStore()
-const { combatReport, start: startTicker, stop: stopTicker } = useExplorationTicker()
+const { now, combatReport, start: startTicker, stop: stopTicker } = useExplorationTicker()
 
 // Computed
 const currentMission = computed(() => missionStore.currentMission.value)
@@ -188,9 +188,8 @@ const DIFFICULTY_TONES = {
   elite: 'epic',
 } as const
 
-// Temps
-const now = ref(Date.now())
-
+// Temps — `now` est l'horloge partagée du ticker (une seule vague de re-render/s
+// pour tous les timers de la campagne, au lieu d'un setInterval local par composant)
 const formattedGameTime = computed(() => {
   // Force reactivity on `now`
   void now.value
@@ -212,11 +211,6 @@ function formatDuration(ms: number): string {
   if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`
   return `${s}s`
 }
-
-// Horloge réactive pour les timers affichés (le store gère déjà la production)
-const resourceIntervalId = setInterval(() => {
-  now.value = Date.now()
-}, 1000)
 
 // Actions
 const exitCampaign = () => {
@@ -246,7 +240,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  clearInterval(resourceIntervalId)
   missionStore.stopAllServices()
   stopTicker()
   mapStore.saveMapState()

@@ -3,6 +3,7 @@ import { useMissionStore, UNIT_DEFINITIONS, getUnitDefinitionsForRace } from '@/
 import type { MilitaryUnit, TrainingQueueEntry } from '@/stores/missionStore'
 import { useGameStore } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
+import { useExplorationTicker } from '@/composables/useExplorationTicker'
 
 /**
  * Logique de recrutement de la Caserne, extraite de l'ancien
@@ -13,6 +14,10 @@ export function useUnitTraining() {
   const missionStore = useMissionStore()
   const gameStore = useGameStore()
   const toastStore = useToastStore()
+  // Horloge partagée du ticker : lire `now.value` (et non Date.now()) dans les helpers
+  // appelés depuis les templates crée une vraie dépendance réactive — avant, les timers
+  // ne se rafraîchissaient que par effet de bord du tick ressources de missionStore.
+  const { now } = useExplorationTicker()
 
   const barrackLevel = computed(() => missionStore.barrackLevel.value)
   const trainingQueue = computed(() => missionStore.trainingQueue.value)
@@ -122,14 +127,14 @@ export function useUnitTraining() {
 
   // Temps restant pour une entrée de file
   const getRemainingTime = (entry: TrainingQueueEntry): string => {
-    const remaining = Math.max(0, Math.ceil((entry.endsAt - Date.now()) / 1000))
+    const remaining = Math.max(0, Math.ceil((entry.endsAt - now.value) / 1000))
     return formatDuration(remaining)
   }
 
   // Pourcentage de progression (0–100)
   const getEntryProgress = (entry: TrainingQueueEntry): number => {
     const total = entry.endsAt - entry.startedAt
-    const elapsed = Date.now() - entry.startedAt
+    const elapsed = now.value - entry.startedAt
     return Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)))
   }
 

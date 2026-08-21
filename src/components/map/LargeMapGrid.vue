@@ -78,10 +78,28 @@
       <div class="map-grid-wrapper" :style="wrapperStyle">
         <div class="map-pan-layer" :style="panLayerStyle">
           <div class="map-grid-large" :key="`grid-${gridRenderKey}`" :style="gridStyle">
-            <!-- Rendu des tuiles visibles + une marge tampon hors écran -->
+            <!-- Rendu des tuiles visibles + une marge tampon hors écran.
+                 v-memo : sans lui, getTileClasses/tileTitle (+ les v-if des badges) sont
+                 ré-exécutés pour CHAQUE tuile rendue à chaque re-render du composant —
+                 or celui-ci se déclenche 5×/s (horloge marchNow, ligne ~359) et à chaque
+                 mousemove pendant un pan, sans rapport avec l'état des tuiles. Profilé en
+                 lag notable sur un plateau bien dézoomé (trace DevTools : setAttribute/
+                 setStyle/getTileClasses dominent le thread principal). -->
             <div
               v-for="tile in renderedTiles"
               :key="tile.id"
+              v-memo="[
+                tile.type,
+                tile.explored,
+                tile.current,
+                tile.hasTreasure,
+                isChunkLocked(tile),
+                props.selectedTileId === tile.id,
+                influenceZoneMap.get(tile.id),
+                isGarrisonRegenerating(tile),
+                gameSettings.disableFogOfWar,
+                tileIconFontSize,
+              ]"
               class="map-tile"
               :class="getTileClasses(tile)"
               :title="tileTitle(tile)"

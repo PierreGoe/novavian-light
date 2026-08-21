@@ -565,6 +565,10 @@ export function useExplorationTicker() {
   const start = () => {
     if (displayRefreshTimer || lootRegenTimer) return // déjà démarré
 
+    // Resynchroniser l'horloge partagée : le ref module date du chargement de l'app,
+    // et les composants enfants montent avant ce start() (le setInterval ne tire qu'à +1 s)
+    now.value = Date.now()
+
     // Ouvrir un rapport quand le store le demande (clic sur toast de raid)
     pendingReportUnwatch = watch(
       () => missionStore.pendingReportToOpen.value,

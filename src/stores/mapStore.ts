@@ -611,6 +611,18 @@ const mapState = reactive<ExplorationState>({
   ...initialMapState,
 })
 
+// Index id → tuile pour getTileById en O(1) : le .find() linéaire sur ~2500 tuiles
+// réactives était le point chaud n°1 (appelé à 5 Hz par LargeMapGrid pour les marqueurs
+// de marche). Déclaré au niveau module (pas dans la factory, sinon zéro cache).
+// Ne lit que l'itération et t.id : reconstruit seulement si le tableau change de
+// référence (loadMapState/resetMapState) ou de structure, jamais sur mutation d'une
+// tuile en place (garnison, butin…) — et référence les mêmes proxys réactifs.
+const tilesById = computed(() => {
+  const index = new Map<string, MapTile>()
+  for (const tile of mapState.mapTiles) index.set(tile.id, tile)
+  return index
+})
+
 // Réapplique ou retire le brouillard de guerre selon le paramètre
 watch(
   () => gameSettings.disableFogOfWar,
@@ -663,12 +675,12 @@ export const useMapStore = () => {
   const mapTiles = computed(() => mapState.mapTiles)
   const selectedTile = computed(() => {
     if (!mapState.selectedTileId) return null
-    return mapState.mapTiles.find((tile) => tile.id === mapState.selectedTileId) || null
+    return getTileById(mapState.selectedTileId)
   })
 
   // Utilitaires pour les tuiles
   const getTileById = (id: string): MapTile | null => {
-    return mapState.mapTiles.find((tile) => tile.id === id) || null
+    return tilesById.value.get(id) ?? null
   }
 
   const getTileAt = (x: number, y: number): MapTile | null => {

@@ -257,8 +257,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useMissionStore } from '@/stores/missionStore'
+import { useExplorationTicker } from '@/composables/useExplorationTicker'
 import { useToastStore } from '@/stores/toastStore'
 import {
   BUILDING_DEFINITIONS,
@@ -281,18 +282,9 @@ const missionStore = useMissionStore()
 const toastStore = useToastStore()
 const town = computed(() => missionStore.town.value)
 
-// Horloge locale rafraîchie chaque seconde, pour que les anneaux/temps restants de
-// chantier se mettent à jour en direct (même pattern que UnitsTrainingSection).
-const now = ref(Date.now())
-let tickInterval: number | null = null
-onMounted(() => {
-  tickInterval = window.setInterval(() => {
-    now.value = Date.now()
-  }, 1000)
-})
-onUnmounted(() => {
-  if (tickInterval) clearInterval(tickInterval)
-})
+// Horloge partagée du ticker de campagne (1 Hz) pour les anneaux/temps restants de
+// chantier — plus d'intervalle local, tous les timers tickent sur la même vague.
+const { now } = useExplorationTicker()
 
 const hqLevel = computed(() => getHQLevel(town.value?.buildings ?? []))
 
