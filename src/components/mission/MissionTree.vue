@@ -141,6 +141,15 @@
 
       <Button variant="secondary" @click="goHome">🏠 Retour à l'accueil</Button>
     </footer>
+
+    <ConfirmDialog
+      v-model:open="showResetMapConfirm"
+      title="Générer une nouvelle carte ?"
+      message="Cela effacera votre progression actuelle."
+      confirm-label="Générer"
+      danger
+      @confirm="confirmResetMap"
+    />
   </div>
 </template>
 
@@ -155,6 +164,7 @@ import MissionMapLayer from './MissionMapLayer.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -335,18 +345,22 @@ const selectNode = (node: MapNode) => {
   gameStore.handleMapNodeAction(node, router, toastStore)
 }
 
+const showResetMapConfirm = ref(false)
+
 const resetMap = () => {
   if (!gameStore.gameState.race) {
     toastStore.showError('Aucune race sélectionnée !', { duration: 2000 })
     router.push('/race-selection')
     return
   }
-  if (
-    progressPercentage.value > 0 &&
-    !window.confirm('Générer une nouvelle carte effacera votre progression actuelle. Continuer ?')
-  ) {
+  if (progressPercentage.value > 0) {
+    showResetMapConfirm.value = true
     return
   }
+  confirmResetMap()
+}
+
+const confirmResetMap = () => {
   gameStore.resetMapOnly()
   gameStore.initializeMapIfNeeded()
   toastStore.showSuccess('Nouvelle carte générée !', { duration: 2000 })

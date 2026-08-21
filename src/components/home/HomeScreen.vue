@@ -41,11 +41,20 @@
         </div>
       </main>
     </div>
+
+    <ConfirmDialog
+      v-model:open="showOverwriteConfirm"
+      title="Écraser la sauvegarde ?"
+      message="Une partie sauvegardée existe déjà. La commencer écrasera définitivement cette sauvegarde."
+      confirm-label="Écraser et commencer"
+      danger
+      @confirm="confirmStartNewGame"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 import { useMissionStore } from '@/stores/missionStore'
@@ -53,6 +62,7 @@ import { useMapStore } from '@/stores/mapStore'
 import { useToastStore } from '@/stores/toastStore'
 import SelectableCard from '@/components/ui/SelectableCard.vue'
 import Badge from '@/components/ui/Badge.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import HomeHeroBackdrop from '@/components/home/HomeHeroBackdrop.vue'
 
 const router = useRouter()
@@ -66,16 +76,17 @@ onMounted(() => {
   // (Le computed hasSavedGame du store gère cela automatiquement)
 })
 
+const showOverwriteConfirm = ref(false)
+
 const startNewGame = () => {
-  if (
-    gameStore.hasSavedGame.value &&
-    !window.confirm(
-      'Une partie sauvegardée existe déjà. La commencer écrasera définitivement cette sauvegarde. Continuer ?',
-    )
-  ) {
+  if (gameStore.hasSavedGame.value) {
+    showOverwriteConfirm.value = true
     return
   }
+  confirmStartNewGame()
+}
 
+const confirmStartNewGame = () => {
   // Réinitialiser tous les stores avant de démarrer une nouvelle partie
   gameStore.resetGameCompletely()
   missionStore.resetMissionState()

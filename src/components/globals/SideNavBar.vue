@@ -140,6 +140,14 @@
     </div>
   </nav>
 
+  <ConfirmDialog
+    v-model:open="showGoHomeConfirm"
+    title="Retourner au menu principal ?"
+    message="Votre partie en cours reste sauvegardée."
+    confirm-label="Retourner au menu"
+    @confirm="doGoHome"
+  />
+
   <!-- =========================================================
        Barre de stats compacte mobile (or/leadership + accueil),
        masquée sur desktop — au-dessus de la bottom nav
@@ -208,6 +216,7 @@ import { formatNumber } from '@/utils/formatNumber'
 import { useMediaQuery, NARROW_DESKTOP_QUERY } from '@/composables/useMediaQuery'
 import NavToggleButton from '@/components/ui/NavToggleButton.vue'
 import CountBadge from '@/components/ui/CountBadge.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 
 // ===============================================================
 // Stores & router
@@ -319,10 +328,12 @@ const leadershipTooltip = computed(() => {
   return `Leadership: ${ls}/200 — ${status.description}`
 })
 
+const showGoHomeConfirm = ref(false)
 const goHome = () => {
-  if (window.confirm('Retourner au menu principal ? Votre partie en cours reste sauvegardée.')) {
-    router.push('/')
-  }
+  showGoHomeConfirm.value = true
+}
+const doGoHome = () => {
+  router.push('/')
 }
 
 // ===============================================================

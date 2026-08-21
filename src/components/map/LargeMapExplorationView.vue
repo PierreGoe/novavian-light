@@ -34,7 +34,9 @@
       <InfoPopover icon="⌨️" label="Aide clavier & souris" class="controls-help">
         <div class="help-item">🖱️ <strong>Clic & Glisser</strong> : Déplacer la carte</div>
         <div class="help-item">⌨️ <strong>Flèches / WASD</strong> : Navigation</div>
-        <div class="help-item">🔍 <strong>Proche / Normal / Loin</strong> : Zoom</div>
+        <div class="help-item">
+          🔍 <strong>Proche / Normal / Loin</strong> ou curseur : Zoom
+        </div>
         <div class="help-item">⌨️ <strong>Espace</strong> : Centrer sur position</div>
         <div class="help-item">⌨️ <strong>Échap</strong> : Fermer la fiche de case</div>
         <div class="help-item">
@@ -261,9 +263,11 @@ const handleUnlockChunk = (chunkId: string) => {
 </script>
 
 <style scoped>
+/* Pas de max-width : sur les très grands écrans la carte doit occuper toute la
+   largeur disponible (la fiche de détail garde son propre plafond à 1000px). */
 .large-map-exploration-view {
   padding: 20px;
-  max-width: 1400px;
+  max-width: 80%;
   margin: 0 auto;
 }
 

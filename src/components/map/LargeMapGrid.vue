@@ -8,6 +8,22 @@
         :model-value="String(viewportSize)"
         @update:model-value="(v) => setZoomPreset(Number(v))"
       />
+      <!-- Réglage fin du zoom : nombre de tuiles visibles, entre les bornes des
+           presets (gauche = proche, droite = loin, même sens que le segmenté) -->
+      <label
+        class="zoom-slider"
+        :title="`Réglage fin du zoom — ${viewportSize}×${viewportSize} tuiles visibles`"
+      >
+        🔍
+        <input
+          type="range"
+          :min="MAP_CONFIG.minViewportSize"
+          :max="MAP_CONFIG.maxViewportSize"
+          :value="viewportSize"
+          @input="setZoomPreset(Number(($event.target as HTMLInputElement).value))"
+        />
+        <span class="zoom-slider-value">{{ viewportSize }}</span>
+      </label>
       <div class="controls-divider" />
       <Button variant="secondary" size="sm" @click="centerOnPlayer">🎯 Centrer</Button>
       <Button
@@ -443,9 +459,15 @@ const gridStyle = computed(() => {
 const wrapperStyle = computed(() => {
   const step = tileSizeAdaptive.value + GRID_GAP_PX
   const { cols, rows } = viewportDimensions.value
+  const heightPx = rows * step - GRID_GAP_PX + 2 * GRID_PADDING_PX
   return {
     width: `${cols * step - GRID_GAP_PX + 2 * GRID_PADDING_PX}px`,
-    height: `${rows * step - GRID_GAP_PX + 2 * GRID_PADDING_PX}px`,
+    height: `${heightPx}px`,
+    // Perspective de la bascule 3D proportionnelle au plateau (ratio 2.14 =
+    // 1200px pour l'ancien plateau de ~560px) : avec une perspective fixe, un
+    // grand plateau (viewport plein écran) était beaucoup plus déformé — les
+    // tuiles du bas nettement plus grosses que celles du haut.
+    '--map-tilt-perspective': `${Math.round(heightPx * 2.14)}px`,
   }
 })
 
@@ -456,8 +478,10 @@ const wrapperStyle = computed(() => {
 // icônes contre-pivotées et redressées pour rester lisibles — sprites debout.
 // Le choix du joueur (mode + angles) est persisté via gameSettings.
 
-// Doit refléter le CSS : .map-viewport--iso { perspective: 1600px }
-const ISO_PERSPECTIVE_PX = 1600
+// Ratio perspective/plateau du réglage historique (1600px pour ~560px de plateau).
+// La perspective est désormais proportionnelle au plateau et injectée en CSS via
+// --iso-perspective : une valeur fixe déformait beaucoup plus les grands plateaux.
+const ISO_PERSPECTIVE_RATIO = 2.86
 
 const isoStyleVars = computed(() => {
   if (!gameSettings.mapIsoView) return {}
@@ -481,7 +505,7 @@ const isoStyleVars = computed(() => {
   const projH = (boardW * sinZ + boardH * cosZ) * Math.cos(xRad)
   // Élévation du coin proche vers la caméra, par unité d'échelle
   const lift = ((boardW * sinZ + boardH * cosZ) / 2) * Math.sin(xRad)
-  const P = ISO_PERSPECTIVE_PX
+  const P = Math.round(Math.max(boardW, boardH) * ISO_PERSPECTIVE_RATIO)
   const availW = viewportPixelWidth.value - 16
   const availH = viewportPixelHeight.value - 16
 
@@ -511,6 +535,7 @@ const isoStyleVars = computed(() => {
   const shiftY = (0.7 * (halfH * scale * (P / (P - l) - P / (P + l)))) / 2
 
   return {
+    '--iso-perspective': `${P}px`,
     '--iso-x': `${gameSettings.mapIsoAngles.x}deg`,
     '--iso-z': `${gameSettings.mapIsoAngles.z}deg`,
     '--iso-unsquash': String(Math.round(unsquash * 100) / 100),
@@ -867,7 +892,11 @@ const influenceZoneMap = computed(() => {
 }
 
 .map-viewport {
-  height: 600px;
+  /* Occupe toute la hauteur restante de l'écran (~340px de chrome au-dessus :
+     header campagne, paddings, barre de contrôles) au lieu d'un 600px fixe —
+     le ResizeObserver adapte la taille des tuiles automatiquement.
+     Plancher à 600px pour ne pas rétrécir sur les écrans bas. */
+  height: max(600px, calc(100vh - 340px));
   overflow: hidden;
   position: relative;
   user-select: none;
@@ -889,7 +918,9 @@ const influenceZoneMap = computed(() => {
   /* Légère bascule 3D du plateau, façon carte de campagne isométrique.
      Les overlays (cadrans, trajets, marqueurs) étant enfants du wrapper,
      ils suivent la même transformation — les maths pixel restent valides. */
-  transform: perspective(1200px) rotateX(16deg);
+  /* Perspective injectée via wrapperStyle : proportionnelle à la taille du
+     plateau pour garder une déformation constante à toutes les tailles d'écran. */
+  transform: perspective(var(--map-tilt-perspective, 1200px)) rotateX(16deg);
   /* Plateau flottant : ombre portée sous la carte, sur la base claire.
      Le radius arrondit l'ombre et le rognage de la grille tampon. */
   border-radius: 24px;
@@ -906,7 +937,9 @@ const influenceZoneMap = computed(() => {
    Le relief est donc simulé (« fake 3D ») : les icônes sont contre-pivotées
    de -rotateZ puis redressées de 1/cos(X) pour sembler debout sur le plateau. */
 .map-viewport--iso {
-  perspective: 1600px;
+  /* Valeur injectée via isoStyleVars (proportionnelle au plateau) — le script
+     utilise la même valeur P dans ses calculs d'échelle, rester synchronisés. */
+  perspective: var(--iso-perspective, 1600px);
   perspective-origin: 50% 25%;
 }
 
@@ -928,8 +961,9 @@ const influenceZoneMap = computed(() => {
   transform: rotateZ(calc(-1 * var(--iso-z, 45deg))) scaleY(var(--iso-unsquash, 1.74));
 }
 
-/* Curseurs d'angle du mode iso (équivalents des sliders du pen) */
-.iso-slider {
+/* Curseurs de la barre de contrôles : angles du mode iso + réglage fin du zoom */
+.iso-slider,
+.zoom-slider {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -937,9 +971,19 @@ const influenceZoneMap = computed(() => {
   user-select: none;
 }
 
-.iso-slider input[type='range'] {
+.iso-slider input[type='range'],
+.zoom-slider input[type='range'] {
   width: 90px;
   accent-color: rgb(var(--color-accent-rgb));
+}
+
+/* Valeur courante du zoom (nombre de tuiles) — chasse fixe pour éviter que la
+   barre de contrôles ne bouge quand la valeur passe de 9 à 10+ */
+.zoom-slider-value {
+  min-width: 2ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
 }
 
 /* Couche translatée pendant le drag (fraction de tuile) : grille + tous les overlays
