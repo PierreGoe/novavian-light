@@ -65,7 +65,10 @@
     <div
       ref="mapViewportRef"
       class="map-viewport"
-      :class="{ 'map-viewport--iso': gameSettings.mapIsoView }"
+      :class="{
+        'map-viewport--iso': gameSettings.mapIsoView,
+        'map-viewport--panning': isPanning,
+      }"
       @mousedown="startPan"
       @mousemove="handlePan"
       @mouseup="endPan"
@@ -77,14 +80,18 @@
            est plus grande (marge de tuiles tampon) et glisse dessous pendant le pan. -->
       <div class="map-grid-wrapper" :style="wrapperStyle">
         <div class="map-pan-layer" :style="panLayerStyle">
-          <div class="map-grid-large" :key="`grid-${gridRenderKey}`" :style="gridStyle">
+          <!-- :key sur le zoom SEUL : inclure l'offset forçait un démontage/remontage
+               complet des ~440 tuiles à chaque pas de pan (listeners v-clickable,
+               animations CSS redémarrées, layout+paint entiers). Sans lui, Vue diffe
+               le v-for keyé par tile.id : un pas = quelques insertions/retraits. -->
+          <div class="map-grid-large" :key="`grid-${viewportSize}`" :style="gridStyle">
             <!-- Rendu des tuiles visibles + une marge tampon hors écran.
                  v-memo : sans lui, getTileClasses/tileTitle (+ les v-if des badges) sont
                  ré-exécutés pour CHAQUE tuile rendue à chaque re-render du composant —
-                 or celui-ci se déclenche 5×/s (horloge marchNow, ligne ~359) et à chaque
-                 mousemove pendant un pan, sans rapport avec l'état des tuiles. Profilé en
-                 lag notable sur un plateau bien dézoomé (trace DevTools : setAttribute/
-                 setStyle/getTileClasses dominent le thread principal). -->
+                 or celui-ci se déclenche 1×/s (tickerNow, tooltips de mouvement) et à
+                 chaque mousemove pendant un pan, sans rapport avec l'état des tuiles.
+                 Profilé en lag notable sur un plateau bien dézoomé (trace DevTools :
+                 setAttribute/setStyle/getTileClasses dominent le thread principal). -->
             <div
               v-for="tile in renderedTiles"
               :key="tile.id"
@@ -93,6 +100,7 @@
                 tile.explored,
                 tile.current,
                 tile.hasTreasure,
+                lootStockTotal(tile),
                 isChunkLocked(tile),
                 props.selectedTileId === tile.id,
                 influenceZoneMap.get(tile.id),
@@ -145,6 +153,16 @@
               >
                 💎
               </div>
+              <!-- Indicateur : village/forteresse ennemi encore pillable -->
+              <div
+                class="loot-badge"
+                v-if="
+                  lootStockTotal(tile) > 0 &&
+                  (gameSettings.disableFogOfWar || (tile.explored && !isChunkLocked(tile)))
+                "
+              >
+                💰
+              </div>
             </div>
           </div>
 
@@ -155,26 +173,44 @@
           <div
             v-if="!gameSettings.disableFogOfWar && visibleLockedChunks.length > 0"
             class="map-chunk-overlay"
-            :key="`overlay-${gridRenderKey}`"
+            :key="`overlay-${viewportSize}`"
           >
             <div
               v-for="chunk in visibleLockedChunks"
               :key="chunk.id"
               class="chunk-locked-bubble"
-              :class="{ 'chunk-locked-bubble--nofragment': mapFragments === 0 }"
+              :class="{
+                'chunk-locked-bubble--nofragment': mapFragments === 0,
+                'chunk-locked-bubble--holding': holdingChunkId === chunk.id,
+              }"
               :style="chunk.style"
               v-clickable
-              @click.stop="emit('unlock-chunk', chunk.id)"
+              @pointerdown.stop="startHold(chunk.id)"
+              @pointerup.stop="cancelHold"
+              @pointerleave.stop="cancelHold"
+              @pointercancel.stop="cancelHold"
+              @contextmenu.prevent
+              @click.stop="onBubbleClick(chunk.id, $event)"
             >
-              <div class="chunk-bubble-inner">
+              <!-- Pendant l'appui maintenu : anneau de progression (5s) à la place
+                   du contenu habituel de la bulle -->
+              <TimerClock
+                v-if="holdingChunkId === chunk.id"
+                :size="52"
+                :progress="holdProgress"
+                :remaining-ms="holdRemainingMs"
+                icon="🗺️"
+                progress-color="var(--color-accent)"
+              />
+              <div v-else class="chunk-bubble-inner">
                 <span class="chunk-bubble-lock">🔒</span>
                 <span class="chunk-bubble-label">Zone {{ chunk.id }}</span>
-                <!-- Coût et stock affichés AVANT le clic — le joueur ne découvre
+                <!-- Coût et stock affichés AVANT l'appui — le joueur ne découvre
                      plus le manque de fragments via un toast d'erreur après coup -->
                 <span class="chunk-bubble-hint">
                   {{
                     mapFragments > 0
-                      ? `Révéler — 1 🗺️ (vous en avez ${mapFragments})`
+                      ? `Maintenir 3s pour révéler — 1 🗺️ (vous en avez ${mapFragments})`
                       : 'Aucun fragment de carte 🗺️'
                   }}
                 </span>
@@ -187,69 +223,15 @@
             </div>
           </div>
 
-          <!-- Overlay des troupes en marche — icône interpolée entre case source et cible -->
+          <!-- Overlay des mouvements — marqueurs STATIQUES : les anciens arcs SVG +
+               badges interpolés (repositionnés 5×/s avec transition left/top) coûtaient
+               trop cher en layout/paint. Un symbole posé sur la case d'intérêt suffit,
+               les comptes à rebours détaillés restent dans MovementsPanel. -->
           <div class="map-movement-overlay">
-            <!-- Trajets (départ → arrivée) : troupes du joueur + menaces ennemies -->
-            <svg class="map-path-svg">
-              <defs>
-                <marker
-                  id="map-arrow-outgoing"
-                  markerWidth="8"
-                  markerHeight="8"
-                  refX="6"
-                  refY="4"
-                  orient="auto-start-reverse"
-                >
-                  <path d="M0,0 L8,4 L0,8 z" class="map-arrow-fill map-arrow-fill--outgoing" />
-                </marker>
-                <marker
-                  id="map-arrow-returning"
-                  markerWidth="8"
-                  markerHeight="8"
-                  refX="6"
-                  refY="4"
-                  orient="auto-start-reverse"
-                >
-                  <path d="M0,0 L8,4 L0,8 z" class="map-arrow-fill map-arrow-fill--returning" />
-                </marker>
-                <marker
-                  id="map-arrow-enemy"
-                  markerWidth="8"
-                  markerHeight="8"
-                  refX="6"
-                  refY="4"
-                  orient="auto-start-reverse"
-                >
-                  <path d="M0,0 L8,4 L0,8 z" class="map-arrow-fill map-arrow-fill--enemy" />
-                </marker>
-              </defs>
-              <path
-                v-for="path in attackPaths"
-                :key="`path-${path.id}`"
-                :d="path.d"
-                class="path-line"
-                :class="`path-line--${path.variant}`"
-                :marker-end="`url(#map-arrow-${path.variant})`"
-              >
-                <title>
-                  {{ path.variant === 'returning' ? 'Retour vers le village' : 'Attaque en cours' }}
-                </title>
-              </path>
-              <path
-                v-for="threat in enemyThreats"
-                :key="`threat-${threat.id}`"
-                :d="threat.d"
-                class="path-line path-line--enemy"
-                marker-end="url(#map-arrow-enemy)"
-              >
-                <title>Attaque ennemie dans {{ Math.ceil(threat.msRemaining / 1000) }}s</title>
-              </path>
-            </svg>
-
-            <!-- Badge des troupes du joueur en marche — cliquable : ouvre la fiche
-                 de la case d'intérêt (cible en aller, case quittée en retour) -->
+            <!-- Troupes du joueur : ⚔️ sur la destination à l'aller, ↩️ sur la case
+                 quittée au retour — cliquable : ouvre la fiche de cette case -->
             <div
-              v-for="marker in marchingMarkers"
+              v-for="marker in movementMarkers"
               :key="marker.id"
               class="march-marker march-marker--clickable"
               :class="{ 'march-marker--returning': marker.isReturning }"
@@ -257,20 +239,22 @@
               :title="marker.title"
               @click="selectTile(marker.focusTileId)"
             >
-              <span class="march-marker-badge">{{ marker.isReturning ? '↩️' : '🪖' }}</span>
+              <span class="march-marker-badge">{{ marker.isReturning ? '↩️' : '⚔️' }}</span>
             </div>
 
-            <!-- Badge des menaces ennemies en approche — cliquable : ouvre la
-                 fiche de la forteresse hostile responsable du raid -->
+            <!-- Menace ennemie en approche : simple flèche orientée forteresse → village,
+                 posée juste devant le village — cliquable : ouvre la forteresse -->
             <div
               v-for="threat in enemyThreats"
-              :key="`threat-badge-${threat.id}`"
+              :key="`threat-${threat.id}`"
               class="march-marker march-marker--enemy march-marker--clickable"
               :style="markerStyle(threat)"
               :title="threat.title"
               @click="selectTile(threat.id)"
             >
-              <span class="march-marker-badge">💀</span>
+              <span class="threat-arrow" :style="{ transform: `rotate(${threat.angleDeg}deg)` }"
+                >➤</span
+              >
             </div>
           </div>
         </div>
@@ -284,14 +268,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import {
-  useMapStore,
-  type MapTile,
-  MAP_CONFIG,
-  type HostilityState,
-  HOSTILE_ATTACK_INTERVAL_MS,
-} from '../../stores/mapStore'
+import { useMapStore, type MapTile, MAP_CONFIG, type HostilityState } from '../../stores/mapStore'
 import { useMapViewport, ZOOM_PRESETS } from '../../composables/useMapViewport'
+import { useExplorationTicker } from '../../composables/useExplorationTicker'
 import { useGameStore } from '../../stores/gameStore'
 import { gameSettings } from '../../stores/gameSettingsStore'
 import { GARRISON_REGEN_DURATION_MS } from '../../config'
@@ -299,6 +278,7 @@ import { formatDuration } from '../../utils/formatDuration'
 import SectionLabel from '@/components/ui/SectionLabel.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import Button from '@/components/ui/Button.vue'
+import TimerClock from '@/components/ui/TimerClock.vue'
 
 const zoomOptions = computed(() =>
   ZOOM_PRESETS.map((preset) => ({
@@ -326,6 +306,11 @@ const emit = defineEmits<{
 const mapStore = useMapStore()
 const gameStore = useGameStore()
 
+// Horloge 1 Hz du ticker de campagne (lecture seule — start/stop restent dans
+// CampaignLayout) : sert uniquement aux comptes à rebours des tooltips de mouvement.
+// Remplace l'ancienne horloge locale 200 ms qui re-rendait tout le composant 5×/s.
+const { now: tickerNow } = useExplorationTicker()
+
 // Composables
 const {
   viewportOffset,
@@ -339,7 +324,9 @@ const {
   startPan,
   handlePan,
   endPan,
-} = useMapViewport()
+  // Le pas réel (tuile adaptative + gap) sert à convertir les pixels du drag en tuiles :
+  // avec MAP_CONFIG.tileSize (40px fixe), le plateau ne suivait pas exactement le curseur.
+} = useMapViewport({ tileStepPx: () => tileSizeAdaptive.value + GRID_GAP_PX })
 
 /** Stock de fragments de carte du joueur — affiché dans les bulles de cadran verrouillé */
 const mapFragments = computed(() => gameStore.gameState.inventory.mapFragments)
@@ -357,10 +344,6 @@ const viewportPixelHeight = ref(600)
 const viewportPixelWidth = ref(600)
 let viewportResizeObserver: ResizeObserver | null = null
 
-// Horloge dédiée à l'animation de marche — découplée du tick de résolution de combat (1s)
-const marchNow = ref(Date.now())
-let marchInterval: ReturnType<typeof setInterval> | null = null
-
 onMounted(() => {
   if (!mapViewportRef.value) return
   viewportResizeObserver = new ResizeObserver((entries) => {
@@ -373,16 +356,70 @@ onMounted(() => {
   viewportResizeObserver.observe(mapViewportRef.value)
 })
 
-onMounted(() => {
-  marchInterval = setInterval(() => {
-    marchNow.value = Date.now()
-  }, 200)
-})
-
 onUnmounted(() => {
   viewportResizeObserver?.disconnect()
-  if (marchInterval) clearInterval(marchInterval)
+  cancelHold()
 })
+
+// ── Révélation d'un cadran par appui maintenu (5s) ──────────────────────────
+// Remplace l'ancien clic instantané : le joueur doit rester appuyé sur la
+// bulle du cadran verrouillé pendant HOLD_DURATION_MS pour le révéler.
+const HOLD_DURATION_MS = 3000
+
+/** Cadran actuellement maintenu (null si aucun) — pilote l'affichage du TimerClock */
+const holdingChunkId = ref<string | null>(null)
+/** Progression du hold, 0 → 1 */
+const holdProgress = ref(0)
+const holdRemainingMs = computed(() =>
+  Math.max(0, Math.round(HOLD_DURATION_MS * (1 - holdProgress.value))),
+)
+
+let holdRafId: number | null = null
+let holdStartedAt = 0
+
+const tickHold = () => {
+  if (holdingChunkId.value === null) return
+  const elapsed = Date.now() - holdStartedAt
+  holdProgress.value = Math.min(1, elapsed / HOLD_DURATION_MS)
+  if (elapsed >= HOLD_DURATION_MS) {
+    const chunkId = holdingChunkId.value
+    cancelHold()
+    emit('unlock-chunk', chunkId)
+    return
+  }
+  holdRafId = requestAnimationFrame(tickHold)
+}
+
+const startHold = (chunkId: string) => {
+  // Pas de fragment : échec certain, on garde le retour immédiat existant
+  // (toast d'avertissement du parent) plutôt que de faire attendre 5s pour rien.
+  if (mapFragments.value <= 0) {
+    emit('unlock-chunk', chunkId)
+    return
+  }
+  holdingChunkId.value = chunkId
+  holdStartedAt = Date.now()
+  holdProgress.value = 0
+  holdRafId = requestAnimationFrame(tickHold)
+}
+
+const cancelHold = () => {
+  if (holdRafId !== null) {
+    cancelAnimationFrame(holdRafId)
+    holdRafId = null
+  }
+  holdingChunkId.value = null
+  holdProgress.value = 0
+}
+
+/** Un clic natif souris (detail >= 1) ne révèle plus rien — seul l'appui maintenu
+    le fait. Un clic synthétique clavier (v-clickable, Entrée/Espace, detail === 0)
+    garde l'ancien comportement instantané : reproduire un hold via le clavier
+    serait un aller-retour d'accessibilité disproportionné pour ce jeu. */
+const onBubbleClick = (chunkId: string, event: MouseEvent) => {
+  if (event.detail !== 0) return
+  emit('unlock-chunk', chunkId)
+}
 
 // Dimensions réelles du viewport après clamping aux bords de la carte
 const viewportDimensions = computed(() => {
@@ -581,7 +618,7 @@ const panLayerStyle = computed(() => {
   }
 })
 
-interface MarchingMarker {
+interface MovementMarker {
   id: string
   x: number
   y: number
@@ -592,27 +629,25 @@ interface MarchingMarker {
   title: string
 }
 
-/** Position interpolée de chaque mouvement de troupes actif, entre sa case source et sa case cible */
-const marchingMarkers = computed<MarchingMarker[]>(() => {
-  const now = marchNow.value
-  const result: MarchingMarker[] = []
+/** Marqueur statique par mouvement actif, posé sur la case d'intérêt (cible en aller,
+    case quittée en retour). Seul le tooltip dépend de l'horloge 1 Hz du ticker partagé :
+    la position ne bouge plus, aucun re-layout continu. */
+const movementMarkers = computed<MovementMarker[]>(() => {
+  const result: MovementMarker[] = []
   for (const movement of mapStore.mapState.activeMovements) {
     const source = mapStore.getTileById(movement.sourceTileId)
     const target = mapStore.getTileById(movement.targetTileId)
     if (!source || !target) continue
 
-    const duration = movement.arrivalTime - movement.departureTime
-    const progress =
-      duration <= 0 ? 1 : Math.min(1, Math.max(0, (now - movement.departureTime) / duration))
-
-    const remaining = formatDuration(Math.max(0, movement.arrivalTime - now))
+    const remaining = formatDuration(Math.max(0, movement.arrivalTime - tickerNow.value))
     const isReturning = !!movement.isReturning
+    const anchor = isReturning ? source : target
     result.push({
       id: movement.id,
-      x: source.position.x + (target.position.x - source.position.x) * progress,
-      y: source.position.y + (target.position.y - source.position.y) * progress,
+      x: anchor.position.x,
+      y: anchor.position.y,
       isReturning,
-      focusTileId: isReturning ? movement.sourceTileId : movement.targetTileId,
+      focusTileId: anchor.id,
       title: isReturning
         ? `Retour vers le village — arrivée dans ${remaining}`
         : `Troupes en marche vers ${mapStore.getTileName(target.type)} (${target.position.x}, ${target.position.y}) — arrivée dans ${remaining}`,
@@ -635,72 +670,23 @@ const markerStyle = (marker: { x: number; y: number }) => {
   }
 }
 
-/** Centre en pixels d'une case (coordonnée carte), pour tracer les traits de trajet */
-const tileCenterPx = (x: number, y: number) => {
-  const { startX, startY } = viewportDimensions.value
-  const step = tileSizeAdaptive.value + GRID_GAP_PX
-  const half = tileSizeAdaptive.value / 2
-  return {
-    cx: GRID_PADDING_PX + (x - startX) * step + half,
-    cy: GRID_PADDING_PX + (y - startY) * step + half,
-  }
-}
-
-/** Chemin SVG en léger arc entre deux cases (aspect "flèche de carte" plutôt qu'un trait droit) */
-const curvedPathD = (x1: number, y1: number, x2: number, y2: number): string => {
-  const { cx: cx1, cy: cy1 } = tileCenterPx(x1, y1)
-  const { cx: cx2, cy: cy2 } = tileCenterPx(x2, y2)
-  const dx = cx2 - cx1
-  const dy = cy2 - cy1
-  const dist = Math.hypot(dx, dy)
-  if (dist === 0) return `M ${cx1} ${cy1} L ${cx2} ${cy2}`
-  const bulge = Math.min(dist * 0.15, 40)
-  const midX = (cx1 + cx2) / 2 - (dy / dist) * bulge
-  const midY = (cy1 + cy2) / 2 + (dx / dist) * bulge
-  return `M ${cx1} ${cy1} Q ${midX} ${midY} ${cx2} ${cy2}`
-}
-
-interface AttackPath {
-  id: string
-  d: string
-  variant: 'outgoing' | 'returning'
-}
-
-/** Un trait départ → arrivée par mouvement de troupes actif du joueur */
-const attackPaths = computed<AttackPath[]>(() => {
-  const result: AttackPath[] = []
-  for (const movement of mapStore.mapState.activeMovements) {
-    const source = mapStore.getTileById(movement.sourceTileId)
-    const target = mapStore.getTileById(movement.targetTileId)
-    if (!source || !target) continue
-    result.push({
-      id: movement.id,
-      d: curvedPathD(source.position.x, source.position.y, target.position.x, target.position.y),
-      variant: movement.isReturning ? 'returning' : 'outgoing',
-    })
-  }
-  return result
-})
-
 interface EnemyThreat {
   id: string
   x: number
   y: number
-  isReturning: boolean
-  d: string
-  msRemaining: number
+  /** Orientation de la flèche : direction forteresse → village, en degrés CSS */
+  angleDeg: number
   /** Tooltip : forteresse d'origine + compte à rebours + affordance de clic */
   title: string
 }
 
 /**
  * Attaques ennemies imminentes : une forteresse hostile avec un `nextAttackAt` planifié.
- * Le trajet (forteresse → village du joueur) et la progression sont reconstitués à partir
- * de la fenêtre de temps HOSTILE_ATTACK_INTERVAL_MS, pour donner au joueur un avertissement
- * visuel avant que le raid ne se résolve (résolution abstraite, sans déplacement réel côté jeu).
+ * Représentation volontairement statique (perf) : une flèche posée juste devant le village
+ * du joueur, orientée dans la direction d'où vient le raid. Seul le compte à rebours du
+ * tooltip suit l'horloge 1 Hz du ticker partagé.
  */
 const enemyThreats = computed<EnemyThreat[]>(() => {
-  const now = marchNow.value
   const home = mapStore.mapState.currentPosition
   const result: EnemyThreat[] = []
   for (const zone of Object.values(mapStore.mapState.fortressZones)) {
@@ -708,17 +694,18 @@ const enemyThreats = computed<EnemyThreat[]>(() => {
     const fortress = mapStore.getTileById(zone.fortressTileId)
     if (!fortress) continue
 
-    const departureTime = zone.nextAttackAt - HOSTILE_ATTACK_INTERVAL_MS
-    const progress = Math.min(1, Math.max(0, (now - departureTime) / HOSTILE_ATTACK_INTERVAL_MS))
+    const dx = home.x - fortress.position.x
+    const dy = home.y - fortress.position.y
+    const dist = Math.hypot(dx, dy) || 1
 
-    const msRemaining = Math.max(0, zone.nextAttackAt - now)
+    const msRemaining = Math.max(0, zone.nextAttackAt - tickerNow.value)
     result.push({
       id: zone.fortressTileId,
-      x: fortress.position.x + (home.x - fortress.position.x) * progress,
-      y: fortress.position.y + (home.y - fortress.position.y) * progress,
-      isReturning: false,
-      d: curvedPathD(fortress.position.x, fortress.position.y, home.x, home.y),
-      msRemaining,
+      // Une case en retrait du village, côté forteresse : ne masque pas l'icône du
+      // village et deux raids simultanés venant d'axes différents ne se superposent pas
+      x: home.x - (dx / dist),
+      y: home.y - (dy / dist),
+      angleDeg: Math.round((Math.atan2(dy, dx) * 180) / Math.PI),
       title: `Raid ennemi depuis la forteresse (${fortress.position.x}, ${fortress.position.y}) — impact dans ${Math.ceil(msRemaining / 1000)}s — cliquer pour voir la forteresse`,
     })
   }
@@ -731,11 +718,6 @@ const tileIconFontSize = computed(() => {
   // ~40% de la tuile, clampé entre 10 et 22px
   return `${Math.max(10, Math.min(22, Math.floor(size * 0.4)))}px`
 })
-
-// Clé de re-render : change quand le viewport (taille OU offset) change
-const gridRenderKey = computed(
-  () => `${viewportSize.value}-${viewportOffset.value.x}-${viewportOffset.value.y}`,
-)
 
 const getTileClasses = (tile: MapTile) => {
   const chunkLocked = isChunkLocked(tile)
@@ -790,6 +772,17 @@ const isGarrisonRegenerating = (tile: MapTile): boolean => {
   if (!tile.garrison?.regenStartedAt) return false
   const elapsed = Date.now() - tile.garrison.regenStartedAt
   return elapsed < GARRISON_REGEN_DURATION_MS
+}
+
+/**
+ * Somme du stock pillable d'un village ennemi/forteresse — valeur primitive plutôt
+ * que l'objet lootStock lui-même : ce dernier est muté en place (tickLootRegen), donc
+ * sa référence ne change jamais et casserait la comparaison shallow-equal du v-memo.
+ */
+const lootStockTotal = (tile: MapTile): number => {
+  const stock = tile.lootStock
+  if (!stock || (tile.type !== 'village_enemy' && tile.type !== 'stronghold')) return 0
+  return stock.gold + stock.wood + stock.iron + stock.crop
 }
 
 /** Calcule le style de bordure et border-radius d'une bulle selon ses bords visibles */
@@ -945,6 +938,9 @@ const influenceZoneMap = computed(() => {
   box-shadow:
     0 45px 45px -20px rgba(var(--overlay-rgb), 0.35),
     0 18px 20px -14px rgba(var(--overlay-rgb), 0.22);
+  /* Confine layout et paint au plateau : un repaint de tuile ne force plus la
+     re-rasterisation de la page à travers la transform 3D ci-dessus. */
+  contain: layout paint;
 }
 
 /* ── Vue isométrique expérimentale (architecture du pen « Stack Sprite ») ──
@@ -974,6 +970,7 @@ const influenceZoneMap = computed(() => {
 .map-viewport--iso .current-marker,
 .map-viewport--iso .garrison-regen-badge,
 .map-viewport--iso .treasure-badge,
+.map-viewport--iso .loot-badge,
 .map-viewport--iso .march-marker-badge,
 .map-viewport--iso .chunk-bubble-inner {
   transform: rotateZ(calc(-1 * var(--iso-z, 45deg))) scaleY(var(--iso-unsquash, 1.74));
@@ -1026,7 +1023,11 @@ const influenceZoneMap = computed(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.15s ease;
+  /* Propriétés ciblées (pas `all`) : pendant un pan, les tuiles défilent sous le
+     curseur et `all` lançait des transitions background/border en rafale. */
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
   /* Brouillard sur cadran révélé : liseré sombre discret, lisible sur base claire */
   background: rgba(var(--overlay-rgb), 0.08);
 }
@@ -1035,6 +1036,14 @@ const influenceZoneMap = computed(() => {
   border-color: rgba(var(--color-accent-rgb), 0.55);
   transform: scale(1.05);
   z-index: 10;
+}
+
+/* Pendant le drag : plus de hover ni de transitions sur les tuiles — le pointeur
+   défile sur des dizaines de cases par geste, chaque hover repeignait la grille
+   à l'intérieur du contexte 3D clippé du wrapper. */
+.map-viewport--panning .map-tile {
+  pointer-events: none;
+  transition: none;
 }
 
 /* Léger biseau 3D : lumière en haut, ombre en bas — façon tuile de plateau.
@@ -1268,6 +1277,20 @@ const influenceZoneMap = computed(() => {
   }
 }
 
+/* Stock pillable d'un village/forteresse ennemi — ancré en bas à gauche pour ne pas
+   se superposer au badge de garnison en reconstitution (haut à droite, même tuile possible) */
+.loot-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  font-size: clamp(8px, 1.2vw, 11px);
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 3px;
+  padding: 0 2px;
+  z-index: 5;
+  line-height: 1;
+}
+
 @keyframes regen-spin {
   0% {
     opacity: 1;
@@ -1307,9 +1330,6 @@ const influenceZoneMap = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition:
-    left 0.2s linear,
-    top 0.2s linear;
   z-index: 2;
 }
 
@@ -1322,13 +1342,19 @@ const influenceZoneMap = computed(() => {
 
 /* Badge circulaire autour de l'icône — la rend lisible sur n'importe quel fond de tuile.
    Le fond sombre reste fixe (HUD, cf. note plus haut) ; seul l'anneau reprend les tokens
-   sémantiques déjà utilisés pour l'envoi d'attaque dans AttackPanel.vue. */
+   sémantiques déjà utilisés pour l'envoi d'attaque dans AttackPanel.vue.
+   Réduit et ancré en haut à droite : posé en STATIQUE sur la case de destination,
+   il ne doit pas masquer l'icône de la tuile en dessous. */
 .march-marker-badge {
+  position: absolute;
+  top: -6%;
+  right: -6%;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 78%;
-  height: 78%;
+  width: 62%;
+  height: 62%;
+  font-size: 0.75em;
   border-radius: 50%;
   background: radial-gradient(circle at 30% 30%, #4a3420, #1a0f08 85%);
   border: 2px solid var(--color-danger);
@@ -1344,13 +1370,21 @@ const influenceZoneMap = computed(() => {
     0 0 8px rgba(var(--color-success-strong-rgb), 0.55);
 }
 
-/* Menace ennemie en approche — distincte des troupes du joueur, pulsation d'alerte */
-.march-marker--enemy .march-marker-badge {
-  border-color: var(--color-warning);
-  box-shadow:
-    0 2px 5px rgba(0, 0, 0, 0.6),
-    0 0 10px rgba(var(--color-warning-rgb), 0.65);
+/* Menace ennemie en approche — simple flèche orientée vers le village, pulsation
+   d'alerte sur le conteneur (transform seul : composité, pas de repaint). La rotation
+   est portée par le span interne pour ne pas entrer en conflit avec le scale. */
+.march-marker--enemy {
   animation: enemy-pulse 1s ease-in-out infinite;
+}
+
+.threat-arrow {
+  color: var(--color-warning);
+  font-size: 1.3em;
+  line-height: 1;
+  /* Liseré sombre : la flèche reste lisible quel que soit le terrain dessous */
+  text-shadow:
+    0 0 3px rgba(0, 0, 0, 0.9),
+    0 1px 2px rgba(0, 0, 0, 0.7);
 }
 
 @keyframes enemy-pulse {
@@ -1359,60 +1393,7 @@ const influenceZoneMap = computed(() => {
     transform: scale(1);
   }
   50% {
-    transform: scale(1.12);
-  }
-}
-
-/* Trajets départ → arrivée, en arc, façon flèche de carte */
-.map-path-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  overflow: visible;
-  z-index: 1;
-}
-
-.path-line {
-  fill: none;
-  stroke-width: 2.5;
-}
-
-.path-line--outgoing {
-  stroke: var(--color-danger);
-  stroke-dasharray: none;
-}
-
-.path-line--returning {
-  stroke: var(--color-success-strong);
-  stroke-dasharray: 5 4;
-  opacity: 0.85;
-}
-
-.path-line--enemy {
-  stroke: var(--color-warning);
-  stroke-dasharray: 4 5;
-  animation: enemy-path-pulse 1s ease-in-out infinite;
-}
-
-.map-arrow-fill--outgoing {
-  fill: var(--color-danger);
-}
-.map-arrow-fill--returning {
-  fill: var(--color-success-strong);
-}
-.map-arrow-fill--enemy {
-  fill: var(--color-warning);
-}
-
-@keyframes enemy-path-pulse {
-  0%,
-  100% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 1;
+    transform: scale(1.18);
   }
 }
 
@@ -1474,6 +1455,16 @@ const influenceZoneMap = computed(() => {
     border-color 0.2s ease,
     box-shadow 0.2s ease;
   /* overflow visible : les losanges connecteurs chevauchent la bordure */
+  /* Empêche le scroll/zoom tactile de voler le geste pendant l'appui maintenu */
+  touch-action: none;
+}
+
+/* Appui maintenu en cours — halo doré, cohérent avec l'anneau de progression */
+.chunk-locked-bubble--holding {
+  border-color: rgba(var(--color-accent-rgb), 0.9);
+  box-shadow:
+    0 8px 22px rgba(var(--color-black-rgb), 0.45),
+    0 0 18px rgba(var(--color-accent-rgb), 0.45);
 }
 
 /* Motif croisillon diagonal subtil (grille en losanges) */

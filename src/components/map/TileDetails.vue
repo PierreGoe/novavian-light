@@ -142,12 +142,19 @@
             <p class="kpi-sub">
               ⚔️ Puissance : <strong>{{ tileZone.power }}</strong> villages
             </p>
+            <p v-if="tileZone.incomingAttackAt" class="kpi-sub kpi-sub--danger">
+              🚨 Raid en approche ! Impact :
+              <strong>{{ formatRemaining((tileZone.incomingAttackAt ?? 0) - now) }}</strong>
+            </p>
             <p
-              v-if="tileZone.hostilityState === 'hostile' && tileZone.nextAttackAt"
+              v-else-if="tileZone.hostilityState === 'hostile' && tileZone.nextAttackAt"
               class="kpi-sub kpi-sub--danger"
             >
               ⏰ Prochain raid :
               <strong>{{ formatRemaining((tileZone.nextAttackAt ?? 0) - now) }}</strong>
+            </p>
+            <p v-if="truceRemainingMs > 0" class="kpi-sub">
+              🕊️ Trêve en cours : <strong>{{ formatRemaining(truceRemainingMs) }}</strong>
             </p>
             <p
               v-if="zoneFatigue > 0"
@@ -158,6 +165,21 @@
               <template v-if="zoneIsExhausted"> — épuisée, incapable d'attaquer</template>
             </p>
             <p class="bhint" :title="zoneHint">{{ zoneHint }}</p>
+
+            <!-- Tribut : acheter la paix de la zone (trêve + baisse d'hostilité) -->
+            <Button
+              v-if="showTributeButton"
+              variant="secondary"
+              :disabled="!canAffordTribute"
+              :title="
+                canAffordTribute
+                  ? 'Baisse l\'hostilité, rappelle un raid en approche et garantit une trêve de 5 minutes.'
+                  : 'Ressources insuffisantes'
+              "
+              @click="handlePayTribute"
+            >
+              🕊️ Payer un tribut ({{ tributeCostLabel }})
+            </Button>
 
             <!-- Lien vers la forteresse qui contrôle ce village -->
             <button
@@ -450,11 +472,49 @@ const zoneHint = computed(() => {
     case 'warned':
       return 'La forteresse surveille vos agissements. Continuez à attaquer et elle deviendra hostile.'
     case 'hostile':
-      return "La forteresse envoie des raids périodiques sur votre ville. Détruisez-la pour l'arrêter."
+      return 'La forteresse envoie des raids sur votre ville. Détruisez-la, ou payez un tribut pour la calmer.'
     default:
       return "Attaquer ce territoire augmentera l'hostilité de la forteresse qui le contrôle."
   }
 })
+
+// --- Tribut & trêve ---
+
+/** Temps restant de la trêve achetée par tribut (0 si aucune) */
+const truceRemainingMs = computed(() => {
+  const until = tileZone.value?.truceUntil
+  return until ? Math.max(0, until - now.value) : 0
+})
+
+/** Coût du tribut pour cette zone (proportionnel à son développement) */
+const tributeCost = computed(() =>
+  tileZone.value ? mapStore.getTributeCost(tileZone.value.fortressTileId) : null,
+)
+
+const tributeCostLabel = computed(() => {
+  const c = tributeCost.value
+  return c ? `🪵${c.wood} 🧱${c.clay} ⚒️${c.iron} 🌾${c.crop}` : ''
+})
+
+const canAffordTribute = computed(() => {
+  const c = tributeCost.value
+  if (!c) return false
+  const r = missionStore.missionState.town.resources
+  return r.wood >= c.wood && r.clay >= c.clay && r.iron >= c.iron && r.crop >= c.crop
+})
+
+/** Le tribut n'a de sens que si la zone en veut au joueur, et hors trêve déjà payée */
+const showTributeButton = computed(
+  () =>
+    !!tileZone.value &&
+    tileZone.value.hostilityState !== 'neutral' &&
+    truceRemainingMs.value <= 0,
+)
+
+const handlePayTribute = (): void => {
+  if (!tileZone.value) return
+  gameStore.payFortressTribute(tileZone.value.fortressTileId)
+}
 
 /**
  * Tuile de la forteresse contrôlant le village affiché — sert de lien de

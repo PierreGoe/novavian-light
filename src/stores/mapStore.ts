@@ -34,6 +34,14 @@ export interface FortressZone {
   hostilityState: HostilityState
   /** Timestamp (Date.now) de la prochaine attaque hostile (si hostile) */
   nextAttackAt?: number
+  /**
+   * Timestamp d'impact d'un raid déjà lancé (en vol entre la forteresse et la
+   * ville du joueur). Undefined = aucun raid en route. Un seul raid en vol par
+   * zone : le trajet donne au joueur une fenêtre pour se préparer ou payer tribut.
+   */
+  incomingAttackAt?: number
+  /** Fin de la trêve achetée par tribut — aucun lancement de raid avant cette date */
+  truceUntil?: number
   /** Timestamp de la dernière application du decay (pour calcul lazy) */
   lastDecayAt?: number
   /**
@@ -63,8 +71,12 @@ export const HOSTILITY_GAIN_VILLAGE_ATTACK = 25
 /** Gain d’hostilité lors d’une attaque directe sur la forteresse */
 export const HOSTILITY_GAIN_FORTRESS_ATTACK = 55
 
-/** Intervalle entre deux attaques hostiles (en ms) */
-export const HOSTILE_ATTACK_INTERVAL_MS = 10_000 // 10 secondes (ajustable)
+/**
+ * Intervalle entre deux LANCEMENTS de raid (en ms). Le raid voyage ensuite
+ * depuis la forteresse (vitesse infanterie) avant de frapper — l'ancienne
+ * valeur de debug (10 s) faisait pleuvoir des raids instantanés injouables.
+ */
+export const HOSTILE_ATTACK_INTERVAL_MS = 120_000 // 2 minutes
 
 /** Décroissance d’hostilité par tick du timer (toutes les 30s) */
 const HOSTILITY_DECAY_PER_TICK = 2
@@ -77,6 +89,23 @@ export const HOSTILITY_REDUCE_RAID_REPELLED = 15
 
 /** Ressources pillées par attaque hostile, par village contrôlé */
 const HOSTILE_LOOT_PER_POWER = 4
+
+// --- Tribut (le joueur achète la paix d'une zone) ---
+
+/**
+ * Coût du tribut par point de développement de la zone (bois/argile/céréales,
+ * fer = moitié). Calibré à 2× le butin d'un raid : payer coûte plus cher que
+ * subir un pillage, mais épargne les troupes et achète une trêve garantie.
+ */
+const TRIBUTE_COST_PER_DEV = 8
+/** Baisse d'hostilité obtenue en payant le tribut */
+export const TRIBUTE_HOSTILITY_REDUCTION = 35
+/**
+ * Durée de la trêve achetée par tribut. Prime sur tout : plancher d'hostilité
+ * des zones conquérantes inclus — c'est la seule façon de calmer une zone
+ * que le decay ne peut plus pacifier.
+ */
+export const TRIBUTE_TRUCE_DURATION_MS = 5 * 60_000
 
 // --- Fatigue militaire des zones (récompense de la défense réussie) ---
 
@@ -623,6 +652,12 @@ const tilesById = computed(() => {
   return index
 })
 
+// Set des cadrans débloqués : isChunkUnlocked est appelé ~5× par tuile rendue à chaque
+// re-render de la carte (~2 000 appels) — un Array.includes réactif à chaque appel
+// dominait le profil. Le Set se reconstruit seulement quand unlockedChunks change
+// (push au déblocage, réassignation au chargement).
+const unlockedChunkSet = computed(() => new Set(mapState.unlockedChunks))
+
 // Réapplique ou retire le brouillard de guerre selon le paramètre
 watch(
   () => gameSettings.disableFogOfWar,
@@ -1109,7 +1144,7 @@ export const useMapStore = () => {
 
   /** Indique si un cadran est débloqué (ou si le brouillard est désactivé) */
   const isChunkUnlocked = (chunkId: string): boolean =>
-    gameSettings.disableFogOfWar || mapState.unlockedChunks.includes(chunkId)
+    gameSettings.disableFogOfWar || unlockedChunkSet.value.has(chunkId)
 
   /**
    * Débloque un cadran : révèle toutes ses tuiles et les enregistre dans discoveredLocations.
@@ -1356,6 +1391,8 @@ export const useMapStore = () => {
         hostilityLevel: existing?.hostilityLevel ?? 0,
         hostilityState: existing?.hostilityState ?? 'neutral',
         nextAttackAt: existing?.nextAttackAt,
+        incomingAttackAt: existing?.incomingAttackAt,
+        truceUntil: existing?.truceUntil,
         fatigue: existing?.fatigue,
         lastFatigueDecayAt: existing?.lastFatigueDecayAt,
       }
@@ -1418,10 +1455,49 @@ export const useMapStore = () => {
     const newState = getHostilityStateFromLevel(zone.hostilityLevel)
     if (newState !== zone.hostilityState) {
       zone.hostilityState = newState
-      if (newState !== 'hostile') zone.nextAttackAt = undefined
+      if (newState !== 'hostile') {
+        zone.nextAttackAt = undefined
+        // Zone pacifiée : un raid en vol fait demi-tour (sinon il resterait
+        // bloqué en l'air, processHostileAttacks ignorant les zones non hostiles)
+        zone.incomingAttackAt = undefined
+      }
     }
 
     saveMapState()
+  }
+
+  /**
+   * Applique les effets d'un tribut payé à une forteresse : trêve garantie,
+   * rappel du raid en vol, baisse d'hostilité. Le paiement des ressources est
+   * la responsabilité de l'appelant (gameStore.payFortressTribute).
+   */
+  const applyTribute = (fortressTileId: string): void => {
+    const zone = mapState.fortressZones[fortressTileId]
+    if (!zone) return
+
+    zone.truceUntil = Date.now() + TRIBUTE_TRUCE_DURATION_MS
+    // Le tribut rappelle aussi un raid déjà en route — c'est tout son intérêt
+    // quand une attaque est imminente.
+    zone.incomingAttackAt = undefined
+    reduceHostility(fortressTileId, TRIBUTE_HOSTILITY_REDUCTION)
+    // Zone encore hostile (ex. plancher conquérant) : prochain lancement
+    // possible seulement à la fin de la trêve.
+    if (zone.hostilityState === 'hostile') zone.nextAttackAt = zone.truceUntil
+
+    saveMapState()
+  }
+
+  /**
+   * Coût du tribut d'une zone — proportionnel à son développement réel,
+   * comme le butin de ses raids (≈ 2× un pillage, voir TRIBUTE_COST_PER_DEV).
+   */
+  const getTributeCost = (
+    fortressTileId: string,
+  ): { wood: number; clay: number; iron: number; crop: number } => {
+    const zone = mapState.fortressZones[fortressTileId]
+    if (!zone) return { wood: 0, clay: 0, iron: 0, crop: 0 }
+    const base = Math.max(20, Math.round(getZoneDevelopment(zone) * TRIBUTE_COST_PER_DEV))
+    return { wood: base, clay: base, iron: Math.floor(base / 2), crop: base }
   }
 
   /**
@@ -1441,16 +1517,52 @@ export const useMapStore = () => {
   }
 
   /**
-   * Traite toutes les attaques hostiles dont l'heure est passée.
-   * Retourne la liste des zones déclenchées (pour notification UI).
+   * Temps de trajet d'un raid ennemi : forteresse → ville du joueur, à vitesse
+   * infanterie (l'unité la plus lente d'un raid). Même échelle que les trajets
+   * du joueur (calculateTravelTimeMs) pour une symétrie perçue comme juste.
    */
-  const processHostileAttacks = (): FortressZone[] => {
+  const getRaidTravelMs = (fortressTileId: string): number => {
+    const fortress = getTileById(fortressTileId)
+    if (!fortress) return 0
+    const { x, y } = mapState.currentPosition
+    const distance = Math.max(
+      Math.abs(fortress.position.x - x),
+      Math.abs(fortress.position.y - y),
+    )
+    const speed = UNIT_MOVE_SPEED.infantry ?? 0.1
+    return Math.round(((distance / speed) * 1000) / gameSettings.gameSpeedMultiplier)
+  }
+
+  /**
+   * Traite les raids hostiles en deux phases : les zones dont l'heure de
+   * lancement est passée LANCENT un raid (qui voyage), les raids en vol dont
+   * l'impact est passé ARRIVENT (à résoudre par l'appelant).
+   */
+  const processHostileAttacks = (): { launched: FortressZone[]; arrived: FortressZone[] } => {
     const now = Date.now()
-    const triggered: FortressZone[] = []
+    const launched: FortressZone[] = []
+    const arrived: FortressZone[] = []
 
     for (const zone of Object.values(mapState.fortressZones)) {
       if (zone.hostilityState !== 'hostile') continue
+
+      // Raid en vol : un seul à la fois par zone, il se résout à l'impact.
+      if (zone.incomingAttackAt) {
+        if (zone.incomingAttackAt <= now) {
+          zone.incomingAttackAt = undefined
+          zone.nextAttackAt = now + getHostileAttackIntervalMs(HOSTILE_ATTACK_INTERVAL_MS)
+          arrived.push(zone)
+        }
+        continue
+      }
+
       if (!zone.nextAttackAt || zone.nextAttackAt > now) continue
+
+      // Trêve achetée par tribut : aucun lancement tant qu'elle court.
+      if (zone.truceUntil && zone.truceUntil > now) {
+        zone.nextAttackAt = zone.truceUntil
+        continue
+      }
 
       // Garde brouillard : une forteresse jamais explorée ne raide JAMAIS le
       // joueur, quel que soit son état d'hostilité — un raid surgi du brouillard
@@ -1478,13 +1590,15 @@ export const useMapStore = () => {
         continue
       }
 
-      triggered.push(zone)
-      // Planifier la prochaine attaque sans déclencher de sauvegarde immédiate
-      // (intervalle resserré par la pression du temps)
-      zone.nextAttackAt = now + getHostileAttackIntervalMs(HOSTILE_ATTACK_INTERVAL_MS)
+      // Lancement : le raid part de la forteresse et voyage. nextAttackAt est
+      // aligné sur l'impact pour que tous les countdowns UI existants
+      // (bannière, timers, détails de tuile) restent honnêtes sans les modifier.
+      zone.incomingAttackAt = now + getRaidTravelMs(zone.fortressTileId)
+      zone.nextAttackAt = zone.incomingAttackAt
+      launched.push(zone)
     }
 
-    return triggered
+    return { launched, arrived }
   }
 
   /**
@@ -1519,7 +1633,11 @@ export const useMapStore = () => {
       const newState = getHostilityStateFromLevel(zone.hostilityLevel)
       if (newState !== zone.hostilityState) {
         zone.hostilityState = newState
-        if (newState !== 'hostile') zone.nextAttackAt = undefined
+        if (newState !== 'hostile') {
+          zone.nextAttackAt = undefined
+          // Zone pacifiée par le decay : le raid en vol est rappelé aussi
+          zone.incomingAttackAt = undefined
+        }
         stateChanged = true
       }
     }
@@ -1763,6 +1881,9 @@ export const useMapStore = () => {
     getInfluenceZoneTileIds,
     increaseHostility,
     reduceHostility,
+    applyTribute,
+    getTributeCost,
+    getRaidTravelMs,
     onEnemyTileAttacked,
     processHostileAttacks,
     tickHostilityDecay,

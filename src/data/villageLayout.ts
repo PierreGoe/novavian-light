@@ -1,26 +1,23 @@
 import type { BuildingType } from './buildings'
 
 /**
- * Disposition de la grille Bento du village. L'ordre du tableau pilote le
- * placement (`grid-auto-flow: dense` dans VillagePlanView.vue re-packe les
- * cartes dans cet ordre) — pas de `grid-template-areas` nommées, pour que la
- * réorganisation manuelle (drag & drop, prévue plus tard) n'ait besoin que de
- * réordonner ce tableau, sans toucher au CSS.
+ * Disposition de l'arbre du village : le Bâtiment Principal au centre (hub),
+ * les 6 autres bâtiments en branches hexagonales autour de lui (angle en
+ * degrés, 0 = haut, sens horaire). Rendu dans VillageSkillTree.vue — angle
+ * est ignoré pour l'entrée isCenter.
  */
-export interface VillageCardLayout {
+export interface VillageNodeLayout {
   type: BuildingType
-  colSpan: number
-  rowSpan: number
+  angle: number
+  isCenter?: boolean
 }
 
-// 4 colonnes : QG + Casernes en 2×2 côte à côte, les 4 bâtiments de ressource
-// remplissent exactement la 3ᵉ ligne, le mur d'enceinte s'étale sous eux.
-export const VILLAGE_LAYOUT: VillageCardLayout[] = [
-  { type: 'headquarters', colSpan: 2, rowSpan: 2 },
-  { type: 'barracks', colSpan: 2, rowSpan: 2 },
-  { type: 'lumbermill', colSpan: 1, rowSpan: 1 },
-  { type: 'farm', colSpan: 1, rowSpan: 1 },
-  { type: 'quarry', colSpan: 1, rowSpan: 1 },
-  { type: 'mine', colSpan: 1, rowSpan: 1 },
-  { type: 'wall', colSpan: 4, rowSpan: 1 },
+export const VILLAGE_LAYOUT: VillageNodeLayout[] = [
+  { type: 'wall', angle: 0 },
+  { type: 'farm', angle: 60 },
+  { type: 'mine', angle: 120 },
+  { type: 'barracks', angle: 180 },
+  { type: 'quarry', angle: 240 },
+  { type: 'lumbermill', angle: 300 },
+  { type: 'headquarters', angle: 0, isCenter: true },
 ]

@@ -24,6 +24,7 @@ import type {
   CombatUnit,
   SavedBattleReport,
 } from '@/combat/types'
+import { computeLootCapacity } from '@/combat/loot'
 import { ENEMY_REGEN_INTERVAL_MS } from '@/config'
 import { gameSettings } from '@/stores/gameSettingsStore'
 import { getVillageDev } from '@/game/timePressure'
@@ -189,11 +190,49 @@ export function useExplorationTicker() {
 
     gameStore.addGold(loot.gold)
     missionStore.addResources({ wood: loot.wood, iron: loot.iron, crop: loot.crop })
+
+    // Rapport de fouille consultable dans l'historique (même pattern que le rapport
+    // "village sans défenses") : le trésor passe par `pillage` pour réutiliser la
+    // section butin de CombatReportOverlay
+    const ruinReport: SavedBattleReport = {
+      id: `battle-${Date.now()}`,
+      gameTimestamp: missionStore.getGameTimestamp(),
+      tileId: tile.id,
+      tileName: mapStore.getTileName(tile.type),
+      date: new Date().toISOString(),
+      read: false,
+      attackerVictory: true,
+      summary: `💎 Trésor découvert dans les ruines ${loc} — fouille sans combat, aucune perte.`,
+      attacker: {
+        army: { label: 'Vos troupes', units: [...movement.units], modifiers: [] },
+        losses: { killed: {}, survivors: [...movement.units] },
+        totalPowerUsed: 0,
+      },
+      defender: {
+        army: { label: 'Ruines abandonnées', units: [], modifiers: [] },
+        losses: { killed: {}, survivors: [] },
+        totalPowerUsed: 0,
+      },
+      pillage: {
+        loot: { gold: loot.gold, wood: loot.wood, iron: loot.iron, crop: loot.crop },
+        newStock: { gold: 0, wood: 0, iron: 0, crop: 0 },
+        carryCapacity: computeLootCapacity(movement.units),
+        wasCapacityLimited: false,
+        wasRecentlyPillaged: false,
+      },
+      extra: { ruinTreasure: true },
+    }
+    missionStore.addBattleReport(ruinReport)
     missionStore.saveMissionState()
 
     toastStore.showSuccess(
-      `💎 Trésor découvert dans les ruines ${loc} ! 🪙 ${loot.gold} · 🪵 ${loot.wood} · ⚒️ ${loot.iron} · 🌾 ${loot.crop}`,
-      { duration: 8000, onClick: () => goToTile(tile.id) },
+      `💎 Trésor découvert dans les ruines ${loc} ! 🪙 ${loot.gold} · 🪵 ${loot.wood} · ⚒️ ${loot.iron} · 🌾 ${loot.crop} — cliquez pour voir le rapport`,
+      {
+        duration: 8000,
+        onClick: () => {
+          combatReport.value = ruinReport
+        },
+      },
     )
     return movement.units
   }
@@ -291,6 +330,17 @@ export function useExplorationTicker() {
       const loc = coordsLabel(tile)
       const vpBefore = gameStore.victoryPoints.value.combat
 
+      // Village vide ≠ défaite : les troupes pillent le stock sans combat (farm voulu —
+      // l'équilibrage anti-boucle existe déjà : malus « pillé récemment » dans computePillage
+      // + régén 10%/tick du stock). Piller AVANT la destruction, qui vide le lootStock.
+      const pillageResult = mapStore.pillageVillage(tile.id, movement.units)
+      const { loot } = pillageResult
+      const lootTotal = loot.gold + loot.wood + loot.iron + loot.crop
+      if (lootTotal > 0) {
+        gameStore.addGold(loot.gold)
+        missionStore.addResources({ wood: loot.wood, iron: loot.iron, crop: loot.crop })
+      }
+
       // Un seul toast (cliquable vers le rapport) composé selon l'issue —
       // évite la rafale qui évince les toasts précédents (MAX_ACTIVE_TOASTS)
       let emptyToastMsg: string
@@ -320,10 +370,14 @@ export function useExplorationTicker() {
         mapStore.saveMapState()
         emptyToastMsg = `🏰 Forteresse ${loc} sans défenses détruite par vos machines de siège !`
         emptyToastType = 'success'
+      } else if (lootTotal > 0) {
+        emptyToastMsg = `🏚️ ${tileName} ${loc} sans défenses — pillé sans combat ! Armes de siège requises pour le détruire.`
+        emptyToastType = 'success'
       } else {
-        emptyToastMsg = `⚠️ ${tileName} ${loc} sans défenses — équipez des armes de siège pour le détruire.`
+        emptyToastMsg = `⚠️ ${tileName} ${loc} sans défenses et déjà vidé — équipez des armes de siège pour le détruire.`
       }
 
+      if (lootTotal > 0) emptyToastMsg += ` 💰 ${lootTotal} ressources.`
       const vpGained = gameStore.victoryPoints.value.combat - vpBefore
       if (vpGained > 0) emptyToastMsg += ` (+${vpGained} PV)`
 
@@ -336,10 +390,12 @@ export function useExplorationTicker() {
         tileName,
         date: new Date().toISOString(),
         read: false,
-        attackerVictory: hasSiegeUnit,
+        // Toujours une victoire : aucune garnison ne s'oppose au pillage (le rapport
+        // affichait « Défaite / battu en retraite » à tort quand on venait sans siège)
+        attackerVictory: true,
         summary: hasSiegeUnit
           ? `🏚️ ${tileName} ${loc} sans défenses — machines de siège utilisées (destruction : ${currentDestructionLevel}%).`
-          : `🏚️ ${tileName} ${loc} sans défenses — aucun combat. Revenez avec des armes de siège pour le détruire.`,
+          : `🏚️ ${tileName} ${loc} sans défenses — pillé sans combat. Revenez avec des armes de siège pour le détruire.`,
         attacker: {
           army: { label: 'Vos troupes', units: [...movement.units], modifiers: [] },
           losses: { killed: {}, survivors: [...movement.units] },
@@ -350,6 +406,7 @@ export function useExplorationTicker() {
           losses: { killed: {}, survivors: [] },
           totalPowerUsed: 0,
         },
+        pillage: pillageResult,
         extra: {
           emptyGarrison: true,
           siegeUsed: hasSiegeUnit,

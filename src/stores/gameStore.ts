@@ -11,6 +11,7 @@ import {
   FATIGUE_GAIN_RAID_REPELLED,
   FATIGUE_GAIN_COSTLY_VICTORY_MAX,
   FATIGUE_POWER_MALUS_DIVISOR,
+  TRIBUTE_TRUCE_DURATION_MS,
 } from '@/stores/mapStore'
 import { getWallDefenseMultiplier } from '@/data/buildings'
 import { useToastStore } from '@/stores/toastStore'
@@ -551,8 +552,27 @@ export const useGameStore = () => {
     // Appliquer le lazy decay
     mapStore.applyLazyDecay()
 
-    const triggered = mapStore.processHostileAttacks()
-    for (const zone of triggered) {
+    const { launched, arrived } = mapStore.processHostileAttacks()
+
+    // Raids qui viennent de partir : simple alerte — le joueur a le temps du
+    // trajet pour préparer sa défense ou payer un tribut à la forteresse.
+    for (const zone of launched) {
+      const fortress = mapStore.getTileById(zone.fortressTileId)
+      const loc = fortress ? `(${fortress.position.x},${fortress.position.y})` : ''
+      const etaSec = Math.max(1, Math.round(((zone.incomingAttackAt ?? 0) - Date.now()) / 1000))
+      toastStore.showWarning(
+        `🚨 Raid en approche ! La forteresse ${loc} a lancé une attaque — impact dans ~${etaSec} s. Préparez vos défenses ou payez un tribut !`,
+        {
+          duration: 10000,
+          onClick: () => {
+            mapStore.selectTile(zone.fortressTileId)
+            router.push({ name: 'campaign-map' })
+          },
+        },
+      )
+    }
+
+    for (const zone of arrived) {
       const fortress = mapStore.getTileById(zone.fortressTileId)
       const loc = fortress ? `(${fortress.position.x},${fortress.position.y})` : ''
 
@@ -711,12 +731,41 @@ export const useGameStore = () => {
       }
     }
 
-    // Sauvegarder après tous les raids
-    if (triggered.length > 0) {
+    // Sauvegarder après tous les raids (les lancements mutent aussi les zones)
+    if (launched.length > 0) mapStore.saveMapState()
+    if (arrived.length > 0) {
       saveGame()
       mapStore.saveMapState()
       missionStore.saveMissionState()
     }
+  }
+
+  /**
+   * Paye un tribut à une forteresse : dépense les ressources de la ville et
+   * calme la zone (trêve + baisse d'hostilité + rappel du raid en vol).
+   * Retourne false si les ressources sont insuffisantes.
+   */
+  const payFortressTribute = (fortressTileId: string): boolean => {
+    const mapStore = useMapStore()
+    const missionStore = useMissionStore()
+    const toastStore = useToastStore()
+
+    const cost = mapStore.getTributeCost(fortressTileId)
+    if (!missionStore.spendResources(cost)) {
+      toastStore.showError('💰 Ressources insuffisantes pour payer le tribut.')
+      return false
+    }
+
+    mapStore.applyTribute(fortressTileId)
+    const fortress = mapStore.getTileById(fortressTileId)
+    const loc = fortress ? `(${fortress.position.x},${fortress.position.y})` : ''
+    const truceMin = Math.round(TRIBUTE_TRUCE_DURATION_MS / 60_000)
+    toastStore.showSuccess(
+      `🕊️ Tribut payé ! La forteresse ${loc} accepte une trêve de ${truceMin} minutes.`,
+    )
+    // Le prochain lancement a bougé (trêve) : replanifier le timer de raid
+    scheduleNextRaid()
+    return true
   }
 
   /** Démarre les timers (auto-save + planification raids). */
@@ -1411,6 +1460,7 @@ export const useGameStore = () => {
     startHostilityTimer,
     stopHostilityTimer,
     scheduleNextRaid,
+    payFortressTribute,
 
     // Actions de carte
     setMapLayers,

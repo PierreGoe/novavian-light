@@ -26,6 +26,8 @@ describe('fatigue militaire des zones', () => {
     vi.useFakeTimers()
     localStorage.clear()
     mapStore.mapState.fortressZones = { 'f-1': makeZone() }
+    // Position du joueur proche de la forteresse : temps de trajet court et déterministe
+    mapStore.mapState.currentPosition = { x: 3, y: 0 }
     // Tuile forteresse explorée : sans elle, la garde brouillard bloque tout raid
     mapStore.mapState.mapTiles = [
       {
@@ -68,24 +70,29 @@ describe('fatigue militaire des zones', () => {
   it("une zone épuisée n'attaque pas : processHostileAttacks la saute et repousse nextAttackAt", () => {
     mapStore.addZoneFatigue('f-1', 80)
 
-    const triggered = mapStore.processHostileAttacks()
-    expect(triggered).toHaveLength(0)
+    const { launched, arrived } = mapStore.processHostileAttacks()
+    expect(launched).toHaveLength(0)
+    expect(arrived).toHaveLength(0)
 
     const zone = mapStore.mapState.fortressZones['f-1']
     // nextAttackAt repoussé du temps de récupération réel (≥ l'intervalle de base)
     expect(zone.nextAttackAt).toBeGreaterThan(Date.now() + HOSTILE_ATTACK_INTERVAL_MS - 1)
   })
 
-  it('une zone reposée attaque normalement', () => {
-    const triggered = mapStore.processHostileAttacks()
-    expect(triggered).toHaveLength(1)
-    expect(triggered[0].fortressTileId).toBe('f-1')
+  it('une zone reposée lance son raid normalement', () => {
+    const { launched, arrived } = mapStore.processHostileAttacks()
+    expect(launched).toHaveLength(1)
+    expect(launched[0].fortressTileId).toBe('f-1')
+    // Le raid part mais ne frappe pas encore : il voyage
+    expect(arrived).toHaveLength(0)
+    expect(launched[0].incomingAttackAt).toBeGreaterThan(Date.now())
   })
 
   it('une forteresse sous le brouillard ne raide jamais, même hostile', () => {
     mapStore.mapState.mapTiles[0].explored = false
-    const triggered = mapStore.processHostileAttacks()
-    expect(triggered).toHaveLength(0)
+    const { launched, arrived } = mapStore.processHostileAttacks()
+    expect(launched).toHaveLength(0)
+    expect(arrived).toHaveLength(0)
     // et l'attaque est replanifiée, pas déclenchée en boucle
     expect(mapStore.mapState.fortressZones['f-1'].nextAttackAt).toBeGreaterThan(Date.now())
   })
@@ -96,7 +103,7 @@ describe('fatigue militaire des zones', () => {
 
     mapStore.addZoneFatigue('f-1', FATIGUE_GAIN_RAID_REPELLED)
     expect(mapStore.isZoneExhausted('f-1')).toBe(true) // 80 ≥ 60 : repos forcé
-    expect(mapStore.processHostileAttacks()).toHaveLength(0)
+    expect(mapStore.processHostileAttacks().launched).toHaveLength(0)
   })
 })
 

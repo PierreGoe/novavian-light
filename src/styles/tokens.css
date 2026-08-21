@@ -96,6 +96,8 @@
   --building-quarry-rgb: 148, 163, 184;
   --building-mine: #60a5dc;
   --building-mine-rgb: 96, 165, 220;
+  --building-wall: #78716c;
+  --building-wall-rgb: 120, 113, 108;
 
   /* Couleurs par type de nœud — partagées entre MissionTree et MissionMapLayer */
   --node-combat: #dc143c;

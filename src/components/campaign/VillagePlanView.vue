@@ -14,52 +14,10 @@
       </InfoPopover>
     </div>
 
-    <!--
-      Grille Bento du village : chaque bâtiment prend la place que ses actions
-      demandent (config déclarative — voir src/data/villageLayout.ts). La
-      Caserne, plus riche en actions (recrutement inline), a un composant dédié
-      (BarracksCard) plutôt qu'une variante de BuildingCard.
-    -->
-    <div class="village-bento">
-      <template v-for="layout in VILLAGE_LAYOUT" :key="layout.type">
-        <BarracksCard
-          v-if="layout.type === 'barracks'"
-          :style="cellStyle(layout)"
-          :icon="BUILDING_DEFINITIONS.barracks.icon"
-          :name="BUILDING_DEFINITIONS.barracks.name"
-          :description="BUILDING_DEFINITIONS.barracks.description"
-          :level="getBuilding('barracks')?.level ?? 0"
-          :state="getBuildingState('barracks')"
-          :selected="selectedType === 'barracks'"
-          :status-text="getStatusText('barracks')"
-          :status-detail="getStatusDetail('barracks')"
-          :construction-progress="getConstructionProgress('barracks')"
-          :action-affordable="canAffordQuickAction('barracks')"
-          :missing-resources="missingResourcesText('barracks')"
-          @select="toggleSelect('barracks')"
-          @quick-action="quickAction('barracks')"
-        />
-        <BuildingCard
-          v-else
-          :style="cellStyle(layout)"
-          :type="layout.type"
-          :icon="BUILDING_DEFINITIONS[layout.type].icon"
-          :name="BUILDING_DEFINITIONS[layout.type].name"
-          :level="getBuilding(layout.type)?.level ?? 0"
-          :state="getBuildingState(layout.type)"
-          :size="layout.colSpan > 1 ? 'lg' : 'sm'"
-          :selected="selectedType === layout.type"
-          :status-text="getStatusText(layout.type)"
-          :status-detail="getStatusDetail(layout.type)"
-          :description="BUILDING_DEFINITIONS[layout.type].description"
-          :construction-progress="getConstructionProgress(layout.type)"
-          :action-affordable="canAffordQuickAction(layout.type)"
-          :missing-resources="missingResourcesText(layout.type)"
-          @select="toggleSelect(layout.type)"
-          @quick-action="quickAction(layout.type)"
-        />
-      </template>
-    </div>
+    <!-- Village en arbre de compétence : le Bâtiment Principal au centre,
+         les 6 autres bâtiments en branches (config déclarative — voir
+         src/data/villageLayout.ts). -->
+    <VillageSkillTree :tiles="villageTiles" @select="toggleSelect" />
 
     <!-- Panneau de détails du bâtiment sélectionné -->
     <Transition name="slide-up">
@@ -249,6 +207,9 @@
                 }}
               </Button>
             </div>
+
+            <!-- Recrutement (Caserne uniquement) -->
+            <BarracksRecruitmentPanel v-if="selectedDef.type === 'barracks'" />
           </template>
         </template>
       </div>
@@ -270,13 +231,12 @@ import {
 } from '@/data/buildings'
 import type { BuildingType } from '@/data/buildings'
 import { VILLAGE_LAYOUT } from '@/data/villageLayout'
-import type { VillageCardLayout } from '@/data/villageLayout'
 import Badge from '@/components/ui/Badge.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import InfoPopover from '@/components/ui/InfoPopover.vue'
 import Button from '@/components/ui/Button.vue'
-import BuildingCard from '@/components/campaign/village/BuildingCard.vue'
-import BarracksCard from '@/components/campaign/village/BarracksCard.vue'
+import VillageSkillTree from '@/components/campaign/village/VillageSkillTree.vue'
+import BarracksRecruitmentPanel from '@/components/campaign/village/BarracksRecruitmentPanel.vue'
 
 const missionStore = useMissionStore()
 const toastStore = useToastStore()
@@ -287,13 +247,6 @@ const town = computed(() => missionStore.town.value)
 const { now } = useExplorationTicker()
 
 const hqLevel = computed(() => getHQLevel(town.value?.buildings ?? []))
-
-// Place chaque carte dans la grille selon sa configuration (colSpan/rowSpan) —
-// voir villageLayout.ts pour le détail de la disposition.
-const cellStyle = (layout: VillageCardLayout) => ({
-  gridColumn: `span ${layout.colSpan}`,
-  gridRow: `span ${layout.rowSpan}`,
-})
 
 // Bâtiment sélectionné pour le panneau de détails
 const selectedType = ref<BuildingType | null>(null)
@@ -409,23 +362,6 @@ const getStatusDetail = (type: BuildingType): string => {
   }
 }
 
-// Le bouton d'action rapide reste visible même sans les ressources requises
-// (état `waiting`) — il est juste désactivé/grisé plutôt que masqué, pour ne
-// pas cacher l'affordance qu'une action existe.
-const canAffordQuickAction = (type: BuildingType): boolean => {
-  const state = getBuildingState(type)
-  const res = town.value?.resources
-  if (!res) return false
-  if (state === 'upgradable') return true
-  if (state === 'available') {
-    const cost = getBuildingUpgrade(type, 0)
-    return (
-      res.wood >= cost.wood && res.clay >= cost.clay && res.iron >= cost.iron && res.crop >= cost.crop
-    )
-  }
-  return false
-}
-
 // --- Données du panneau de détails ---
 const selectedDef = computed(() =>
   selectedType.value ? BUILDING_DEFINITIONS[selectedType.value] : null,
@@ -529,6 +465,25 @@ const getRemainingConstructionTime = (type: BuildingType): string => {
   return formatConstructionDuration(remaining)
 }
 
+// Données prêtes à l'emploi pour chaque nœud de l'arbre.
+const villageTiles = computed(() =>
+  VILLAGE_LAYOUT.map((layout) => ({
+    type: layout.type,
+    angle: layout.angle,
+    isCenter: layout.isCenter,
+    icon: BUILDING_DEFINITIONS[layout.type].icon,
+    name: BUILDING_DEFINITIONS[layout.type].name,
+    description: BUILDING_DEFINITIONS[layout.type].description,
+    level: getBuilding(layout.type)?.level ?? 0,
+    maxLevel: BUILDING_DEFINITIONS[layout.type].maxLevel,
+    state: getBuildingState(layout.type),
+    selected: selectedType.value === layout.type,
+    statusText: getStatusText(layout.type),
+    statusDetail: getStatusDetail(layout.type),
+    constructionProgress: getConstructionProgress(layout.type),
+  })),
+)
+
 // --- Action ---
 const doUpgrade = () => {
   if (!selectedBuilding.value || !selectedDef.value) return
@@ -559,29 +514,6 @@ const doBuild = () => {
     toastStore.showSuccess(`🏗️ Chantier de ${selectedDef.value.name} lancé !`, { duration: 2000 })
   } else {
     toastStore.showError('Construction impossible', { duration: 2000 })
-  }
-}
-
-// Action rapide directement depuis la carte (sans ouvrir le panneau)
-const quickAction = (type: BuildingType) => {
-  const state = getBuildingState(type)
-  const def = BUILDING_DEFINITIONS[type]
-  if (state === 'upgradable') {
-    const building = getBuilding(type)
-    const newLevel = building ? building.level + 1 : 0
-    if (building && missionStore.upgradeBuilding(building.id)) {
-      toastStore.showSuccess(`🏗️ Chantier lancé : ${def.name} → niveau ${newLevel}`, {
-        duration: 2500,
-      })
-    } else {
-      toastStore.showError('Ressources insuffisantes', { duration: 2000 })
-    }
-  } else if (state === 'available') {
-    if (missionStore.constructBuilding(type)) {
-      toastStore.showSuccess(`🏗️ Chantier de ${def.name} lancé !`, { duration: 2000 })
-    } else {
-      toastStore.showError('Ressources insuffisantes', { duration: 2000 })
-    }
   }
 }
 </script>
@@ -654,26 +586,6 @@ const quickAction = (type: BuildingType) => {
   background: rgba(var(--rarity-epic-rgb), 0.12);
   border-color: rgba(var(--rarity-epic-rgb), 0.35);
   color: var(--rarity-epic);
-}
-
-/* ---- Grille Bento du village ---- */
-.village-bento {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  /* minmax (pas une longueur fixe) : la Caserne a un contenu réellement plus
-     riche (recrutement + file) qui doit pouvoir pousser sa rangée au-delà du
-     minimum, sans quoi min-height:auto sur les grid items la ferait déborder. */
-  grid-auto-rows: minmax(132px, auto);
-  grid-auto-flow: dense;
-  gap: 0.65rem;
-}
-
-@media (max-width: 480px) {
-  .village-bento {
-    grid-template-columns: repeat(2, 1fr);
-    grid-auto-rows: minmax(112px, auto);
-    gap: 0.45rem;
-  }
 }
 
 /* ====== Panneau de détails ====== */

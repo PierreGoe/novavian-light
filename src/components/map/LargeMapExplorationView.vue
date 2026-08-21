@@ -40,7 +40,8 @@
         <div class="help-item">⌨️ <strong>Espace</strong> : Centrer sur position</div>
         <div class="help-item">⌨️ <strong>Échap</strong> : Fermer la fiche de case</div>
         <div class="help-item">
-          🔒 <strong>Cadran verrouillé</strong> : cliquez pour le révéler (1 fragment de carte 🗺️)
+          🔒 <strong>Cadran verrouillé</strong> : maintenez l'appui 5s pour le révéler (1 fragment de carte
+          🗺️)
         </div>
       </InfoPopover>
 

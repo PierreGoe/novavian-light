@@ -263,14 +263,20 @@ const raids = computed<TimerItem[]>(() => {
     .filter((z) => z.hostilityState === 'hostile' && z.nextAttackAt)
     .map((z) => {
       const tile = mapStore.getTileById(z.fortressTileId)
-      const label = tile
-        ? `Forteresse (${tile.position.x}, ${tile.position.y})`
-        : 'Forteresse hostile'
+      const coords = tile ? `(${tile.position.x}, ${tile.position.y})` : ''
+      // Raid en vol (incomingAttackAt) : le compte à rebours devient un compte
+      // à rebours d'impact — signalé distinctement, c'est la fenêtre de défense
+      const inFlight = !!z.incomingAttackAt
+      const label = inFlight
+        ? `Raid en approche ${coords}`.trim()
+        : tile
+          ? `Forteresse ${coords}`
+          : 'Forteresse hostile'
       const remainingMs = Math.max(0, z.nextAttackAt! - now.value)
       const progress = 1 - remainingMs / HOSTILE_ATTACK_INTERVAL_MS
       return {
         id: z.fortressTileId,
-        icon: '⚔️',
+        icon: inFlight ? '🚨' : '⚔️',
         label,
         progress: Math.min(1, Math.max(0, progress)),
         remainingMs,

@@ -1,10 +1,11 @@
 <!--
-  Carte Bento générique pour un bâtiment (QG + les 4 bâtiments de ressource).
+  Carte de bâtiment générique — utilisée pour les 7 types (y compris la
+  Caserne) comme tuile de la grille du village (VillagePlanView.vue).
   Purement présentationnelle : tout l'état (BuildingState, progression du
   chantier, libellé de statut) est calculé par VillagePlanView.vue, seule
-  source de vérité — voir BarracksCard.vue pour la Caserne, dont le contenu
-  riche (recrutement inline) est structurellement trop différent pour rester
-  une variante de ce composant.
+  source de vérité. Le recrutement inline de la Caserne, trop riche pour tenir
+  sur une petite carte, vit désormais dans BarracksRecruitmentPanel.vue,
+  affiché dans le panneau de détails sous la grille une fois sélectionnée.
 -->
 <template>
   <div
