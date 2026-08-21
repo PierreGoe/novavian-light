@@ -31,6 +31,7 @@ const VALID_SPECIAL_POWERS = [
   'first_strike',
   'siege_bonus',
   'healing_after_combat',
+  'starting_garrison_bonus',
 ] as const
 
 // ─────────────────────────────────────────────────────────────────────────────

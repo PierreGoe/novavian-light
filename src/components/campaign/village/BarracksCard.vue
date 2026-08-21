@@ -26,9 +26,9 @@
           <div class="card-name">{{ name }}</div>
           <div v-if="state === 'constructing'" class="card-timer-row">
             <TimerClock :size="24" :progress="constructionProgress / 100" />
-            <span class="card-status">{{ statusText }}</span>
+            <span class="card-status" :title="statusDetail">{{ statusText }}</span>
           </div>
-          <div v-else class="card-status">{{ statusText }}</div>
+          <div v-else class="card-status" :title="statusDetail">{{ statusText }}</div>
         </div>
         <div class="card-spacer" />
         <span
@@ -43,7 +43,13 @@
           class="quick-btn"
           :class="{ 'quick-btn--build': state === 'available' }"
           :disabled="!actionAffordable"
-          :title="!actionAffordable ? 'Ressources insuffisantes' : 'Améliorer les Casernes'"
+          :title="
+            !actionAffordable
+              ? missingResources
+                ? `Ressources insuffisantes — ${missingResources}`
+                : 'Ressources insuffisantes'
+              : 'Améliorer les Casernes'
+          "
           @click.stop="$emit('quickAction')"
         >
           {{ state === 'available' ? '+' : '▲' }}
@@ -64,10 +70,11 @@
 
         <div class="recruit-list">
           <div
-            v-for="def in UNIT_DEFINITIONS"
+            v-for="def in unitDefinitionsForRace"
             :key="def.type"
             class="recruit-row"
             :class="{ 'recruit-row--locked': barrackLevel < def.barrackLevelRequired }"
+            :title="unitTooltip(def)"
           >
             <div class="recruit-info">
               <span class="u-icon">{{ def.icon }}</span>
@@ -84,6 +91,11 @@
                 :key="qty"
                 class="qty-btn"
                 :disabled="!canAffordBatch(def.type, qty)"
+                :title="
+                  canAffordBatch(def.type, qty)
+                    ? `Recruter ${qty} × ${def.name}`
+                    : missingForBatch(def.type, qty)
+                "
                 @click="handleRecruit(def.type, qty)"
               >
                 +{{ qty }}
@@ -102,7 +114,9 @@
             <span class="queue-name">{{ UNIT_DEFINITIONS[trainingQueue[0].type].name }}</span>
             <span class="queue-eta">
               {{ getRemainingTime(trainingQueue[0]) }}
-              <template v-if="waitingCount > 0"> · +{{ waitingCount }} en attente</template>
+              <span v-if="waitingCount > 0" :title="waitingDetail">
+                · +{{ waitingCount }} en attente</span
+              >
             </span>
           </div>
           <button
@@ -122,7 +136,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { UNIT_DEFINITIONS } from '@/stores/missionStore'
+import { useMissionStore, UNIT_DEFINITIONS } from '@/stores/missionStore'
+import type { MilitaryUnit } from '@/stores/missionStore'
 import TimerClock from '@/components/ui/TimerClock.vue'
 import Badge from '@/components/ui/Badge.vue'
 import { useUnitTraining } from '@/composables/useUnitTraining'
@@ -136,14 +151,20 @@ const props = withDefaults(
     level: number
     state: BuildingState
     statusText: string
+    /** Phrase complète expliquant le statut condensé (title au survol) */
+    statusDetail?: string
     description: string
     constructionProgress?: number
     actionAffordable?: boolean
+    /** Détail des ressources manquantes (title du bouton d'action désactivé) */
+    missingResources?: string
     selected?: boolean
   }>(),
   {
+    statusDetail: undefined,
     constructionProgress: 0,
     actionAffordable: true,
+    missingResources: undefined,
     selected: false,
   },
 )
@@ -154,6 +175,7 @@ const {
   barrackLevel,
   trainingQueue,
   garrison,
+  unitDefinitionsForRace,
   groupedWaiting,
   canAffordBatch,
   handleRecruit,
@@ -170,6 +192,35 @@ const showRecruitment = computed(
 )
 
 const waitingCount = computed(() => groupedWaiting.value.reduce((sum, g) => sum + g.count, 0))
+
+/** Détail groupé de la file en attente (« 2× Légionnaire · 1× Cavalier ») pour le title */
+const waitingDetail = computed(() =>
+  groupedWaiting.value.map((g) => `${g.count}× ${UNIT_DEFINITIONS[g.type].name}`).join(' · '),
+)
+
+type UnitDef = (typeof UNIT_DEFINITIONS)[string]
+
+/** Tooltip d'une ligne d'unité : nom, coût libellé par ressource, temps d'entraînement */
+const unitTooltip = (def: UnitDef): string =>
+  `${def.name} — 🪵 ${def.cost.wood} · 🧱 ${def.cost.clay} · ⚒️ ${def.cost.iron} · 🌾 ${def.cost.crop} — ⏱️ ${def.baseTrainingTime}s / unité`
+
+const missionStore = useMissionStore()
+
+/** Détaille les ressources manquantes pour un lot (title des boutons +N désactivés) */
+const missingForBatch = (type: MilitaryUnit['type'], qty: number): string => {
+  const res = missionStore.displayResources.value
+  const cost = UNIT_DEFINITIONS[type].cost
+  const parts: string[] = []
+  const check = (icon: string, current: number, needed: number) => {
+    if (current < needed) parts.push(`${Math.ceil(needed - current)} ${icon}`)
+  }
+  check('🪵', res.wood, cost.wood * qty)
+  check('🧱', res.clay, cost.clay * qty)
+  check('⚒️', res.iron, cost.iron * qty)
+  check('🌾', res.crop, cost.crop * qty)
+  if (parts.length === 0) return 'Ressources insuffisantes'
+  return `Il manque ${parts.join(', ')} pour ${qty} unité${qty > 1 ? 's' : ''}`
+}
 </script>
 
 <style scoped>

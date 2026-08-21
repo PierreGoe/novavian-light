@@ -1,9 +1,10 @@
 <template>
   <div class="ap">
-    <!-- En-tête : titre + onglets -->
+    <!-- En-tête : titre + onglets (l'exploration n'a pas de stratégies rapides) -->
     <div class="ap-header">
-      <SectionLabel>⚔️ Attaque</SectionLabel>
+      <SectionLabel>{{ isExplore ? '🗺️ Expédition' : '⚔️ Attaque' }}</SectionLabel>
       <SegmentedControl
+        v-if="!isExplore"
         :options="[
           { value: 'quick', label: '⚡ Rapide' },
           { value: 'custom', label: '⚙️ Custom' },
@@ -13,57 +14,60 @@
       />
     </div>
 
-    <div class="ap-sep" />
-
-    <!-- ── Mode Rapide ── -->
+    <!-- ── Mode Rapide : cliquer une stratégie la SÉLECTIONNE (l'envoi passe
+         par le CTA partagé plus bas — même niveau d'engagement que le mode
+         custom, pas d'attaque irréversible sur un simple clic) ── -->
     <div v-if="activeTab === 'quick'" class="ap-quick">
       <button
         v-for="(strategy, mode) in QUICK_ATTACK_STRATEGIES"
         :key="mode"
         class="ap-strat"
-        :class="{ 'ap-strat--disabled': !canUseMode(mode) || sendingQuick !== null }"
-        :disabled="!canUseMode(mode) || sendingQuick !== null"
-        @click="launchQuick(mode)"
+        :class="{
+          'ap-strat--disabled': !canUseMode(mode),
+          'ap-strat--selected': selectedMode === mode,
+        }"
+        :disabled="!canUseMode(mode)"
+        :title="!canUseMode(mode) ? disabledReason(mode) : strategy.description"
+        @click="selectedMode = mode"
       >
-        <!-- Ligne titre -->
         <div class="ap-strat-head">
           <span class="ap-strat-icon">{{ strategy.icon }}</span>
           <span class="ap-strat-label">{{ strategy.label }}</span>
-          <span v-if="canUseMode(mode) && quickPlanFor(mode)" class="ap-strat-meta">
-            ⏱ {{ travelLabel(quickPlanFor(mode)!.units) }}
-          </span>
         </div>
-        <!-- add margin up and down -->
-        <Separator class="ap-sep" />
-        <!-- Avatars unités (max 3 + count) -->
-        <div v-if="canUseMode(mode) && quickPlanFor(mode)" class="ap-avatars">
-          <span
-            v-for="u in quickPlanFor(mode)!.units.slice(0, 3)"
-            :key="u.type"
-            class="ap-avatar"
-            :title="unitLabel(u.type)"
-          >
-            <span class="ap-avatar-icon">{{ unitIcon(u.type) }}</span>
-            <CountBadge :count="u.count" />
-          </span>
-          <span
-            v-if="quickPlanFor(mode)!.units.length > 3"
-            class="ap-avatar ap-avatar--more"
-            :title="
-              quickPlanFor(mode)!
-                .units.slice(3)
-                .map((u) => unitLabel(u.type))
-                .join(', ')
-            "
-          >
-            <span class="ap-avatar-icon ap-avatar-more-count"
-              >+{{ quickPlanFor(mode)!.units.length - 3 }}</span
+        <p class="ap-strat-desc">{{ strategy.description }}</p>
+
+        <!-- Pied : avatars unités (max 3 + count) + ETA -->
+        <div v-if="canUseMode(mode) && quickPlanFor(mode)" class="ap-strat-foot">
+          <div class="ap-avatars">
+            <span
+              v-for="u in quickPlanFor(mode)!.units.slice(0, 3)"
+              :key="u.type"
+              class="ap-avatar"
+              :title="unitLabel(u.type)"
             >
-          </span>
+              <span class="ap-avatar-icon">{{ unitIcon(u.type) }}</span>
+              <CountBadge :count="u.count" />
+            </span>
+            <span
+              v-if="quickPlanFor(mode)!.units.length > 3"
+              class="ap-avatar ap-avatar--more"
+              :title="
+                quickPlanFor(mode)!
+                  .units.slice(3)
+                  .map((u) => unitLabel(u.type))
+                  .join(', ')
+              "
+            >
+              <span class="ap-avatar-icon ap-avatar-more-count"
+                >+{{ quickPlanFor(mode)!.units.length - 3 }}</span
+              >
+            </span>
+          </div>
+          <span class="ap-strat-meta" :title="arrivalTitle(quickPlanFor(mode)!.units)"
+            >⏱ {{ travelLabel(quickPlanFor(mode)!.units) }}</span
+          >
         </div>
-        <span v-else-if="!canUseMode(mode)" class="ap-strat-reason">{{
-          disabledReason(mode)
-        }}</span>
+        <span v-else class="ap-strat-reason">{{ disabledReason(mode) }}</span>
       </button>
     </div>
 
@@ -101,28 +105,36 @@
           e.message
         }}</NoticeBox>
       </div>
-
-      <!-- Récap + bouton envoi -->
-      <div v-if="customPlan" class="ap-confirm-row">
-        <div class="ap-avatars ap-avatars--sm">
-          <span
-            v-for="u in customPlan.units"
-            :key="u.type"
-            class="ap-avatar"
-            :title="unitLabel(u.type)"
-          >
-            <span class="ap-avatar-icon">{{ unitIcon(u.type) }}</span>
-            <CountBadge :count="u.count" variant="active" />
-          </span>
-        </div>
-        <div class="ap-confirm-meta">
-          <span>⏱ {{ travelLabel(customPlan.units) }}</span>
-          <span>🎒 {{ customPlan.carryCapacity }}</span>
-          <span v-if="customPlan.hasSiege" class="ap-siege">🏰</span>
-        </div>
-        <Button variant="danger" size="sm" @click="confirm">⚔️ Envoyer</Button>
-      </div>
     </div>
+
+    <!-- ── Récap + CTA partagés (rapide ET custom) : LE bouton de la page ── -->
+    <div v-if="activePlan" class="ap-confirm-row">
+      <div class="ap-avatars ap-avatars--sm">
+        <span
+          v-for="u in activePlan.units"
+          :key="u.type"
+          class="ap-avatar"
+          :title="unitLabel(u.type)"
+        >
+          <span class="ap-avatar-icon">{{ unitIcon(u.type) }}</span>
+          <CountBadge :count="u.count" variant="active" />
+        </span>
+      </div>
+      <div class="ap-confirm-meta">
+        <span v-if="targetLabel" class="ap-target">→ {{ targetLabel }}</span>
+        <span :title="arrivalTitle(activePlan.units)">⏱ {{ travelLabel(activePlan.units) }}</span>
+        <span>🎒 {{ activePlan.carryCapacity }}</span>
+        <span v-if="activePlan.hasSiege" class="ap-siege" title="Armes de siège incluses">🏰</span>
+      </div>
+      <Button :variant="isExplore ? 'primary' : 'danger'" :disabled="sending" @click="confirm">
+        {{ isExplore ? '🗺️ Explorer les ruines' : "⚔️ Lancer l'attaque" }}
+      </Button>
+    </div>
+
+    <!-- Avertissement siège : contextuel au plan sélectionné, jamais permanent -->
+    <p v-if="!isExplore && activePlan && !activePlan.hasSiege" class="ap-siege-hint">
+      ⚠️ Sans arme de siège, le village ne sera pas détruit après la victoire
+    </p>
   </div>
 </template>
 
@@ -130,7 +142,7 @@
 import { ref, computed, watch } from 'vue'
 import type { MovementUnit } from '../../stores/mapStore'
 import { UNIT_DEFINITIONS } from '../../stores/missionStore'
-import { useToastStore } from '../../stores/toastStore'
+import { getUnitRole } from '@/combat/roles'
 import {
   QUICK_ATTACK_STRATEGIES,
   buildQuickAttackPlan,
@@ -141,7 +153,6 @@ import {
   type AttackPlan,
   type QuickAttackMode,
 } from '../../combat/attackPlanner'
-import { Separator } from '@/components/ui/separator'
 import SectionLabel from '@/components/ui/SectionLabel.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import CountBadge from '@/components/ui/CountBadge.vue'
@@ -157,22 +168,32 @@ interface Props {
   availableUnits: AvailableUnit[]
   /** Durée de trajet en ms pour chaque composition (calculée par le parent) */
   computeTravelMs: (units: MovementUnit[]) => number
+  /** Rappel de la cible dans la ligne de confirmation (ex : « Forteresse (12, 8) ») */
+  targetLabel?: string
+  /**
+   * 'attack' (défaut) : combat avec stratégies rapides et avertissement siège.
+   * 'explore' : expédition sans combat (fouille de ruines) — composition custom uniquement.
+   */
+  mode?: 'attack' | 'explore'
 }
 
 const props = defineProps<Props>()
+
+const isExplore = computed(() => props.mode === 'explore')
 
 const emit = defineEmits<{
   /** Émis quand le joueur confirme l'attaque avec les unités choisies */
   confirm: [units: MovementUnit[]]
 }>()
 
-const toastStore = useToastStore()
-
 // ------------------------------------
 // État local
 // ------------------------------------
 
-const activeTab = ref<'quick' | 'custom'>('quick')
+const activeTab = ref<'quick' | 'custom'>(props.mode === 'explore' ? 'custom' : 'quick')
+
+/** Stratégie rapide sélectionnée (l'envoi se fait via le CTA, pas au clic) */
+const selectedMode = ref<QuickAttackMode | null>(null)
 
 /** Composition personnalisée : type → nombre envoyé */
 const composition = ref<AttackComposition>({})
@@ -205,18 +226,26 @@ const customPlan = computed<AttackPlan | null>(() => {
   return buildCustomAttackPlan(composition.value, props.availableUnits)
 })
 
+/** Plan actif selon l'onglet — alimente le récap et le CTA partagés */
+const activePlan = computed<AttackPlan | null>(() => {
+  if (activeTab.value === 'quick') {
+    return selectedMode.value ? quickPlanFor(selectedMode.value) : null
+  }
+  return customPlan.value
+})
+
 // ------------------------------------
 // Guards des modes rapides
 // ------------------------------------
 
 const hasSiegeUnits = computed(() =>
-  props.availableUnits.some((u) => u.type === 'siege' && u.count > 0),
+  props.availableUnits.some((u) => getUnitRole(u.type) === 'siege' && u.count > 0),
 )
 const hasNonSiegeUnits = computed(() =>
-  props.availableUnits.some((u) => u.type !== 'siege' && u.count > 0),
+  props.availableUnits.some((u) => getUnitRole(u.type) !== 'siege' && u.count > 0),
 )
 const hasCavalry = computed(() =>
-  props.availableUnits.some((u) => u.type === 'cavalry' && u.count > 0),
+  props.availableUnits.some((u) => getUnitRole(u.type) === 'cavalry' && u.count > 0),
 )
 
 const canUseMode = (mode: QuickAttackMode): boolean => {
@@ -231,6 +260,19 @@ const canUseMode = (mode: QuickAttackMode): boolean => {
       return props.availableUnits.some((u) => u.count > 0)
   }
 }
+
+// Présélectionner la première stratégie utilisable pour que le CTA soit
+// visible d'emblée (déclaré après canUseMode — le watch est immédiat).
+watch(
+  () => props.availableUnits,
+  () => {
+    if (!selectedMode.value || !canUseMode(selectedMode.value)) {
+      const modes = Object.keys(QUICK_ATTACK_STRATEGIES) as QuickAttackMode[]
+      selectedMode.value = modes.find((m) => canUseMode(m)) ?? null
+    }
+  },
+  { immediate: true },
+)
 
 const disabledReason = (mode: QuickAttackMode): string => {
   switch (mode) {
@@ -270,34 +312,34 @@ const travelLabel = (units: MovementUnit[]): string => {
   return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`
 }
 
+/** Heure d'arrivée locale estimée (tooltip du ⏱) — recalculée à chaque rendu */
+const arrivalTitle = (units: MovementUnit[]): string => {
+  const eta = new Date(Date.now() + props.computeTravelMs(units))
+  return `Arrivée estimée à ${eta.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })}`
+}
+
 // ------------------------------------
 // Confirmation
 // ------------------------------------
 
 /** true pendant le court instant qui suit un clic, pour éviter un double-envoi */
-const sendingQuick = ref<QuickAttackMode | null>(null)
+const sending = ref(false)
 
-/** Mode rapide : envoi immédiat au clic sur la carte */
-const launchQuick = (mode: QuickAttackMode) => {
-  if (sendingQuick.value) return
-  const plan = quickPlanFor(mode)
-  if (!plan) return
-
-  sendingQuick.value = mode
-  emit('confirm', plan.units)
-  toastStore.showSuccess(`⚔️ ${QUICK_ATTACK_STRATEGIES[mode].label} envoyée !`, { duration: 2000 })
+/** Envoi unique via le CTA — le parent affiche son propre toast de départ */
+const confirm = () => {
+  if (sending.value || !activePlan.value) return
+  sending.value = true
+  emit('confirm', activePlan.value.units)
 
   // Le panneau disparaît généralement de lui-même (troupes engagées côté parent) ;
   // ce court verrou protège seulement contre un double-clic dans le même instant.
   requestAnimationFrame(() => {
-    sendingQuick.value = null
+    sending.value = false
   })
-}
-
-/** Mode custom : envoi via le bouton */
-const confirm = () => {
-  if (!customPlan.value) return
-  emit('confirm', customPlan.value.units)
 }
 </script>
 
@@ -306,7 +348,7 @@ const confirm = () => {
 .ap {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 /* ── En-tête ── */
@@ -317,70 +359,104 @@ const confirm = () => {
   gap: 8px;
 }
 
-/* ── Mode Rapide : 4 boutons sur une ligne ── */
+/* ── Mode Rapide : 4 cartes de stratégie sélectionnables ── */
 .ap-quick {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
+  gap: 8px;
 }
 
-/* Custom volontaire : carte de stratégie composée (en-tête icône+libellé+ETA,
-   séparateur, rangée d'avatars d'unités OU raison de blocage) — plus riche que
-   les 3 slots de `SelectableCard`. Compose déjà `Separator`/`CountBadge`. */
+/* Vraie carte cliquable calibrée sur BuildingCard : padding 12, radius 12,
+   hover levé + ombre, sélection par outline — l'action n°1 du jeu doit avoir
+   au moins l'affordance d'une carte de bâtiment. */
 .ap-strat {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 7px 8px;
-  border: 1px solid rgba(var(--overlay-rgb), 0.09);
-  border-radius: 8px;
-  background: rgba(var(--overlay-rgb), 0.03);
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid rgba(var(--overlay-rgb), 0.15);
+  border-radius: 12px;
+  background: var(--color-bg-surface);
   cursor: pointer;
   text-align: left;
   transition:
-    border-color 0.13s,
-    background 0.13s,
-    transform 0.1s;
+    border-color 0.15s,
+    background 0.15s,
+    transform 0.15s,
+    box-shadow 0.15s;
 }
 
 .ap-strat:hover:not(.ap-strat--disabled) {
+  transform: translateY(-2px);
   border-color: rgba(var(--color-danger-rgb), 0.45);
-  background: rgba(var(--color-danger-rgb), 0.08);
-  transform: translateY(-1px);
+  background: rgba(var(--color-danger-rgb), 0.04);
+  box-shadow:
+    0 2px 4px rgba(var(--overlay-rgb), 0.08),
+    0 10px 20px -10px rgba(var(--overlay-rgb), 0.25);
+}
+
+.ap-strat--selected {
+  outline: 2px solid rgba(var(--color-danger-rgb), 0.85);
+  outline-offset: 2px;
+  border-color: rgba(var(--color-danger-rgb), 0.4);
+  background: rgba(var(--color-danger-rgb), 0.06);
 }
 
 .ap-strat--disabled {
-  opacity: 0.35;
+  opacity: 0.4;
   cursor: default;
 }
 
 .ap-strat-head {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
 }
 
 .ap-strat-icon {
-  font-size: 0.95em;
+  font-size: 1.5rem;
   line-height: 1;
 }
 
 .ap-strat-label {
   flex: 1;
-  font-size: 0.76em;
+  font-size: 0.85em;
   font-weight: 700;
   color: var(--color-text);
 }
 
+/* La description vend le fantasme de jeu de la stratégie — c'est elle qui
+   rend la carte désirable, pas le nom technique du mode. */
+.ap-strat-desc {
+  margin: 0;
+  flex: 1;
+  font-size: 0.7em;
+  line-height: 1.35;
+  color: var(--color-text-faint);
+}
+
+.ap-strat-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(var(--overlay-rgb), 0.08);
+}
+
 .ap-strat-meta {
-  font-size: 0.65em;
+  font-size: 0.68em;
+  font-variant-numeric: tabular-nums;
   color: var(--color-info);
+  white-space: nowrap;
 }
 
 .ap-strat-reason {
-  font-size: 0.65em;
+  font-size: 0.68em;
   color: var(--color-warning);
   font-style: italic;
+  padding-top: 8px;
+  border-top: 1px solid rgba(var(--overlay-rgb), 0.08);
 }
 
 /* ── Avatars ── */
@@ -434,13 +510,13 @@ const confirm = () => {
 .ap-custom {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
 }
 
 .ap-unit-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-  gap: 6px;
+  gap: 8px;
 }
 
 .ap-unit {
@@ -470,46 +546,62 @@ const confirm = () => {
 .ap-errors {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
-/* ── Ligne confirmation ── */
+/* ── Récap + CTA partagés ── */
 .ap-confirm-row {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 8px;
+  gap: 8px;
+  padding: 8px 12px;
   border: 1px solid rgba(var(--color-danger-rgb), 0.2);
-  border-radius: 8px;
+  border-radius: 12px;
   background: rgba(var(--color-danger-rgb), 0.05);
   flex-wrap: wrap;
 }
 
+.ap-avatars--sm {
+  flex: 0 1 auto;
+}
+
 .ap-confirm-meta {
   display: flex;
-  gap: 7px;
-  font-size: 0.67em;
+  gap: 8px;
+  font-size: 0.72em;
   color: var(--color-info);
   flex: 1;
   flex-wrap: wrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .ap-siege {
   color: var(--rarity-epic);
 }
 
-/* ── Séparateur ── */
-.ap-sep {
-  height: 1px;
-  background: rgba(var(--overlay-rgb), 0.08);
-  border: none;
-  margin: 4px 0;
+/* Rappel de la cible dans la ligne de confirmation */
+.ap-target {
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+/* Avertissement contextuel : qualifie le plan choisi, une ligne, sans écraser
+   le CTA comme le faisait le NoticeBox permanent. */
+.ap-siege-hint {
+  margin: 0;
+  font-size: 0.75em;
+  font-style: italic;
+  color: var(--color-warning);
 }
 
 /* ── Responsive ── */
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   .ap-quick {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ap-confirm-row > .btn {
+    width: 100%;
   }
 }
 </style>

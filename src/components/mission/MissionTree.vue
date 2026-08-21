@@ -20,17 +20,29 @@
             <span class="status-label">Niveau:</span>
             <span class="status-value">{{ currentPlayerRow + 1 }}/{{ mapLayers.length }}</span>
           </div>
-          <div class="status-item" v-if="nextAvailableNodes.length > 0">
+          <button
+            v-if="nextAvailableNodes.length > 0"
+            class="status-item status-item--link"
+            title="Voir le premier nœud accessible"
+            @click="scrollToNextNode"
+          >
             <span class="status-label">Choix:</span>
             <span class="status-value"
               >{{ nextAvailableNodes.length }} option{{
                 nextAvailableNodes.length > 1 ? 's' : ''
               }}</span
             >
-          </div>
-          <Badge :tone="totalCombatVP >= COMBAT_VP_GOAL ? 'success' : 'accent'">
-            ⚔️ Objectif : {{ totalCombatVP }} / {{ COMBAT_VP_GOAL }} PV
-          </Badge>
+          </button>
+          <!-- Même destination que l'indicateur de PV en campagne (VictoryPointsDisplay) -->
+          <button
+            class="objective-link"
+            title="Voir le détail des points de victoire"
+            @click="router.push({ name: 'campaign-score' })"
+          >
+            <Badge :tone="totalCombatVP >= COMBAT_VP_GOAL ? 'success' : 'accent'">
+              ⚔️ Objectif : {{ totalCombatVP }} / {{ COMBAT_VP_GOAL }} PV
+            </Badge>
+          </button>
         </div>
       </div>
 
@@ -64,6 +76,7 @@
           :current-player-row="currentPlayerRow"
           :selected-node-id="selectedNodeId"
           :active-node-id="activeNodeId"
+          :all-nodes="allNodes"
           @select-node="selectNode"
           @toggle-node="toggleNode"
         />
@@ -192,6 +205,15 @@ const nextAvailableNodes = computed(() => {
 })
 
 const totalCombatVP = computed(() => gameStore.victoryPoints.value.combat)
+
+/** Scrolle en douceur jusqu'au premier nœud accessible (repéré par data-node-id) */
+const scrollToNextNode = () => {
+  const first = nextAvailableNodes.value[0]
+  if (!first) return
+  document
+    .querySelector(`[data-node-id="${first.id}"]`)
+    ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
 
 // Computed
 const allNodes = computed(() => {
@@ -443,6 +465,25 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', closeActiveNodeO
   align-items: center;
   gap: 0.25rem;
   font-size: 0.8rem;
+}
+
+/* Indicateurs cliquables de l'en-tête (choix accessibles, objectif PV) */
+.status-item--link,
+.objective-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.status-item--link:hover .status-value {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.objective-link:hover {
+  filter: brightness(1.08);
 }
 
 .status-label {

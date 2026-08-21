@@ -23,8 +23,15 @@
             :key="index"
             class="slot"
             :class="{ filled: activeArtifacts[index - 1], empty: !activeArtifacts[index - 1] }"
-            v-clickable="!!activeArtifacts[index - 1]"
-            @click="activeArtifacts[index - 1] && openDetail(activeArtifacts[index - 1])"
+            v-clickable
+            :title="
+              activeArtifacts[index - 1] ? '' : 'Équipez une relique depuis la liste ci-dessous'
+            "
+            @click="
+              activeArtifacts[index - 1]
+                ? openDetail(activeArtifacts[index - 1])
+                : scrollToInventory()
+            "
           >
             <template v-if="activeArtifacts[index - 1]">
               <div class="slot-artifact" :class="`rarity-${activeArtifacts[index - 1].rarity}`">
@@ -151,7 +158,18 @@
       <section class="forge-section">
         <div class="section-title">
           <h2>🔨 Forge</h2>
-          <span class="gold-display">🪙 {{ currentGold }} or disponible</span>
+          <span
+            class="gold-display"
+            title="L'or se gagne en combat et à la revente de reliques — il se dépense ici à la Forge et au Bazar Mystique"
+            >🪙 {{ currentGold }} or disponible</span
+          >
+          <router-link
+            class="bazar-link"
+            :to="{ name: 'bazar' }"
+            title="Dépenser ou gagner de l'or au Bazar Mystique"
+          >
+            🛒 Bazar
+          </router-link>
         </div>
         <p class="forge-subtitle">Forger une relique détruit définitivement l'or dépensé.</p>
 
@@ -185,7 +203,7 @@
       </section>
 
       <!-- ===== Inventaire complet ===== -->
-      <section class="inventory-section">
+      <section class="inventory-section" ref="inventorySectionRef">
         <h2>Toutes mes reliques</h2>
 
         <EmptyState
@@ -481,6 +499,12 @@ const filteredArtifacts = computed(() => {
 
 // ===== Modale de détail =====
 const selectedArtifact = ref<Artifact | null>(null)
+
+// Un slot vide guide vers la liste des reliques à équiper plutôt que de rester muet
+const inventorySectionRef = ref<HTMLElement | null>(null)
+const scrollToInventory = () => {
+  inventorySectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 // Le focus clavier à l'ouverture est géré par BaseDialog
 const openDetail = (artifact: Artifact) => {
@@ -854,6 +878,18 @@ const typeLabel = (type: Artifact['type']): string => {
   font-size: 0.9rem;
   color: var(--color-accent-ink);
   font-weight: 600;
+}
+
+// Raccourci vers l'autre écran où l'or se dépense
+.bazar-link {
+  font-size: 0.8rem;
+  color: var(--color-accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  &:hover {
+    filter: brightness(1.15);
+  }
 }
 
 .forge-options {

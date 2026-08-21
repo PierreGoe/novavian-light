@@ -6,7 +6,13 @@ import router from '@/router'
 import { useMissionStore } from '@/stores/missionStore'
 import type { MilitaryUnit } from '@/stores/missionStore'
 import { useMapStore } from '@/stores/mapStore'
-import { HOSTILITY_REDUCE_RAID_REPELLED } from '@/stores/mapStore'
+import {
+  HOSTILITY_REDUCE_RAID_REPELLED,
+  FATIGUE_GAIN_RAID_REPELLED,
+  FATIGUE_GAIN_COSTLY_VICTORY_MAX,
+  FATIGUE_POWER_MALUS_DIVISOR,
+} from '@/stores/mapStore'
+import { getWallDefenseMultiplier } from '@/data/buildings'
 import { useToastStore } from '@/stores/toastStore'
 import type { CombatUnit, SavedBattleReport } from '@/combat/types'
 import { resolveRaidFast, buildRaidReport } from '@/combat/raidResolver'
@@ -35,6 +41,7 @@ export type SpecialPowerType =
   | 'first_strike' // attaque en premier au combat
   | 'siege_bonus' // bonus aux sièges de villes
   | 'healing_after_combat' // soins partiels après chaque combat
+  | 'starting_garrison_bonus' // soldats supplémentaires dans la garnison de départ
 
 export interface SpecialPower {
   type: SpecialPowerType
@@ -153,6 +160,8 @@ export interface VictoryEvent {
   amount: number
   reason: string
   date: string
+  /** Tuile à l'origine du gain (optionnel — absent des anciens saves) */
+  tileId?: string
 }
 
 export interface GameState {
@@ -251,6 +260,11 @@ export const useGameStore = () => {
 
     // Donner des artefacts de démarrage selon la race
     giveStartingArtifacts(selectedRace)
+
+    // Réinitialiser l'état de mission (ville, unités) maintenant que la race est connue,
+    // pour que l'unité d'infanterie de départ soit bien celle de la race choisie
+    // (voir createStartingUnits dans missionStore.ts) plutôt que l'infanterie générique.
+    useMissionStore().resetMissionState()
 
     // Sauvegarder immédiatement (pas de debounce) : la navigation qui suit
     // déclenche un loadGame() synchrone (ex: MissionTree.onMounted) qui doit
@@ -498,6 +512,8 @@ export const useGameStore = () => {
     const mapStore = useMapStore()
     // Appliquer le lazy decay avant de calculer le prochain raid
     mapStore.applyLazyDecay()
+    // Pression du temps : les zones trop développées deviennent hostiles d'elles-mêmes
+    mapStore.applyConquerorPressure()
 
     const nextTs = mapStore.getNextRaidTimestamp()
     if (!nextTs) return // Aucune zone hostile
@@ -509,6 +525,20 @@ export const useGameStore = () => {
       // Replanifier pour la prochaine attaque
       scheduleNextRaid()
     }, delay)
+  }
+
+  /**
+   * Ouvre un rapport de combat depuis un toast, quelle que soit la page courante.
+   * L'overlay de rapport n'est monté que sous /campaign/* (watcher de
+   * pendingReportToOpen enregistré par useExplorationTicker.start) : hors de ces
+   * pages, on bascule vers l'historique des rapports pour ne pas laisser un clic mort.
+   */
+  const openReportFromToast = (savedReport: SavedBattleReport): void => {
+    if (router.currentRoute.value.path.startsWith('/campaign')) {
+      useMissionStore().requestOpenReport(savedReport)
+    } else {
+      router.push({ name: 'reports' })
+    }
   }
 
   /** Exécute tous les raids dont l'heure est passée. */
@@ -526,15 +556,19 @@ export const useGameStore = () => {
       const fortress = mapStore.getTileById(zone.fortressTileId)
       const loc = fortress ? `(${fortress.position.x},${fortress.position.y})` : ''
 
-      // Puissance du raid proportionnelle à la zone
-      const raidPower = Math.max(3, zone.power * 4)
+      // Puissance du raid proportionnelle au développement réel de la zone
+      // (pression du temps) — équivaut à l'ancien zone.power*4 à pression neutre.
+      // Une zone fatiguée (raids repoussés récemment) frappe moins fort (−50 % max).
+      const fatigueMalus =
+        1 - mapStore.getEffectiveFatigue(zone.fortressTileId) / FATIGUE_POWER_MALUS_DIVISOR
+      const raidPower = Math.max(
+        3,
+        Math.round(mapStore.getZoneDevelopment(zone) * 4 * fatigueMalus),
+      )
       const raidUnits: CombatUnit[] = [
         { type: 'infantry', count: raidPower, attack: 35, defense: 30, health: 90 },
         { type: 'cavalry', count: Math.floor(raidPower / 3), attack: 80, defense: 40, health: 120 },
       ]
-      const raidAttack = raidUnits.reduce((s, u) => s + u.attack * u.count, 0)
-      const raidDefense = raidUnits.reduce((s, u) => s + u.defense * u.count, 0)
-
       // Troupes disponibles en ville (pas en mission)
       const townUnits = missionStore.missionState.town.units
       const activeMovements = mapStore.mapState.activeMovements
@@ -545,12 +579,15 @@ export const useGameStore = () => {
         }
       }
 
+      // Bonus de défense du mur d'enceinte, appliqué aux stats des défenseurs
+      const wallMultiplier = getWallDefenseMultiplier(missionStore.missionState.town.buildings)
+
       const availableUnits: CombatUnit[] = townUnits
         .map((u) => ({
           type: u.type,
           count: Math.max(0, u.count - (unitsOnMission[u.type] ?? 0)),
           attack: u.attack,
-          defense: u.defense,
+          defense: Math.round(u.defense * wallMultiplier),
           health: u.health,
         }))
         .filter((u) => u.count > 0)
@@ -562,22 +599,53 @@ export const useGameStore = () => {
         const loot = mapStore.computeHostileRaid(zone)
         missionStore.spendResources(loot)
         const total = loot.wood + loot.clay + loot.iron + loot.crop
+        // Rapport minimal « pillage sans défense » : sans lui, le détail du
+        // pillage était perdu dès la disparition du toast (aucune trace en historique).
+        const undefendedReport: SavedBattleReport = {
+          attackerVictory: true,
+          attacker: {
+            army: { label: `Raid — Forteresse ${loc}`, units: raidUnits, modifiers: [] },
+            losses: { killed: {}, survivors: raidUnits },
+            totalPowerUsed: raidUnits.reduce((s, u) => s + u.attack * u.count, 0),
+          },
+          defender: {
+            army: { label: 'Défense de la ville', units: [], modifiers: [] },
+            losses: { killed: {}, survivors: [] },
+            totalPowerUsed: 0,
+          },
+          summary: `Pillage sans défense. La forteresse ${loc} a pillé ${total} ressources (🪵${loot.wood} 🧱${loot.clay} ⚒️${loot.iron} 🌾${loot.crop}) — aucune troupe ne défendait la ville.`,
+          extra: { loot },
+          id: `raid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          gameTimestamp: Date.now(),
+          tileId: zone.fortressTileId,
+          tileName: `Forteresse ${loc}`,
+          date: new Date().toISOString(),
+          read: false,
+          playerIsDefender: true,
+        }
+        missionStore.addBattleReport(undefendedReport)
+
         toastStore.showError(
-          `\u2694\uFE0F Raid ennemi ! La forteresse ${loc} a pill\u00e9 ${total} ressources \u2014 aucune troupe pour d\u00e9fendre !`,
-          { duration: 12000 },
+          `⚔️ Raid ennemi ! La forteresse ${loc} a pillé ${total} ressources — aucune troupe pour défendre ! Cliquez pour voir le rapport.`,
+          {
+            duration: 12000,
+            onClick: () => {
+              openReportFromToast(undefendedReport)
+            },
+          },
         )
-        // L'hostilit\u00e9 retombe apr\u00E8s le raid, qu'il ait \u00e9t\u00e9 d\u00e9fendu ou non
+        // L'hostilité retombe après le raid, qu'il ait été défendu ou non
         mapStore.reduceHostility(zone.fortressTileId, HOSTILITY_REDUCE_RAID_REPELLED)
         continue
       }
 
       // Résolution rapide via raidResolver
-      const result = resolveRaidFast(raidAttack, raidDefense, availableUnits)
+      const result = resolveRaidFast(raidUnits, availableUnits)
 
       // Construire le rapport (une seule allocation, seulement au moment du raid)
       const report = buildRaidReport(
         result,
-        `Raid \u2014 Forteresse ${loc}`,
+        `Raid — Forteresse ${loc}`,
         raidUnits,
         availableUnits,
       )
@@ -601,33 +669,42 @@ export const useGameStore = () => {
       missionStore.addBattleReport(savedReport)
 
       if (report.attackerVictory) {
-        // D\u00e9fense \u00e9chou\u00e9e
+        // Défense échouée — mais une victoire coûteuse fatigue quand même la zone
+        mapStore.addZoneFatigue(
+          zone.fortressTileId,
+          Math.round(result.attackerLossRatio * FATIGUE_GAIN_COSTLY_VICTORY_MAX),
+        )
         const loot = mapStore.computeHostileRaid(zone)
         missionStore.spendResources(loot)
         const total = loot.wood + loot.clay + loot.iron + loot.crop
         const defLost = Object.values(report.defender.losses.killed).reduce((s, v) => s + v, 0)
         toastStore.showError(
-          `\u2694\uFE0F D\u00e9fense \u00e9chou\u00e9e ! La forteresse ${loc} a pill\u00e9 ${total} ressources (\u2212${defLost} troupes perdues). Cliquez pour voir le rapport.`,
+          `⚔️ Défense échouée ! La forteresse ${loc} a pillé ${total} ressources (−${defLost} troupes perdues). Cliquez pour voir le rapport.`,
           {
             duration: 12000,
             onClick: () => {
-              missionStore.requestOpenReport(savedReport)
+              openReportFromToast(savedReport)
             },
           },
         )
-        // L'hostilit\u00e9 retombe apr\u00e8s le raid, qu'il ait \u00e9t\u00e9 d\u00e9fendu ou non
+        // L'hostilité retombe après le raid, qu'il ait été défendu ou non
         mapStore.reduceHostility(zone.fortressTileId, HOSTILITY_REDUCE_RAID_REPELLED)
       } else {
-        // D\u00e9fense r\u00e9ussie \u2014 r\u00e9duction de l'hostilit\u00e9
+        // Défense réussie — réduction de l'hostilité + fatigue militaire de la zone :
+        // repousser les raids épuise l'assaillant, qui devient incapable d'attaquer sans cesse
         mapStore.reduceHostility(zone.fortressTileId, HOSTILITY_REDUCE_RAID_REPELLED)
+        mapStore.addZoneFatigue(zone.fortressTileId, FATIGUE_GAIN_RAID_REPELLED)
+        const exhausted = mapStore.isZoneExhausted(zone.fortressTileId)
         const atkLost = Object.values(report.attacker.losses.killed).reduce((s, v) => s + v, 0)
         const defLost = Object.values(report.defender.losses.killed).reduce((s, v) => s + v, 0)
         toastStore.showSuccess(
-          `\uD83D\uDEE1\uFE0F Raid repouss\u00e9 ! La forteresse ${loc} a \u00e9t\u00e9 repouss\u00e9e (${atkLost} ennemis tu\u00e9s, \u2212${defLost} d\u00e9fenseurs perdus). Cliquez pour voir le rapport.`,
+          `🛡️ Raid repoussé ! La forteresse ${loc} a été repoussée (${atkLost} ennemis tués, −${defLost} défenseurs perdus).` +
+            (exhausted ? ' 😮‍💨 La zone est épuisée et doit reprendre son souffle.' : '') +
+            ' Cliquez pour voir le rapport.',
           {
             duration: 10000,
             onClick: () => {
-              missionStore.requestOpenReport(savedReport)
+              openReportFromToast(savedReport)
             },
           },
         )
@@ -642,19 +719,23 @@ export const useGameStore = () => {
     }
   }
 
-  /** D\u00e9marre les timers (auto-save + planification raids). */
+  /** Démarre les timers (auto-save + planification raids). */
   const startGameTick = () => {
-    // Auto-save l\u00e9ger toutes les 60s
+    // Auto-save léger toutes les 60s + réévaluation de la pression du temps
+    // (une zone peut franchir un seuil de développement sans aucune action du
+    // joueur — sans cette replanification périodique, aucun raid ne partirait)
     if (!autoSaveInterval) {
       autoSaveInterval = window.setInterval(() => {
-        if (gameState.currentStatus === 'in-progress') saveGame()
+        if (gameState.currentStatus !== 'in-progress') return
+        saveGame()
+        scheduleNextRaid()
       }, AUTO_SAVE_INTERVAL_MS)
     }
     // Planifier le prochain raid
     scheduleNextRaid()
   }
 
-  /** Arr\u00eate tous les timers. */
+  /** Arrête tous les timers. */
   const stopGameTick = () => {
     if (raidTimeout) {
       clearTimeout(raidTimeout)
@@ -679,7 +760,7 @@ export const useGameStore = () => {
 
   // ====== FRAGMENTS DE CARTE ======
 
-  /** Consomme 1 fragment pour d\u00e9verrouiller le cadran donn\u00e9. Retourne false si aucun fragment disponible. */
+  /** Consomme 1 fragment pour déverrouiller le cadran donné. Retourne false si aucun fragment disponible. */
   const useMapFragment = (chunkId: string): boolean => {
     if (gameState.inventory.mapFragments <= 0) return false
     const mapStore = useMapStore()
@@ -691,7 +772,7 @@ export const useGameStore = () => {
     return unlocked
   }
 
-  /** Ajoute des fragments de carte \u00e0 l\u2019inventaire du joueur. */
+  /** Ajoute des fragments de carte à l’inventaire du joueur. */
   const addMapFragment = (count: number = 1) => {
     gameState.inventory.mapFragments += count
     saveGame()
@@ -699,7 +780,12 @@ export const useGameStore = () => {
 
   // ====== POINTS DE VICTOIRE ======
 
-  const addVictoryPoints = (type: VictoryPointType, amount: number, reason: string) => {
+  const addVictoryPoints = (
+    type: VictoryPointType,
+    amount: number,
+    reason: string,
+    tileId?: string,
+  ) => {
     const wasReached = gameState.victoryPoints[type] >= COMBAT_VP_GOAL
     gameState.victoryPoints[type] += amount
     gameState.victoryHistory.unshift({
@@ -708,6 +794,7 @@ export const useGameStore = () => {
       amount,
       reason,
       date: new Date().toISOString(),
+      tileId,
     })
     // Garder seulement les 100 derniers événements
     if (gameState.victoryHistory.length > 100) {
@@ -737,23 +824,23 @@ export const useGameStore = () => {
    * Ajoute des PV issus d'une victoire de combat simple (+1 PV), dans la limite
    * de COMBAT_VICTORY_VP_CAP. Au-delà du cap, la victoire ne rapporte plus de PV.
    */
-  const addCombatVictoryVp = (reason: string) => {
+  const addCombatVictoryVp = (reason: string, tileId?: string) => {
     const spaceLeft = Math.max(0, COMBAT_VICTORY_VP_CAP - gameState.victoryPoints.combatVictoryVp)
     if (spaceLeft <= 0) return
     gameState.victoryPoints.combatVictoryVp += 1
-    addVictoryPoints('combat', 1, reason)
+    addVictoryPoints('combat', 1, reason, tileId)
   }
 
   /**
    * Ajoute des PV issus d'une destruction de village, dans la limite de VILLAGE_VP_CAP.
    * Une fois le plafond atteint, les destructions de villages ne rapportent plus de PV.
    */
-  const addVillageVp = (amount: number, reason: string) => {
+  const addVillageVp = (amount: number, reason: string, tileId?: string) => {
     const spaceLeft = Math.max(0, VILLAGE_VP_CAP - gameState.victoryPoints.villageVp)
     const actual = Math.min(amount, spaceLeft)
     if (actual <= 0) return
     gameState.victoryPoints.villageVp += actual
-    addVictoryPoints('combat', actual, reason)
+    addVictoryPoints('combat', actual, reason, tileId)
   }
 
   /** Récompense de fin de campagne et retour au mission-tree */

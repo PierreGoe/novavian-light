@@ -150,6 +150,22 @@ export const ARTIFACT_POOL: ArtifactTemplate[] = [
     destructible: false,
   },
 
+  {
+    name: 'Corne de Rassemblement',
+    type: 'accessory',
+    icon: '📯',
+    description: 'Son appel attire quelques volontaires supplémentaires au début de chaque campagne.',
+    effects: {},
+    specialPower: {
+      type: 'starting_garrison_bonus',
+      value: 5,
+      description: '+5 soldats dans la garnison de départ',
+    },
+    rarity: 'common',
+    durability: 'permanent',
+    destructible: false,
+  },
+
   // ── Rares ────────────────────────────────────────────────────────────────
 
   {
@@ -229,6 +245,22 @@ export const ARTIFACT_POOL: ArtifactTemplate[] = [
       type: 'gold_on_victory',
       value: 10,
       description: '+10 or par victoire en combat',
+    },
+    rarity: 'rare',
+    durability: 'permanent',
+    destructible: false,
+  },
+
+  {
+    name: 'Tambour de Guerre',
+    type: 'accessory',
+    icon: '🥁',
+    description: 'Son rythme martial rallie des recrues aguerries dès le début de chaque campagne.',
+    effects: {},
+    specialPower: {
+      type: 'starting_garrison_bonus',
+      value: 12,
+      description: '+12 soldats dans la garnison de départ',
     },
     rarity: 'rare',
     durability: 'permanent',
@@ -333,6 +365,22 @@ export const ARTIFACT_POOL: ArtifactTemplate[] = [
       type: 'fog_reveal_on_victory',
       value: 2,
       description: 'Révèle 2 cases autour de votre position après chaque victoire',
+    },
+    rarity: 'epic',
+    durability: 'permanent',
+    destructible: true,
+  },
+  {
+    name: 'Étendard des Légions',
+    type: 'relic',
+    icon: '🎌',
+    description:
+      'Le célèbre étendard sous lequel des générations de soldats se sont enrôlées. Une petite armée vous rejoint dès le premier jour.',
+    effects: { military: 2 },
+    specialPower: {
+      type: 'starting_garrison_bonus',
+      value: 25,
+      description: '+25 soldats dans la garnison de départ',
     },
     rarity: 'epic',
     durability: 'permanent',

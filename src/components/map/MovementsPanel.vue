@@ -3,15 +3,20 @@
     <!-- En-tête compact -->
     <div class="panel-header">
       <span class="header-label">Mouvements</span>
+      <Badge v-if="activeCount > 0" tone="neutral">{{ activeCount }}</Badge>
     </div>
 
-    <!-- Rangée de chronomètres circulaires (un par mouvement) -->
+    <!-- Rangée de chronomètres circulaires (un par mouvement) — cliquables :
+         ouvre la fiche de la case d'intérêt (cible en aller, case quittée en retour) -->
     <div v-if="allItems.length > 0" class="movements-clocks">
       <div
         v-for="item in allItems"
         :key="item.id"
         class="clock-item"
         :class="item.kind === 'done' ? 'clock-item--done' : 'clock-item--active'"
+        :title="item.tileId ? 'Voir la case' : undefined"
+        v-clickable="!!item.tileId"
+        @click="item.tileId && mapStore.selectTile(item.tileId)"
       >
         <TimerClock
           :size="64"
@@ -37,14 +42,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useMissionStore } from '../../stores/missionStore'
 import { useMapStore, type TroopMovement } from '../../stores/mapStore'
 import { formatDuration } from '../../utils/formatDuration'
 import TimerClock from '@/components/ui/TimerClock.vue'
 import Badge from '@/components/ui/Badge.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
-const missionStore = useMissionStore()
 const mapStore = useMapStore()
 
 // Horloge commune
@@ -58,6 +61,7 @@ interface DoneEntry {
   id: string
   icon: string
   label: string
+  tileId?: string
   expiresAt: number
 }
 
@@ -72,6 +76,7 @@ const describeMovement = (mov: TroopMovement) => {
   return {
     icon: mov.isReturning ? '↩️' : '🪖',
     label: mov.isReturning ? `Retour (${coords})` : `${name} (${coords})`,
+    tileId: tile?.id,
   }
 }
 
@@ -129,7 +134,12 @@ interface MovementItem {
   eta: string
   progress: number
   units?: string[]
+  /** Case d'intérêt du mouvement — cible du clic sur le chronomètre */
+  tileId?: string
 }
+
+/** Nombre de mouvements réellement en cours (hors "arrivés" transitoires) */
+const activeCount = computed(() => mapStore.mapState.activeMovements.length)
 
 // Construction de la liste, triée : en-cours d'abord, terminés en bas
 const allItems = computed((): MovementItem[] => {
@@ -148,6 +158,7 @@ const allItems = computed((): MovementItem[] => {
       eta: formatEta(mov.arrivalTime),
       progress: getProgress(mov.departureTime, mov.arrivalTime),
       units: mov.units.map((u) => `${UNIT_ICONS[u.type] ?? '🗡️'} ×${u.count}`),
+      tileId: tile?.id,
     })
   }
 
@@ -160,6 +171,7 @@ const allItems = computed((): MovementItem[] => {
       label: entry.label,
       eta: 'Arrivé !',
       progress: 100,
+      tileId: entry.tileId,
     })
   }
 

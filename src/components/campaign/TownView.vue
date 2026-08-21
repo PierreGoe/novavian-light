@@ -24,7 +24,7 @@
     <div class="tab-content">
       <!-- Village -->
       <div v-if="activeTab === 'village'">
-        <VillagePlanView />
+        <VillagePlanView :focus-type="focusBuilding" />
       </div>
 
       <!-- Ressources -->
@@ -36,6 +36,7 @@
             class="res-row"
             :icon="TRAVIAN_RESOURCES[key].emoji"
             :label="TRAVIAN_RESOURCES[key].label"
+            :title="resourceTooltip(key)"
           >
             <ResourceCounter :value="missionStore.displayResources.value[key]" />/{{
               formatNumber(capacity)
@@ -50,10 +51,12 @@
           <IconRow
             v-for="b in productionBuildings"
             :key="b.id"
-            class="prod-row"
+            class="prod-row prod-row--link"
             :icon="b.icon"
             :label="b.name"
             :sublabel="`niv. ${b.level}`"
+            title="Voir ce bâtiment dans le plan du village"
+            @click="goToBuilding(b.type)"
           >
             <span class="prod-value">{{ b.resourceIcon }} +{{ b.production }}/min</span>
           </IconRow>
@@ -69,11 +72,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useMissionStore, getResourceCapacity } from '@/stores/missionStore'
 import { BUILDING_DEFINITIONS, getHQLevel } from '@/data/buildings'
 import type { BuildingType } from '@/data/buildings'
 import { TRAVIAN_RESOURCES, TRAVIAN_RESOURCE_ORDER } from '@/data/resources'
+import type { TravianResourceKey } from '@/data/resources'
 import { formatNumber } from '@/utils/formatNumber'
 import VillagePlanView from './VillagePlanView.vue'
 import ResourceCounter from '@/components/ui/ResourceCounter.vue'
@@ -89,6 +93,46 @@ const capacity = computed(() => getResourceCapacity(hqLevel.value))
 
 type TabId = 'village' | 'resources'
 const activeTab = ref<TabId>('village')
+
+// Bâtiment à mettre en avant dans le plan du village (clic sur une ligne
+// « Bâtiments producteurs » de l'onglet Ressources → bascule + sélection).
+// Réinitialisé en quittant l'onglet Village pour ne pas re-sélectionner le
+// même bâtiment à chaque retour.
+const focusBuilding = ref<BuildingType | null>(null)
+
+const goToBuilding = (type: BuildingType) => {
+  focusBuilding.value = type
+  activeTab.value = 'village'
+}
+
+watch(activeTab, (tab) => {
+  if (tab !== 'village') focusBuilding.value = null
+})
+
+/**
+ * Tooltip d'un compteur de ressource : valeurs exactes, taux et temps estimé
+ * avant stockage plein (même contenu que le header de campagne).
+ */
+const resourceTooltip = (key: TravianResourceKey): string => {
+  const exact = Math.floor(missionStore.displayResources.value[key])
+  const rate = Math.floor(town.value?.production?.[key] || 0)
+  const lines = [
+    `${TRAVIAN_RESOURCES[key].label} : ${exact.toLocaleString('fr-FR')} / ${capacity.value.toLocaleString('fr-FR')}`,
+    `Production : +${rate}/min`,
+  ]
+  if (exact >= capacity.value) {
+    lines.push('Stockage plein — production perdue')
+  } else if (rate > 0) {
+    const minUntilFull = (capacity.value - exact) / rate
+    const totalSec = Math.ceil(minUntilFull * 60)
+    const h = Math.floor(totalSec / 3600)
+    const m = Math.floor((totalSec % 3600) / 60)
+    const s = totalSec % 60
+    const label = h > 0 ? `${h}h ${m}min` : m > 0 ? `${m}min ${s}s` : `${s}s`
+    lines.push(`Plein dans ${label}`)
+  }
+  return lines.join('\n')
+}
 
 const TABS = computed(() => [
   {
@@ -109,6 +153,7 @@ const productionBuildings = computed(() => {
       const prod = def.productionPerLevel!
       return {
         id: b.id,
+        type: b.type as BuildingType,
         icon: def.icon,
         name: def.name,
         level: b.level,
@@ -205,6 +250,16 @@ const productionBuildings = computed(() => {
   padding: 0.4rem 0.6rem;
   border-radius: 7px;
   background: rgba(var(--overlay-rgb), 0.03);
+}
+
+/* Ligne cliquable → plan du village avec le bâtiment sélectionné */
+.prod-row--link {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.prod-row--link:hover {
+  background: rgba(var(--color-accent-rgb), 0.08);
 }
 
 .prod-value {

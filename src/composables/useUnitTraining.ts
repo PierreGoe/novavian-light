@@ -1,6 +1,7 @@
 import { computed } from 'vue'
-import { useMissionStore, UNIT_DEFINITIONS } from '@/stores/missionStore'
+import { useMissionStore, UNIT_DEFINITIONS, getUnitDefinitionsForRace } from '@/stores/missionStore'
 import type { MilitaryUnit, TrainingQueueEntry } from '@/stores/missionStore'
+import { useGameStore } from '@/stores/gameStore'
 import { useToastStore } from '@/stores/toastStore'
 
 /**
@@ -10,11 +11,21 @@ import { useToastStore } from '@/stores/toastStore'
  */
 export function useUnitTraining() {
   const missionStore = useMissionStore()
+  const gameStore = useGameStore()
   const toastStore = useToastStore()
 
   const barrackLevel = computed(() => missionStore.barrackLevel.value)
   const trainingQueue = computed(() => missionStore.trainingQueue.value)
   const garrison = computed(() => missionStore.town.value?.units ?? [])
+
+  /** Les 4 unités entraînables par la race du joueur (fallback générique si pas encore choisie). */
+  const unitDefinitionsForRace = computed(() => {
+    const raceId = gameStore.gameState.race?.id
+    const raceUnits = raceId ? getUnitDefinitionsForRace(raceId) : []
+    return raceUnits.length > 0
+      ? raceUnits
+      : [UNIT_DEFINITIONS.infantry, UNIT_DEFINITIONS.archer, UNIT_DEFINITIONS.cavalry, UNIT_DEFINITIONS.siege]
+  })
 
   // Regroupe les entrées en attente (#2+) par type consécutif
   interface QueueGroup {
@@ -126,6 +137,7 @@ export function useUnitTraining() {
     barrackLevel,
     trainingQueue,
     garrison,
+    unitDefinitionsForRace,
     groupedWaiting,
     canAfford,
     canAffordBatch,

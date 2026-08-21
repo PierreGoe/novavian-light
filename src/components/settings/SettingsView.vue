@@ -67,6 +67,21 @@
           <template #description>Nombre de base de soldats dans les forteresses</template>
           <RangeSlider v-model="settings.enemyStrongholdInfantry" :min="2" :max="30" :step="1" />
         </SettingRow>
+
+        <SettingRow>
+          <template #label>Pression du temps</template>
+          <template #description
+            >Les villages IA se développent au fil de la mission et finissent par vous
+            attaquer</template
+          >
+          <ToggleSwitch v-model="settings.timePressureEnabled" label="Pression du temps" />
+        </SettingRow>
+
+        <SettingRow v-if="settings.timePressureEnabled">
+          <template #label>Vitesse de la pression</template>
+          <template #description>1 = normal (45 min pour la menace max) — ×3 pour tester</template>
+          <RangeSlider v-model="settings.timePressureSpeed" :min="0.5" :max="3" :step="0.5" />
+        </SettingRow>
       </section>
 
       <!-- ── Ressources initiales ──────────────────────────── -->

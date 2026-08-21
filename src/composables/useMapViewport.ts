@@ -8,6 +8,12 @@ export const ZOOM_PRESETS = [
   { label: 'Loin', icon: '🌍', value: 20 },
 ] as const
 
+/** Vrai après le premier centrage auto de la session (état module : survit au
+    démontage) — les montages suivants restaurent l'offset sauvegardé au lieu de
+    re-centrer sur le joueur, pour qu'un aller-retour carte → fiche → carte ne
+    perde plus la zone regardée. */
+let hasAutoCenteredThisSession = false
+
 export function useMapViewport() {
   const mapStore = useMapStore()
 
@@ -72,20 +78,19 @@ export function useMapViewport() {
     mapStore.saveMapState()
   }
 
-  const centerOnPlayer = () => {
+  /** Centre le viewport sur une case arbitraire, clampé aux bords de la carte */
+  const centerOnTile = (x: number, y: number) => {
     const halfView = Math.floor(viewportSize.value / 2)
     viewportOffset.value = {
-      x: Math.max(
-        0,
-        Math.min(MAP_CONFIG.size - viewportSize.value, mapStore.currentPosition.value.x - halfView),
-      ),
-      y: Math.max(
-        0,
-        Math.min(MAP_CONFIG.size - viewportSize.value, mapStore.currentPosition.value.y - halfView),
-      ),
+      x: Math.max(0, Math.min(MAP_CONFIG.size - viewportSize.value, x - halfView)),
+      y: Math.max(0, Math.min(MAP_CONFIG.size - viewportSize.value, y - halfView)),
     }
     mapStore.mapState.viewportOffset = viewportOffset.value
     mapStore.saveMapState()
+  }
+
+  const centerOnPlayer = () => {
+    centerOnTile(mapStore.currentPosition.value.x, mapStore.currentPosition.value.y)
   }
 
   const startPan = (event: MouseEvent) => {
@@ -149,7 +154,11 @@ export function useMapViewport() {
   onMounted(() => {
     viewportOffset.value = { ...mapStore.mapState.viewportOffset }
     window.addEventListener('keydown', handleKeyboard)
-    centerOnPlayer()
+    // Premier montage de la session uniquement : ensuite on garde l'offset sauvegardé
+    if (!hasAutoCenteredThisSession) {
+      centerOnPlayer()
+      hasAutoCenteredThisSession = true
+    }
   })
 
   onUnmounted(() => {
@@ -168,6 +177,7 @@ export function useMapViewport() {
     currentPreset,
     moveViewport,
     centerOnPlayer,
+    centerOnTile,
     startPan,
     handlePan,
     endPan,

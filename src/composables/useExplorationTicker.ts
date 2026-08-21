@@ -16,6 +16,7 @@ import {
   computeSiegeDestruction,
   getDestructionLabel,
 } from '@/combat/combatResolver'
+import { getUnitRole } from '@/combat/roles'
 import type {
   Army,
   CombatModifier,
@@ -25,7 +26,12 @@ import type {
 } from '@/combat/types'
 import { ENEMY_REGEN_INTERVAL_MS } from '@/config'
 import { gameSettings } from '@/stores/gameSettingsStore'
+import { getVillageDev } from '@/game/timePressure'
 import { useToastStore } from '@/stores/toastStore'
+import router from '@/router'
+
+/** Libellé de coordonnées « (x, y) » d'une tuile — pour situer les toasts sur la carte */
+const coordsLabel = (tile: MapTile) => `(${tile.position.x}, ${tile.position.y})`
 
 const now = ref(Date.now())
 const combatReport = ref<CombatReport | null>(null)
@@ -46,15 +52,26 @@ export function useExplorationTicker() {
   const gameStore = useGameStore()
   const toastStore = useToastStore()
 
-  /** Génère une garnison ennemie selon le type de case (appelé une seule fois au 1er combat) */
-  function generateEnemyGarrison(tile: MapTile): { units: CombatUnit[] } {
+  /** Ouvre la fiche d'une tuile sur la carte (navigation inter-écrans depuis un toast) */
+  const goToTile = (tileId: string) => {
+    mapStore.selectTile(tileId)
+    router.push({ name: 'campaign-map' })
+  }
+
+  /**
+   * Génère une garnison ennemie selon le type de case (appelé une seule fois au 1er combat).
+   * Les effectifs sont multipliés par le développement du village (pression du temps) —
+   * `dev` est retourné pour être mémorisé dans `garrison.lastGrowthDev` (croissance future).
+   * ⚠️ `estimateGarrisonStrength` (mapStore) miroite cette formule : recaler les deux ensemble.
+   */
+  function generateEnemyGarrison(tile: MapTile): { units: CombatUnit[]; dev: number } {
     const isStronghold = tile.type === 'stronghold'
     const baseCount = isStronghold
       ? gameSettings.enemyStrongholdInfantry
       : gameSettings.enemyBaseInfantry
     const variation = Math.floor(Math.random() * 3)
 
-    const units: CombatUnit[] = [
+    let units: CombatUnit[] = [
       { type: 'infantry', count: baseCount + variation, attack: 35, defense: 30, health: 90 },
     ]
 
@@ -69,18 +86,23 @@ export function useExplorationTicker() {
 
     const isEliteMission = missionStore.missionState.currentMission?.difficulty === 'elite'
     if (isEliteMission) {
-      return {
-        units: units.map((u) => ({
-          ...u,
-          count: Math.max(1, Math.round(u.count * ELITE_GARRISON_COUNT_MULTIPLIER)),
-          attack: Math.round(u.attack * ELITE_GARRISON_STAT_MULTIPLIER),
-          defense: Math.round(u.defense * ELITE_GARRISON_STAT_MULTIPLIER),
-          health: Math.round(u.health * ELITE_GARRISON_STAT_MULTIPLIER),
-        })),
-      }
+      units = units.map((u) => ({
+        ...u,
+        count: Math.max(1, Math.round(u.count * ELITE_GARRISON_COUNT_MULTIPLIER)),
+        attack: Math.round(u.attack * ELITE_GARRISON_STAT_MULTIPLIER),
+        defense: Math.round(u.defense * ELITE_GARRISON_STAT_MULTIPLIER),
+        health: Math.round(u.health * ELITE_GARRISON_STAT_MULTIPLIER),
+      }))
     }
 
-    return { units }
+    // Pression du temps : plus la mission avance, plus les villages sont garnis
+    // (effectifs seulement — les stats unitaires restent lisibles pour le joueur)
+    const dev = getVillageDev(tile)
+    if (dev > 1) {
+      units = units.map((u) => ({ ...u, count: Math.max(1, Math.round(u.count * dev)) }))
+    }
+
+    return { units, dev }
   }
 
   /**
@@ -150,12 +172,41 @@ export function useExplorationTicker() {
     }
   }
 
+  /** Fouille des ruines à l'arrivée des troupes : trésor unique par ruine et par partie.
+   * Retourne les unités inchangées (aucune perte — la fouille est sans combat). */
+  function exploreRuins(movement: TroopMovement, tile: MapTile): MovementUnit[] {
+    const loc = coordsLabel(tile)
+    const loot = mapStore.lootRuinTreasure(tile.id)
+
+    // Ruines déjà fouillées, ou village rasé pendant le trajet (ruines sans trésor)
+    if (!loot) {
+      toastStore.addToast(
+        `🏛️ Ruines ${loc} — rien à fouiller, vos troupes font demi-tour.`,
+        'info',
+      )
+      return movement.units
+    }
+
+    gameStore.addGold(loot.gold)
+    missionStore.addResources({ wood: loot.wood, iron: loot.iron, crop: loot.crop })
+    missionStore.saveMissionState()
+
+    toastStore.showSuccess(
+      `💎 Trésor découvert dans les ruines ${loc} ! 🪙 ${loot.gold} · 🪵 ${loot.wood} · ⚒️ ${loot.iron} · 🌾 ${loot.crop}`,
+      { duration: 8000, onClick: () => goToTile(tile.id) },
+    )
+    return movement.units
+  }
+
   /** Résout le combat quand les troupes arrivent à destination.
    * Retourne les unités survivantes à remettre dans la garnison au retour. */
   function executeCombat(movement: TroopMovement, tile: MapTile): MovementUnit[] {
     // Vérifier que la tuile est toujours hostile (peut avoir changé pendant le trajet)
     if (!['village_enemy', 'stronghold'].includes(tile.type)) {
-      toastStore.addToast("La cible n'est plus hostile, troupes revenues.", 'info')
+      toastStore.addToast(
+        `${mapStore.getTileName(tile.type)} ${coordsLabel(tile)} n'est plus hostile — troupes revenues.`,
+        'info',
+      )
       return movement.units
     }
 
@@ -226,14 +277,24 @@ export function useExplorationTicker() {
     // Utiliser la garnison mémorisée ou en générer une nouvelle (snapshot)
     if (!tile.garrison) {
       const generated = generateEnemyGarrison(tile)
-      tile.garrison = { units: generated.units }
+      tile.garrison = { units: generated.units, lastGrowthDev: generated.dev }
+    } else {
+      // Pression du temps : la garnison a pu se développer depuis le dernier combat
+      mapStore.applyVillageGrowth(tile)
     }
 
     // Si la garnison est vide (déjà vaincue)
     if (tile.garrison.units.length === 0 || tile.garrison.units.every((u) => u.count <= 0)) {
-      const siegeUnits = movement.units.filter((u) => u.type === 'siege')
+      const siegeUnits = movement.units.filter((u) => getUnitRole(u.type) === 'siege')
       const hasSiegeUnit = siegeUnits.length > 0 && siegeUnits.some((u) => u.count > 0)
       const tileName = mapStore.getTileName(tile.type)
+      const loc = coordsLabel(tile)
+      const vpBefore = gameStore.victoryPoints.value.combat
+
+      // Un seul toast (cliquable vers le rapport) composé selon l'issue —
+      // évite la rafale qui évince les toasts précédents (MAX_ACTIVE_TOASTS)
+      let emptyToastMsg: string
+      let emptyToastType: 'success' | 'info' = 'info'
 
       if (hasSiegeUnit && tile.type === 'village_enemy') {
         // Village sans défenses : les machines de siège travaillent sans résistance
@@ -243,28 +304,28 @@ export function useExplorationTicker() {
         const { newLevel, isRuined } = mapStore.applyVillageDestruction(tile.id, destructionAmount)
 
         if (isRuined) {
-          toastStore.showSuccess('🏚️ Village sans défenses rasé par vos machines de siège !')
-          gameStore.addCombatVictoryVp(`Victoire sans résistance — ${tileName}`)
-          gameStore.addVillageVp(2, 'Village ennemi détruit')
+          emptyToastMsg = `🏚️ Village ${loc} sans défenses rasé par vos machines de siège !`
+          gameStore.addCombatVictoryVp(`Victoire sans résistance — ${tileName}`, tile.id)
+          gameStore.addVillageVp(2, 'Village ennemi détruit', tile.id)
         } else {
-          toastStore.showSuccess(
-            `🔥 Village sans défenses endommagé à ${newLevel}% — ${getDestructionLabel(newLevel)}`,
-          )
-          gameStore.addCombatVictoryVp(`Victoire sans résistance — ${tileName}`)
+          emptyToastMsg = `🔥 Village ${loc} sans défenses endommagé à ${newLevel}% — ${getDestructionLabel(newLevel)}`
+          gameStore.addCombatVictoryVp(`Victoire sans résistance — ${tileName}`, tile.id)
         }
+        emptyToastType = 'success'
       } else if (hasSiegeUnit && tile.type === 'stronghold') {
         // Forteresse sans garnison : destruction instantanée (même comportement qu'avant)
         tile.type = 'ruins'
         tile.garrison = undefined
         tile.lootStock = undefined
         mapStore.saveMapState()
-        toastStore.showSuccess('🏰 Forteresse sans défenses détruite par vos machines de siège !')
+        emptyToastMsg = `🏰 Forteresse ${loc} sans défenses détruite par vos machines de siège !`
+        emptyToastType = 'success'
       } else {
-        toastStore.addToast(
-          '⚠️ Ce village est sans défenses — équipez des armes de siège pour le détruire.',
-          'info',
-        )
+        emptyToastMsg = `⚠️ ${tileName} ${loc} sans défenses — équipez des armes de siège pour le détruire.`
       }
+
+      const vpGained = gameStore.victoryPoints.value.combat - vpBefore
+      if (vpGained > 0) emptyToastMsg += ` (+${vpGained} PV)`
 
       // Rapport spécial "village vide"
       const currentDestructionLevel = (tile as { destructionLevel?: number }).destructionLevel ?? 0
@@ -277,8 +338,8 @@ export function useExplorationTicker() {
         read: false,
         attackerVictory: hasSiegeUnit,
         summary: hasSiegeUnit
-          ? `🏚️ ${tileName} sans défenses — machines de siège utilisées (destruction : ${currentDestructionLevel}%).`
-          : `🏚️ Village ${tileName} sans défenses — aucun combat. Revenez avec des armes de siège pour le détruire.`,
+          ? `🏚️ ${tileName} ${loc} sans défenses — machines de siège utilisées (destruction : ${currentDestructionLevel}%).`
+          : `🏚️ ${tileName} ${loc} sans défenses — aucun combat. Revenez avec des armes de siège pour le détruire.`,
         attacker: {
           army: { label: 'Vos troupes', units: [...movement.units], modifiers: [] },
           losses: { killed: {}, survivors: [...movement.units] },
@@ -298,11 +359,8 @@ export function useExplorationTicker() {
       combatReport.value = null
       missionStore.addBattleReport(emptyReport)
 
-      // Toast cliquable pour voir le rapport (village vide)
-      const emptyToastMsg = hasSiegeUnit
-        ? `🏚️ Village ${tileName} démoli — cliquez pour voir le rapport`
-        : `🏚️ Village ${tileName} sans défenses — cliquez pour voir le rapport`
-      toastStore.addToast(emptyToastMsg, hasSiegeUnit ? 'success' : 'info', {
+      // Toast unique cliquable pour voir le rapport (cible vide)
+      toastStore.addToast(`${emptyToastMsg} Cliquez pour voir le rapport.`, emptyToastType, {
         duration: 6000,
         onClick: () => {
           combatReport.value = emptyReport
@@ -332,32 +390,27 @@ export function useExplorationTicker() {
     tile.garrison.units = report.defender.losses.survivors
     tile.garrison.lastAttackedAt = missionStore.getGameTimestamp()
 
+    // Détails repris dans le toast final unique (butin, issue, PV, leadership) — le
+    // détail complet (capacité, pillage récent…) reste visible dans le rapport sauvegardé
+    let victoryNote = ''
+    let defeatLeadershipLoss = 0
+
     // Si victoire
     if (report.attackerVictory) {
+      const vpBefore = gameStore.victoryPoints.value.combat
       // Vérifier si le joueur dispose d'armes de siège (nécessaires pour détruire un village)
-      const hasSiegeUnit = movement.units.some((u) => u.type === 'siege')
+      const hasSiegeUnit = movement.units.some((u) => getUnitRole(u.type) === 'siege')
 
       // --- Pillage (capacité limitée par le poids des survivants) ---
       const attackerSurvivors = report.attacker.losses.survivors
       const pillageResult = mapStore.pillageVillage(tile.id, attackerSurvivors)
       // Attacher le résultat au rapport pour l'afficher dans l'overlay
       report.pillage = pillageResult
-      const { loot, carryCapacity, wasCapacityLimited, wasRecentlyPillaged } = pillageResult
+      const { loot } = pillageResult
       const lootTotal = loot.gold + loot.wood + loot.iron + loot.crop
       if (lootTotal > 0) {
         gameStore.addGold(loot.gold)
         missionStore.addResources({ wood: loot.wood, iron: loot.iron, crop: loot.crop })
-        const lootMsg = `💰 Butin : ${loot.gold}or ${loot.wood}🪵 ${loot.iron}⚙️ ${loot.crop}🌾`
-        toastStore.showSuccess(lootMsg)
-        if (wasCapacityLimited) {
-          toastStore.addToast(
-            `🎒 Capacité de transport atteinte (${carryCapacity} ressources max avec vos survivants)`,
-            'info',
-          )
-        }
-        if (wasRecentlyPillaged) {
-          toastStore.addToast('⚠️ Village récemment pillé — butin réduit de 50%', 'info')
-        }
       }
 
       if (hasSiegeUnit) {
@@ -366,20 +419,21 @@ export function useExplorationTicker() {
           tile.type = 'ruins'
           tile.garrison = undefined
           tile.lootStock = undefined
-          toastStore.showSuccess(report.summary)
-          gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`)
-          gameStore.addVictoryPoints('combat', 4, 'Forteresse ennemie détruite')
+          victoryNote = 'forteresse détruite'
+          gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`, tile.id)
+          gameStore.addVictoryPoints('combat', 4, 'Forteresse ennemie détruite', tile.id)
           // Déverrouiller les cadrans adjacents à la forteresse détruite
           const newChunks = mapStore.unlockAdjacentChunks(tile.id)
           if (newChunks.length > 0) {
             toastStore.showSuccess(
-              `🗺️ ${newChunks.length} nouveau cadran${newChunks.length > 1 ? 's' : ''} découvert${newChunks.length > 1 ? 's' : ''} !`,
+              `🗺️ ${newChunks.length} nouveau cadran${newChunks.length > 1 ? 's' : ''} découvert${newChunks.length > 1 ? 's' : ''} ! Cliquez pour voir la carte.`,
+              { onClick: () => router.push({ name: 'campaign-map' }) },
             )
           }
         } else {
           // Village : destruction progressive basée sur les machines de siège survivantes
           const siegeSurvivors = report.attacker.losses.survivors
-            .filter((u) => u.type === 'siege')
+            .filter((u) => getUnitRole(u.type) === 'siege')
             .reduce((s, u) => s + u.count, 0)
           const destructionAmount = computeSiegeDestruction(siegeSurvivors)
           const { newLevel, isRuined } = mapStore.applyVillageDestruction(
@@ -390,17 +444,13 @@ export function useExplorationTicker() {
 
           if (isRuined) {
             // Destruction totale atteinte
-            toastStore.showSuccess(
-              `💥 Village rasé ! ${destructionAmount}% de dégâts de siège — total : 100%`,
-            )
-            gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`)
-            gameStore.addVillageVp(2, 'Village ennemi détruit')
+            victoryNote = `village rasé (${destructionAmount}% de dégâts de siège)`
+            gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`, tile.id)
+            gameStore.addVillageVp(2, 'Village ennemi détruit', tile.id)
           } else {
             // Destruction partielle : le village est endommagé mais pas encore rasé
-            toastStore.showSuccess(
-              `🔥 ${report.summary} — Village endommagé (${getDestructionLabel(newLevel)}, ${newLevel}%)`,
-            )
-            gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`)
+            victoryNote = `village endommagé à ${newLevel}% (${getDestructionLabel(newLevel)})`
+            gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`, tile.id)
             // La garnison commence à régénérer (le village survit)
             tile.garrison.units = []
             tile.garrison.maxUnits = report.defender.army.units.map((u) => ({ ...u }))
@@ -413,10 +463,18 @@ export function useExplorationTicker() {
         tile.garrison.units = []
         tile.garrison.maxUnits = report.defender.army.units.map((u) => ({ ...u }))
         tile.garrison.regenStartedAt = Date.now()
-        toastStore.showSuccess(report.summary + ' (sans siège — village non détruit)')
+        victoryNote = 'sans siège — village non détruit'
         // Victoire simple capée quelle que soit la cible (village ou forteresse)
-        gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`)
+        gameStore.addCombatVictoryVp(`Victoire en combat contre ${defenderArmy.label}`, tile.id)
       }
+
+      // Compléments du toast final : butin emporté et PV réellement gagnés (plafonds déduits)
+      const vpGained = gameStore.victoryPoints.value.combat - vpBefore
+      const extras = [
+        lootTotal > 0 ? `💰 ${lootTotal} ressources` : '',
+        vpGained > 0 ? `+${vpGained} PV` : '',
+      ].filter(Boolean)
+      if (extras.length > 0) victoryNote += ` · ${extras.join(' · ')}`
 
       applyPostVictorySpecialPowers(equippedArtifacts, tile.position)
     } else {
@@ -425,7 +483,6 @@ export function useExplorationTicker() {
         tile.garrison.maxUnits = report.defender.army.units.map((u) => ({ ...u }))
         tile.garrison.regenStartedAt = undefined // Arrêter la régén en cours
       }
-      toastStore.showError(report.summary)
 
       // Une défaite entame le leadership du joueur (le fail-state du jeu repose dessus).
       // On réutilise la pénalité déjà calculée pour la mission de campagne en cours si
@@ -441,7 +498,8 @@ export function useExplorationTicker() {
           : fallbackLeadershipLoss
 
       gameStore.updateLeadership(leadershipLoss, 'lose')
-      toastStore.showError(`👑 -${leadershipLoss} leadership (défaite)`)
+      // Repris dans le toast final unique (le détail des pertes est dans le rapport)
+      defeatLeadershipLoss = leadershipLoss
     }
 
     // Augmenter l'hostilité de la forteresse responsable après tout combat
@@ -454,10 +512,18 @@ export function useExplorationTicker() {
       mapStore.getControllingFortress(tile.id) ?? (tile.type === 'stronghold' ? tile.id : null)
     if (fortress) {
       const zone = mapStore.getFortressZone(fortress)
+      const fortressTile = mapStore.getTileById(fortress)
+      const fortressLoc = fortressTile ? ` ${coordsLabel(fortressTile)}` : ''
       if (zone?.hostilityState === 'warned') {
-        toastStore.showWarning('⚠️ Une forteresse ennemie surveille vos agissements (Avertie)')
+        toastStore.showWarning(
+          `⚠️ La forteresse${fortressLoc} surveille vos agissements (Avertie) — cliquez pour la voir`,
+          { onClick: () => goToTile(fortress) },
+        )
       } else if (zone?.hostilityState === 'hostile') {
-        toastStore.showError('🔴 Forteresse ennemie HOSTILE — des raids vont commencer !')
+        toastStore.showError(
+          `🔴 Forteresse${fortressLoc} HOSTILE — des raids vont commencer ! Cliquez pour la voir`,
+          { onClick: () => goToTile(fortress) },
+        )
       }
     }
 
@@ -476,10 +542,11 @@ export function useExplorationTicker() {
     }
     missionStore.addBattleReport(saved)
 
-    // Afficher un toast cliquable pour ouvrir le rapport
+    // Toast final unique, cliquable pour ouvrir le rapport — il porte l'issue, le
+    // butin, les PV ou la perte de leadership (le détail complet est dans le rapport)
     const toastMsg = report.attackerVictory
-      ? `⚔️ Victoire contre ${tileName} — cliquez pour voir le rapport`
-      : `💀 Défaite contre ${tileName} — cliquez pour voir le rapport`
+      ? `⚔️ Victoire contre ${tileName} ${coordsLabel(tile)}${victoryNote ? ` — ${victoryNote}` : ''} — cliquez pour voir le rapport`
+      : `💀 Défaite contre ${tileName} ${coordsLabel(tile)} — 👑 -${defeatLeadershipLoss} leadership — cliquez pour voir le rapport`
     const toastType = report.attackerVictory ? 'success' : 'error'
     toastStore.addToast(toastMsg, toastType, {
       duration: 8000,
@@ -526,12 +593,19 @@ export function useExplorationTicker() {
             missionStore.addUnits(unit.type as MilitaryUnit['type'], unit.count)
           }
           missionStore.saveMissionState()
-          toastStore.addToast('🏠 Vos troupes sont rentrées au village.', 'info')
+          toastStore.addToast('🏠 Vos troupes sont rentrées au village.', 'info', {
+            onClick: () => router.push({ name: 'campaign-village' }),
+          })
           mapStore.resolveMovement(movement.id)
         } else {
-          // Troupes à destination : résoudre le combat puis créer le mouvement de retour
+          // Troupes à destination : résoudre l'action (fouille de ruines ou combat)
+          // puis créer le mouvement de retour
           const tile = mapStore.getTileById(movement.targetTileId)
-          const survivors = tile ? executeCombat(movement, tile) : movement.units
+          const survivors = !tile
+            ? movement.units
+            : tile.type === 'ruins'
+              ? exploreRuins(movement, tile)
+              : executeCombat(movement, tile)
           const returnMs = movement.arrivalTime - movement.departureTime
           const totalReturnSec = Math.ceil(returnMs / 1000)
           const returnLabel =
@@ -540,8 +614,10 @@ export function useExplorationTicker() {
               : `${totalReturnSec}s`
           mapStore.createReturnMovement(movement, survivors)
           mapStore.resolveMovement(movement.id)
+          // Situer l'origine du retour (la tuile peut être devenue des ruines après le combat)
+          const originLabel = tile ? ` depuis ${mapStore.getTileName(tile.type)} ${coordsLabel(tile)}` : ''
           toastStore.addToast(
-            `↩️ Troupes en route vers la base — retour dans ${returnLabel}`,
+            `↩️ Troupes en route vers la base${originLabel} — retour dans ${returnLabel}`,
             'info',
           )
         }

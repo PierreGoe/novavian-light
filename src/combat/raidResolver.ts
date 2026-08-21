@@ -5,6 +5,7 @@
  */
 
 import type { CombatUnit, CombatReport, ArmyLosses, Army } from './types'
+import { computeWeightedAttackPower, describeCounterEffect } from './roles'
 
 export interface RaidResult {
   /** Le joueur a-t-il repoussé le raid ? */
@@ -22,16 +23,24 @@ export interface RaidResult {
 /**
  * Résout un raid de manière simplifiée (O(n) avec n = nombre de types d'unités).
  * Pas de création d'objets intermédiaires lourds.
+ *
+ * Prend les unités détaillées des deux camps (plutôt qu'une puissance déjà
+ * agrégée) pour pouvoir appliquer le triangle des contres, qui dépend de la
+ * composition de l'armée adverse — voir computeWeightedAttackPower (roles.ts).
  */
 export function resolveRaidFast(
-  raidPower: number,
-  raidDefense: number,
+  raidUnits: readonly CombatUnit[],
   defenderUnits: readonly CombatUnit[],
 ): RaidResult {
-  // Puissance de défense totale
+  // Puissance de défense totale (non pondérée par le triangle — comme combatResolver)
   const defensePower = defenderUnits.reduce((s, u) => s + u.defense * u.count, 0)
-  const defenseAttack = defenderUnits.reduce((s, u) => s + u.attack * u.count, 0)
+  const raidDefense = raidUnits.reduce((s, u) => s + u.defense * u.count, 0)
   const defenseHP = defenderUnits.reduce((s, u) => s + u.health * u.count, 0)
+  const raidHP = raidUnits.reduce((s, u) => s + u.health * u.count, 0)
+
+  // Puissance d'attaque pondérée par le triangle des contres, dans les deux sens
+  const raidPower = computeWeightedAttackPower(raidUnits, defenderUnits)
+  const defenseAttack = computeWeightedAttackPower(defenderUnits, raidUnits)
 
   // L'attaquant gagne si sa puissance d'attaque > défense totale + riposte
   const defenseSuccess = defensePower + defenseAttack > raidPower
@@ -41,7 +50,6 @@ export function resolveRaidFast(
   const damageToAttacker = Math.max(1, defenseAttack - Math.floor(raidDefense * 0.5))
 
   const defenderLossRatio = defenseHP > 0 ? Math.min(1, damageToDefender / defenseHP) : 1
-  const raidHP = raidPower * 2 // Estimation des PV raid (simplifiée)
   const attackerLossRatio = raidHP > 0 ? Math.min(1, damageToAttacker / raidHP) : 1
 
   return {
@@ -69,9 +77,13 @@ export function buildRaidReport(
   const attackerKilledTotal = Object.values(attackerLosses.killed).reduce((s, n) => s + n, 0)
   const defenderKilledTotal = Object.values(defenderLosses.killed).reduce((s, n) => s + n, 0)
 
-  const summary = result.defenseSuccess
-    ? `Défense réussie ! Raid de ${raidLabel} repoussé. Pertes ennemies : ${attackerKilledTotal}. Pertes défenseurs : ${defenderKilledTotal}.`
-    : `Défense échouée. ${raidLabel} a percé vos défenses. Vous avez perdu ${defenderKilledTotal} unité(s).`
+  const counterNote = describeCounterEffect(raidLabel, raidUnits, 'votre garnison', defenderUnits)
+
+  const summary =
+    (result.defenseSuccess
+      ? `Défense réussie ! Raid de ${raidLabel} repoussé. Pertes ennemies : ${attackerKilledTotal}. Pertes défenseurs : ${defenderKilledTotal}.`
+      : `Défense échouée. ${raidLabel} a percé vos défenses. Vous avez perdu ${defenderKilledTotal} unité(s).`) +
+    counterNote
 
   return {
     attackerVictory: !result.defenseSuccess,

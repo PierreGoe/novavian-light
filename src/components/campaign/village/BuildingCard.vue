@@ -24,6 +24,7 @@
             'card-icon--locked': state === 'locked',
             'card-icon--constructing': state === 'constructing',
           }"
+          :title="description"
         >
           {{ icon }}
         </span>
@@ -32,15 +33,15 @@
         </span>
       </div>
 
-      <div class="card-name">{{ name }}</div>
+      <div class="card-name" :title="description">{{ name }}</div>
 
       <!-- Anneau + texte côte à côte pendant le chantier — jamais superposé
            sur l'icône, jamais muet (voir TimersPanel.vue/MovementsPanel.vue). -->
       <div v-if="state === 'constructing'" class="card-timer-row">
         <TimerClock :size="size === 'lg' ? 28 : 22" :progress="constructionProgress / 100" />
-        <span class="card-status">{{ statusText }}</span>
+        <span class="card-status" :title="statusDetail">{{ statusText }}</span>
       </div>
-      <div v-else class="card-status">{{ statusText }}</div>
+      <div v-else class="card-status" :title="statusDetail">{{ statusText }}</div>
 
       <div class="card-spacer" />
 
@@ -49,7 +50,13 @@
         class="quick-btn"
         :class="{ 'quick-btn--build': state === 'available' }"
         :disabled="!actionAffordable"
-        :title="!actionAffordable ? 'Ressources insuffisantes' : undefined"
+        :title="
+          !actionAffordable
+            ? missingResources
+              ? `Ressources insuffisantes — ${missingResources}`
+              : 'Ressources insuffisantes'
+            : undefined
+        "
         @click.stop="$emit('quickAction')"
       >
         {{ state === 'available' ? '+' : '▲' }}
@@ -75,14 +82,23 @@ const props = withDefaults(
     size?: 'sm' | 'lg'
     selected?: boolean
     statusText: string
+    /** Phrase complète expliquant le statut condensé (title au survol) */
+    statusDetail?: string
+    /** Description du bâtiment (title sur l'icône et le nom) */
+    description?: string
     constructionProgress?: number
     actionAffordable?: boolean
+    /** Détail des ressources manquantes (title du bouton d'action désactivé) */
+    missingResources?: string
   }>(),
   {
     size: 'sm',
     selected: false,
+    statusDetail: undefined,
+    description: undefined,
     constructionProgress: 0,
     actionAffordable: true,
+    missingResources: undefined,
   },
 )
 

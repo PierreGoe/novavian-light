@@ -13,7 +13,16 @@
           <!-- Infos texte -->
           <div class="raid-alert-text">
             <strong>RAID ENNEMI IMMINENT</strong>
-            <span class="raid-alert-sub">{{ nextHostileRaidLocation }}</span>
+            <button
+              v-if="nextHostileRaidTile"
+              type="button"
+              class="raid-alert-sub raid-alert-link"
+              title="Voir la forteresse hostile"
+              @click="handleTileSelect(nextHostileRaidTile.id)"
+            >
+              {{ nextHostileRaidLocation }} →
+            </button>
+            <span v-else class="raid-alert-sub">{{ nextHostileRaidLocation }}</span>
           </div>
         </div>
       </NoticeBox>
@@ -27,6 +36,7 @@
         <div class="help-item">⌨️ <strong>Flèches / WASD</strong> : Navigation</div>
         <div class="help-item">🔍 <strong>Proche / Normal / Loin</strong> : Zoom</div>
         <div class="help-item">⌨️ <strong>Espace</strong> : Centrer sur position</div>
+        <div class="help-item">⌨️ <strong>Échap</strong> : Fermer la fiche de case</div>
         <div class="help-item">
           🔒 <strong>Cadran verrouillé</strong> : cliquez pour le révéler (1 fragment de carte 🗺️)
         </div>
@@ -53,7 +63,7 @@
         <TileDetails
           :tile="selectedTile"
           @attack-tile="handleAttackTile"
-          @trade-tile="handleTradeTile"
+          @select-tile="handleTileSelect"
         />
       </div>
     </template>
@@ -61,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useMapStore, HOSTILE_ATTACK_INTERVAL_MS, type MovementUnit } from '../../stores/mapStore'
 import { useMissionStore } from '../../stores/missionStore'
 import type { MilitaryUnit } from '../../stores/missionStore'
@@ -131,6 +141,14 @@ const nextHostileRaidLocation = computed(() => {
   return tile ? `Forteresse (${tile.position.x}, ${tile.position.y})` : 'Forteresse hostile'
 })
 
+/** Tuile de la forteresse hostile — null si non sélectionnable (brouillard) */
+const nextHostileRaidTile = computed(() => {
+  if (!nextHostileRaid.value) return null
+  const tile = mapStore.getTileById(nextHostileRaid.value.fortressTileId)
+  if (!tile) return null
+  return tile.explored || gameSettings.disableFogOfWar ? tile : null
+})
+
 /** Ferme la vue détails et revient à la carte */
 const closeDetails = () => {
   selectedTileId.value = null
@@ -158,6 +176,31 @@ const handleTileSelect = (tileId: string) => {
     selectedTileId.value = tileId
   }
 }
+
+/**
+ * Navigation inter-écrans : d'autres vues (rapports, timers, toasts…)
+ * sélectionnent une tuile via mapStore.selectTile() puis routent vers la carte.
+ * On synchronise cette sélection externe avec l'état local de la vue ;
+ * si la sélection est refusée (brouillard, plaine…), on nettoie le store
+ * pour ne pas laisser un état orphelin.
+ */
+watch(
+  () => mapStore.mapState.selectedTileId,
+  (id) => {
+    if (id && id !== selectedTileId.value) {
+      handleTileSelect(id)
+      if (selectedTileId.value !== id) mapStore.clearSelection()
+    }
+  },
+  { immediate: true },
+)
+
+/** Échap ferme la fiche de case et revient à la carte */
+const onKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && selectedTileId.value) closeDetails()
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 const handleAttackTile = (tileId: string, selectedUnits: MovementUnit[]) => {
   const tile = mapStore.getTileById(tileId)
@@ -215,10 +258,6 @@ const handleUnlockChunk = (chunkId: string) => {
     toastStore.showSuccess('🗺️ Nouveau territoire révélé !')
   }
 }
-
-const handleTradeTile = (_tileId: string) => {
-  toastStore.addToast('Système de commerce en développement', 'info')
-}
 </script>
 
 <style scoped>
@@ -256,6 +295,23 @@ const handleTradeTile = (_tileId: string) => {
 .raid-alert-sub {
   font-size: 0.8em;
   color: var(--color-text-muted);
+}
+
+/* Variante cliquable du sous-titre : lien vers la forteresse hostile */
+.raid-alert-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  align-self: flex-start;
+  text-align: left;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.raid-alert-link:hover {
+  color: var(--color-danger-light);
 }
 
 /* Transition entrée/sortie du bandeau */
@@ -298,15 +354,13 @@ const handleTradeTile = (_tileId: string) => {
   margin: 20px 0;
 }
 
+/* Pas de "fausse carte" blanche autour du bento : les cellules posent
+   directement sur le canvas, comme le bento du village. Largeur bornée à
+   1000px — la largeur de confort d'une fiche de détail, pas celle de la carte. */
 .tile-details-view {
   position: relative;
-  width: 100%;
-  min-height: 600px;
-  background: var(--color-bg-surface);
-  border-radius: 12px;
-  padding: 20px;
-  box-sizing: border-box;
-  margin: 20px 0;
+  max-width: 1000px;
+  margin: 20px auto;
 }
 
 .tile-details-view > .btn {

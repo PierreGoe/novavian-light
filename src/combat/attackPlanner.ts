@@ -13,6 +13,7 @@
 // ============================================================
 
 import type { MovementUnit } from '@/stores/mapStore'
+import { getUnitRole } from './roles'
 
 // ------------------------------------
 // Types
@@ -87,8 +88,18 @@ export const QUICK_ATTACK_STRATEGIES: Record<QuickAttackMode, QuickAttackStrateg
   },
 }
 
-/** Priorité des types d'unités pour chaque stratégie (ordre décroissant d'envoi) */
-const RAID_PRIORITY: string[] = ['cavalry', 'archer', 'infantry', 'siege']
+/**
+ * Priorité des rôles pour le mode raid (ordre décroissant d'envoi). Basée sur
+ * le rôle (voir src/combat/roles.ts) et non sur le type exact, pour fonctionner
+ * avec n'importe quelle unité de race (ex: 'roman_cavalier_lourd' a le rôle 'cavalry').
+ */
+const RAID_ROLE_PRIORITY: string[] = ['cavalry', 'archer', 'infantry', 'siege']
+
+const raidPriorityIndex = (type: string): number => {
+  const role = getUnitRole(type)
+  const index = role ? RAID_ROLE_PRIORITY.indexOf(role) : -1
+  return index === -1 ? RAID_ROLE_PRIORITY.length : index
+}
 
 /** Fraction de l'armée envoyée en mode "raid" (60% des unités rapides) */
 const RAID_FRACTION = 0.6
@@ -127,17 +138,15 @@ export const buildQuickAttackPlan = (
       break
 
     case 'balanced':
-      selected = pool.filter((u) => u.type !== 'siege')
+      selected = pool.filter((u) => getUnitRole(u.type) !== 'siege')
       if (selected.length === 0) selected = pool // fallback si que du siège
       break
 
     case 'raid': {
-      // Trier selon la priorité, puis envoyer RAID_FRACTION des unités rapides
-      const sorted = [...pool].sort(
-        (a, b) => RAID_PRIORITY.indexOf(a.type) - RAID_PRIORITY.indexOf(b.type),
-      )
+      // Trier selon la priorité de rôle, puis envoyer RAID_FRACTION des unités rapides
+      const sorted = [...pool].sort((a, b) => raidPriorityIndex(a.type) - raidPriorityIndex(b.type))
       selected = sorted
-        .filter((u) => u.type !== 'siege')
+        .filter((u) => getUnitRole(u.type) !== 'siege')
         .map((u) => ({
           ...u,
           count: Math.max(1, Math.floor(u.count * RAID_FRACTION)),
@@ -237,6 +246,6 @@ const compositionToAttackPlan = (
     units,
     totalCount: units.reduce((s, u) => s + u.count, 0),
     carryCapacity: getCarryCapacity(units),
-    hasSiege: units.some((u) => u.type === 'siege'),
+    hasSiege: units.some((u) => getUnitRole(u.type) === 'siege'),
   }
 }

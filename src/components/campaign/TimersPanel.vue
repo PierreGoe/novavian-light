@@ -43,7 +43,14 @@
       <section v-if="constructions.length > 0" class="timers-section">
         <SectionLabel>🏗️ Constructions</SectionLabel>
         <div class="timers-list">
-          <div v-for="item in constructions" :key="item.id" class="timer-row">
+          <div
+            v-for="item in constructions"
+            :key="item.id"
+            class="timer-row"
+            :class="{ 'timer-row--link': item.nav }"
+            :title="navTitle(item)"
+            @click="openTimer(item)"
+          >
             <TimerClock :size="40" :progress="item.progress" :icon="item.icon" />
             <div class="timer-row-info">
               <span class="timer-row-label">{{ item.label }}</span>
@@ -56,7 +63,14 @@
       <section v-if="training.length > 0" class="timers-section">
         <SectionLabel>⚔️ Entraînement</SectionLabel>
         <div class="timers-list">
-          <div v-for="item in training" :key="item.id" class="timer-row">
+          <div
+            v-for="item in training"
+            :key="item.id"
+            class="timer-row"
+            :class="{ 'timer-row--link': item.nav }"
+            :title="navTitle(item)"
+            @click="openTimer(item)"
+          >
             <TimerClock :size="40" :progress="item.progress" :icon="item.icon" />
             <div class="timer-row-info">
               <span class="timer-row-label">{{ item.label }}</span>
@@ -69,7 +83,14 @@
       <section v-if="movements.length > 0" class="timers-section">
         <SectionLabel>🪖 Exploration</SectionLabel>
         <div class="timers-list">
-          <div v-for="item in movements" :key="item.id" class="timer-row">
+          <div
+            v-for="item in movements"
+            :key="item.id"
+            class="timer-row"
+            :class="{ 'timer-row--link': item.nav }"
+            :title="navTitle(item)"
+            @click="openTimer(item)"
+          >
             <TimerClock :size="40" :progress="item.progress" :icon="item.icon" />
             <div class="timer-row-info">
               <span class="timer-row-label">{{ item.label }}</span>
@@ -82,7 +103,14 @@
       <section v-if="raids.length > 0" class="timers-section">
         <SectionLabel>🔴 Raids ennemis</SectionLabel>
         <div class="timers-list">
-          <div v-for="item in raids" :key="item.id" class="timer-row">
+          <div
+            v-for="item in raids"
+            :key="item.id"
+            class="timer-row"
+            :class="{ 'timer-row--link': item.nav }"
+            :title="navTitle(item)"
+            @click="openTimer(item)"
+          >
             <TimerClock
               :size="40"
               :progress="item.progress"
@@ -104,6 +132,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useMissionStore } from '@/stores/missionStore'
 import { useMapStore, HOSTILE_ATTACK_INTERVAL_MS } from '@/stores/mapStore'
 import { useExplorationTicker } from '@/composables/useExplorationTicker'
@@ -118,6 +147,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 
 const missionStore = useMissionStore()
 const mapStore = useMapStore()
+const router = useRouter()
 // Ne démarre rien ici : lit uniquement l'horloge partagée démarrée par CampaignLayout.vue.
 const { now } = useExplorationTicker()
 
@@ -128,6 +158,27 @@ interface TimerItem {
   progress: number
   remainingMs: number
   color?: string
+  /** Navigation au clic : fiche d'une tuile de la carte, ou vue village */
+  nav?: { kind: 'tile'; tileId: string } | { kind: 'village' }
+}
+
+/** Title contextuel de la ligne selon sa destination de navigation */
+const navTitle = (item: TimerItem): string | undefined => {
+  if (!item.nav) return undefined
+  return item.nav.kind === 'tile' ? 'Voir sur la carte' : 'Voir au village'
+}
+
+/** Ouvre l'entité liée au timer (tuile sur la carte, ou vue village) */
+const openTimer = (item: TimerItem) => {
+  if (!item.nav) return
+  if (item.nav.kind === 'tile') {
+    // Contrat de navigation inter-écrans : sélectionner la tuile dans le store,
+    // la vue carte synchronise sa fiche via un watcher.
+    mapStore.selectTile(item.nav.tileId)
+    router.push({ name: 'campaign-map' })
+  } else {
+    router.push({ name: 'campaign-village' })
+  }
 }
 
 // --- Panneau collapsible — même mécanisme que SideNavBar.vue, côté droit ---
@@ -162,6 +213,7 @@ const constructions = computed<TimerItem[]>(() => {
         label: `${def.name} → niv. ${b.level + 1}`,
         progress,
         remainingMs: Math.max(0, b.constructionEndTime! - now.value),
+        nav: { kind: 'village' as const },
       }
     })
 })
@@ -179,6 +231,7 @@ const training = computed<TimerItem[]>(() => {
       label: def.name,
       progress,
       remainingMs: Math.max(0, entry.endsAt - now.value),
+      nav: { kind: 'village' as const },
     }
   })
 })
@@ -198,6 +251,8 @@ const movements = computed<TimerItem[]>(() => {
       label: mov.isReturning ? `Retour (${coords})` : `${name} (${coords})`,
       progress,
       remainingMs: Math.max(0, mov.arrivalTime - now.value),
+      // Même tuile que le libellé : la cible du mouvement, ou son origine au retour
+      nav: tile ? { kind: 'tile' as const, tileId: tile.id } : undefined,
     }
   })
 })
@@ -220,6 +275,7 @@ const raids = computed<TimerItem[]>(() => {
         progress: Math.min(1, Math.max(0, progress)),
         remainingMs,
         color: 'var(--color-danger)',
+        nav: tile ? { kind: 'tile' as const, tileId: tile.id } : undefined,
       }
     })
 })
@@ -332,6 +388,17 @@ const totalCount = computed(
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+
+/* Ligne navigable (tuile de la carte ou vue village) */
+.timer-row--link {
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.timer-row--link:hover {
+  background: rgba(var(--overlay-rgb), 0.06);
 }
 
 .timer-row-info {

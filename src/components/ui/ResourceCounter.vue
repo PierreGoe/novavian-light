@@ -1,5 +1,5 @@
 <template>
-  <span class="resource-counter">{{ displayValue }}</span>
+  <span class="resource-counter" :title="exactTitle">{{ displayValue }}</span>
 </template>
 
 <script setup lang="ts">
@@ -10,7 +10,12 @@ const props = defineProps<{
   value: number
 }>()
 
-const displayValue = computed(() => formatNumber(Math.floor(props.value)))
+const floored = computed(() => Math.floor(props.value))
+const displayValue = computed(() => formatNumber(floored.value))
+/** Valeur exacte au survol quand l'affichage est abrégé en K/M */
+const exactTitle = computed(() =>
+  floored.value >= 1_000 ? floored.value.toLocaleString('fr-FR') : undefined,
+)
 </script>
 
 <style scoped>

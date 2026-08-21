@@ -14,40 +14,51 @@
       <span class="gold-display">🪙 {{ currentGold }} or</span>
     </header>
 
-    <div class="bazar-body">
-      <!-- ===== Section Offres ===== -->
-      <section class="offer-section">
-        <div class="section-header">
-          <div class="section-title-block">
-            <h2>Offres du jour</h2>
-            <p class="section-subtitle">Achetez une relique parmi les 6 proposées.</p>
+    <!--
+      Corps en Bento — même vocabulaire que le village et la fiche territoire
+      (BuildingCard.vue / TileDetails.vue) : hero compact, cartes claires à
+      barre d'accent gauche, glyphe en filigrane. Ici la teinte d'accent est
+      la rareté de chaque relique (--rarity-rgb → --tc).
+    -->
+    <div class="bazar-bento">
+      <!-- ── Hero Offres du jour : identité + tirages + action de renouvellement ── -->
+      <div class="bazar-hero">
+        <div class="hero-art" aria-hidden="true"><span class="hero-glyph">🔮</span></div>
+        <div class="hero-content">
+          <div class="hero-icon">🎲</div>
+          <div class="hero-info">
+            <div class="hero-title-row">
+              <h2 class="hero-title">Offres du jour</h2>
+              <Badge :tone="rerollsLeft === 0 ? 'danger' : 'neutral'">
+                🎲 {{ rerollsLeft }}/{{ BAZAR_MAX_REROLLS }} tirages
+              </Badge>
+            </div>
+            <p class="hero-desc">Achetez une relique parmi les 6 proposées.</p>
           </div>
-          <div class="reroll-controls">
-            <span class="reroll-info">
-              🎲 Tirages restants :
-              <strong :class="{ exhausted: rerollsLeft === 0 }"
-                >{{ rerollsLeft }}/{{ BAZAR_MAX_REROLLS }}</strong
-              >
-            </span>
-            <button
-              class="reroll-btn"
-              :disabled="rerollsLeft <= 0 || currentGold < BAZAR_REROLL_COST"
-              @click="reroll"
-              :title="rerollBtnTitle"
-            >
-              Renouveler — {{ BAZAR_REROLL_COST }} 🪙
-            </button>
-          </div>
-        </div>
-
-        <div class="offer-grid">
-          <div
-            v-for="artifact in bazarOffer"
-            :key="artifact.id"
-            class="offer-card"
-            :class="`rarity-${artifact.rarity}`"
+          <button
+            class="reroll-btn"
+            :disabled="rerollsLeft <= 0 || currentGold < BAZAR_REROLL_COST"
+            @click="reroll"
+            :title="rerollBtnTitle"
           >
-            <!-- En-tête de la carte -->
+            Renouveler — {{ BAZAR_REROLL_COST }} 🪙
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Grille des 6 offres ── -->
+      <div class="offer-grid">
+        <div
+          v-for="artifact in bazarOffer"
+          :key="artifact.id"
+          class="offer-card"
+          :class="`rarity-${artifact.rarity}`"
+        >
+          <div class="card-art" aria-hidden="true">
+            <span class="card-glyph">{{ artifact.icon }}</span>
+          </div>
+
+          <div class="card-body">
             <div class="card-top">
               <span class="card-icon">{{ artifact.icon }}</span>
               <RarityBadge :rarity="artifact.rarity">{{
@@ -108,17 +119,18 @@
             </button>
           </div>
         </div>
-      </section>
+      </div>
 
-      <!-- ===== Section Revente ===== -->
-      <section class="sell-section">
-        <div class="section-title-block">
-          <h2>Revendre vos reliques</h2>
-          <p class="section-subtitle">
-            Transformez vos reliques inutiles en or. Une relique active sera désactivée avant la
-            vente.
-          </p>
+      <!-- ── Section Revente : carte plate façon KPI (barre fine, pas de wash) ── -->
+      <div class="sell-section">
+        <div class="sell-head">
+          <span class="sell-head-icon">🪙</span>
+          <span class="sell-head-title">Revendre vos reliques</span>
         </div>
+        <p class="sell-hint">
+          Transformez vos reliques inutiles en or. Une relique active sera désactivée avant la
+          vente.
+        </p>
 
         <EmptyState
           v-if="allArtifacts.length === 0"
@@ -131,23 +143,24 @@
             :key="artifact.id"
             class="sell-card"
             :class="[`rarity-${artifact.rarity}`, { 'is-active': isActive(artifact.id) }]"
+            :title="sellCardTitle(artifact)"
           >
             <div class="sell-info">
               <span class="sell-icon">{{ artifact.icon }}</span>
               <div class="sell-details">
                 <span class="sell-name">{{ artifact.name }}</span>
                 <span class="sell-rarity">{{ rarityLabel(artifact.rarity) }}</span>
-                <span v-if="isActive(artifact.id)" class="active-tag">Actif</span>
               </div>
+              <Badge v-if="isActive(artifact.id)" tone="success">Actif</Badge>
             </div>
-            <button class="sell-btn" @click="sell(artifact)">
+            <button class="sell-btn" :title="sellBtnTitle(artifact)" @click="sell(artifact)">
               +{{ SELL_PRICES[artifact.rarity] }} 🪙
             </button>
           </div>
         </div>
-      </section>
+      </div>
 
-      <!-- ===== Quitter le Bazar ===== -->
+      <!-- ── Quitter le Bazar ── -->
       <div class="bazar-exit">
         <p class="exit-warning">⚠️ Une fois parti, vous ne pourrez plus revenir à ce Bazar.</p>
         <Button variant="danger" @click="exitBazar">🚪 Quitter le Bazar</Button>
@@ -170,6 +183,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import Button from '@/components/ui/Button.vue'
+import Badge from '@/components/ui/Badge.vue'
 import RarityBadge from '@/components/ui/RarityBadge.vue'
 import FxBadge from '@/components/ui/FxBadge.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -336,26 +350,65 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
   }
   return labels[rarity]
 }
+
+/** Résumé texte des effets d'une relique — les cartes de revente n'affichent
+ * pas les FxBadge, ce tooltip permet de comparer sans repasser par l'achat. */
+const effectsSummary = (artifact: Artifact): string => {
+  const e = artifact.effects
+  const parts: string[] = []
+  if (e.economy) parts.push(`+${e.economy}% Éco`)
+  if (e.military) parts.push(`+${e.military}% Mil`)
+  if (e.defense) parts.push(`+${e.defense}% Déf`)
+  if (e.resourceBonus?.wood) parts.push(`+${e.resourceBonus.wood}% Bois`)
+  if (e.resourceBonus?.stone) parts.push(`+${e.resourceBonus.stone}% Pierre`)
+  if (e.resourceBonus?.iron) parts.push(`+${e.resourceBonus.iron}% Fer`)
+  if (e.resourceBonus?.crop) parts.push(`+${e.resourceBonus.crop}% Céréales`)
+  if (artifact.specialPower) parts.push(`✨ ${artifact.specialPower.description}`)
+  return parts.join(' · ')
+}
+
+const durabilityLabel = (artifact: Artifact): string => {
+  if (artifact.durability === 'single-use') return 'Usage unique'
+  if (artifact.durability === 'uses-limited')
+    return `${artifact.usesRemaining ?? artifact.maxUses} combat(s) restant(s)`
+  return 'Permanente'
+}
+
+/** Tooltip complet d'une carte de revente : description + effets + durabilité */
+const sellCardTitle = (artifact: Artifact): string => {
+  const lines = [artifact.description]
+  const fx = effectsSummary(artifact)
+  if (fx) lines.push(fx)
+  lines.push(`Durabilité : ${durabilityLabel(artifact)}`)
+  return lines.join('\n')
+}
+
+/** Tooltip du bouton de vente — avertit si la relique est actuellement équipée */
+const sellBtnTitle = (artifact: Artifact): string =>
+  isActive(artifact.id)
+    ? 'Cette relique est équipée — la vendre la retire du slot'
+    : `Vendre ${artifact.name} pour ${SELL_PRICES[artifact.rarity]} or`
 </script>
 
 <style scoped lang="scss">
 // ===== Couleurs par rareté =====
 // Tirées des tokens partagés --rarity-* (src/styles/tokens.css), mêmes que RarityBadge.
+// --tc alimente le mécanisme d'accent des cartes bento (cf. BuildingCard.vue).
 .rarity-common {
   --rarity-color: var(--rarity-common);
-  --rarity-rgb: var(--rarity-common-rgb);
+  --tc: var(--rarity-common-rgb);
 }
 .rarity-rare {
   --rarity-color: var(--rarity-rare);
-  --rarity-rgb: var(--rarity-rare-rgb);
+  --tc: var(--rarity-rare-rgb);
 }
 .rarity-epic {
   --rarity-color: var(--rarity-epic);
-  --rarity-rgb: var(--rarity-epic-rgb);
+  --tc: var(--rarity-epic-rgb);
 }
 .rarity-legendary {
   --rarity-color: var(--rarity-legendary);
-  --rarity-rgb: var(--rarity-legendary-rgb);
+  --tc: var(--rarity-legendary-rgb);
 }
 
 // ===== Page =====
@@ -395,59 +448,118 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
   }
 }
 
-// ===== Corps =====
-.bazar-body {
+// ===== Corps Bento =====
+// Largeur de confort d'une fiche (cf. TileDetails) : 1000px centrés, les
+// cellules posent directement sur le canvas.
+.bazar-bento {
   flex: 1;
-  padding: 1.5rem 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 2.5rem;
-  max-width: 1200px;
-  margin: 0 auto;
   width: 100%;
-}
-
-// ===== En-tête de section =====
-.section-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.section-title-block {
-  h2 {
-    margin: 0 0 0.25rem;
-    font-size: 1.3rem;
-    color: var(--rarity-epic);
-  }
-  .section-subtitle {
-    margin: 0;
-    font-size: 0.85rem;
-    color: var(--color-text-muted);
-  }
-}
-
-// ===== Contrôles de retirage =====
-.reroll-controls {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 0.5rem;
+  gap: 12px;
 }
 
-.reroll-info {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
+// ===== Hero Offres du jour =====
+// Bandeau compact façon tile-hero : wash + glyphe à droite, contenu à gauche,
+// action de renouvellement intégrée (elle appartient à cette section).
+.bazar-hero {
+  --tc: var(--rarity-epic-rgb);
+  position: relative;
+  border-radius: 16px;
+  padding: 14px 18px;
+  overflow: hidden;
+  background: var(--color-bg-surface);
+  border: 1.5px solid rgba(var(--overlay-rgb), 0.12);
+  box-shadow:
+    0 1px 2px rgba(var(--overlay-rgb), 0.05),
+    0 4px 12px -6px rgba(var(--overlay-rgb), 0.15);
 
-  strong {
-    color: var(--color-text);
-    &.exhausted {
-      color: var(--color-danger);
-    }
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: rgba(var(--tc), 0.85);
+    z-index: 2;
   }
+}
+
+.hero-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(130% 100% at 12% -10%, rgba(var(--tc), 0.22), transparent 62%),
+    linear-gradient(165deg, rgba(var(--tc), 0.08), transparent 75%);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 35%, var(--color-bg-surface) 94%);
+  }
+}
+
+.hero-glyph {
+  position: absolute;
+  right: -0.1em;
+  bottom: -0.3em;
+  font-size: 4rem;
+  line-height: 1;
+  opacity: 0.16;
+  transform: rotate(-6deg);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.hero-icon {
+  font-size: 36px;
+  line-height: 1;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 3px rgba(var(--overlay-rgb), 0.25));
+}
+
+.hero-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.hero-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hero-title {
+  margin: 0;
+  font-size: 1.25em;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.1;
+}
+
+.hero-desc {
+  margin: 0;
+  color: var(--color-text-faint);
+  font-style: italic;
+  font-size: 0.85em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Bouton custom volontaire : dégradé indigo/violet propre à l'identité "arcane"
@@ -455,6 +567,7 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
    Travian ou aplatir cette identité. Texte blanc fixe : contraste garanti sur
    ce fond plein quel que soit le thème. */
 .reroll-btn {
+  flex-shrink: 0;
   background: linear-gradient(135deg, #4f46e5, #7c3aed);
   border: none;
   color: #fff;
@@ -462,6 +575,7 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.9rem;
+  font-weight: 600;
   transition:
     opacity 0.2s,
     transform 0.1s;
@@ -477,28 +591,83 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
 }
 
 // ===== Grille des offres =====
+// 3 colonnes à 1000px — pas de carte orpheline avec 6 offres.
 .offer-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
 }
 
+// Carte d'offre = cellule bento "chaude" : barre de rareté 4px, glyphe en
+// filigrane, wash discret teinté rareté — même grammaire que BuildingCard.
 .offer-card {
+  position: relative;
+  border-radius: 16px;
+  border: 1.5px solid rgba(var(--overlay-rgb), 0.12);
   background: var(--color-bg-surface);
-  border: 2px solid var(--rarity-color, var(--rarity-common));
-  border-radius: 12px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgba(var(--overlay-rgb), 0.05),
+    0 4px 12px -6px rgba(var(--overlay-rgb), 0.15);
   transition:
-    transform 0.15s,
-    box-shadow 0.2s;
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: rgba(var(--tc), 0.85);
+    z-index: 2;
+  }
 
   &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(var(--color-black-rgb), 0.12);
+    transform: translateY(-2px);
+    border-color: rgba(var(--tc), 0.4);
+    box-shadow:
+      0 2px 4px rgba(var(--overlay-rgb), 0.08),
+      0 10px 20px -10px rgba(var(--overlay-rgb), 0.25);
   }
+}
+
+.card-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(130% 100% at 12% -10%, rgba(var(--tc), 0.16), transparent 62%),
+    linear-gradient(165deg, rgba(var(--tc), 0.06), transparent 75%);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 30%, var(--color-bg-surface) 92%);
+  }
+}
+
+.card-glyph {
+  position: absolute;
+  right: -0.3em;
+  bottom: -0.25em;
+  font-size: 3.4rem;
+  line-height: 1;
+  opacity: 0.1;
+  transform: rotate(-6deg);
+}
+
+.card-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  padding: 14px 16px;
+  box-sizing: border-box;
 }
 
 .card-top {
@@ -510,6 +679,7 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
 .card-icon {
   font-size: 1.8rem;
   line-height: 1;
+  filter: drop-shadow(0 1px 3px rgba(var(--overlay-rgb), 0.25));
 }
 
 .card-name {
@@ -560,20 +730,20 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
   margin-top: auto;
   background: linear-gradient(
     135deg,
-    rgba(var(--rarity-rgb, var(--rarity-rare-rgb)), 0.18),
-    rgba(var(--rarity-rgb, var(--rarity-rare-rgb)), 0.06)
+    rgba(var(--tc, var(--rarity-rare-rgb)), 0.18),
+    rgba(var(--tc, var(--rarity-rare-rgb)), 0.06)
   );
   border: 1px solid var(--rarity-color, var(--rarity-rare));
   color: var(--rarity-color, var(--rarity-rare));
   padding: 0.45rem 0.8rem;
-  border-radius: 7px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
   transition: background 0.2s;
 
   &:hover:not(:disabled) {
-    background: rgba(var(--rarity-rgb, var(--rarity-rare-rgb)), 0.3);
+    background: rgba(var(--tc, var(--rarity-rare-rgb)), 0.3);
   }
   &:disabled {
     opacity: 0.35;
@@ -582,26 +752,77 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
 }
 
 // ===== Section vente =====
+// Carte plate façon KPI : barre d'accent fine, pas de wash — la couleur reste
+// un signal (rareté par ligne), pas une texture.
 .sell-section {
-  .section-title-block h2 {
-    color: var(--color-accent-ink);
+  --tc: var(--color-accent-rgb);
+  position: relative;
+  border-radius: 16px;
+  border: 1.5px solid rgba(var(--overlay-rgb), 0.12);
+  background: var(--color-bg-surface);
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgba(var(--overlay-rgb), 0.05),
+    0 4px 12px -6px rgba(var(--overlay-rgb), 0.15);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: rgba(var(--tc), 0.7);
   }
+}
+
+.sell-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sell-head-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.sell-head-title {
+  flex: 1;
+  font-size: 0.76em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.sell-hint {
+  margin: 0;
+  font-size: 0.78em;
+  color: var(--color-text-faint);
+  font-style: italic;
 }
 
 .sell-grid {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
+// Ligne de revente : rangée claire avec barre de rareté à gauche — pas de
+// bordure pleine par rareté (bruit), la couleur ne marque que le bord.
 .sell-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 0.6rem 1rem;
-  background: var(--color-bg-surface);
-  border: 1px solid var(--rarity-color, var(--rarity-common));
-  border-radius: 8px;
+  background: rgba(var(--overlay-rgb), 0.03);
+  border: 1px solid rgba(var(--overlay-rgb), 0.1);
+  border-left: 3px solid var(--rarity-color, var(--rarity-common));
+  border-radius: 10px;
   transition: background 0.15s;
 
   &.is-active {
@@ -609,7 +830,7 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
   }
 
   &:hover {
-    background: rgba(var(--overlay-rgb), 0.03);
+    background: rgba(var(--overlay-rgb), 0.06);
   }
 }
 
@@ -617,6 +838,7 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .sell-icon {
@@ -627,27 +849,21 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  min-width: 0;
 }
 
 .sell-name {
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sell-rarity {
   font-size: 0.75rem;
   color: var(--rarity-color, var(--rarity-common));
-}
-
-.active-tag {
-  font-size: 0.7rem;
-  color: var(--color-success);
-  background: rgba(var(--color-success-strong-rgb), 0.15);
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-  border: 1px solid rgba(var(--color-success-strong-rgb), 0.3);
-  width: fit-content;
 }
 
 /* Bouton custom volontaire : chip translucide teinté accent, distinct des
@@ -658,7 +874,7 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
   border: 1px solid rgba(var(--color-accent-rgb), 0.4);
   color: var(--color-accent-ink);
   padding: 0.4rem 1rem;
-  border-radius: 7px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
@@ -676,9 +892,9 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
-  padding: 2rem;
+  padding: 1.5rem 0 0.5rem;
   border-top: 1px solid rgba(var(--overlay-rgb), 0.1);
-  margin-top: 1rem;
+  margin-top: 4px;
 }
 
 .exit-warning {
@@ -686,5 +902,20 @@ const rarityLabel = (rarity: Artifact['rarity']): string => {
   font-size: 0.85rem;
   color: var(--color-warning);
   text-align: center;
+}
+
+// ===== Responsive =====
+@media (max-width: 640px) {
+  .hero-content {
+    flex-wrap: wrap;
+  }
+
+  .reroll-btn {
+    width: 100%;
+  }
+
+  .offer-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

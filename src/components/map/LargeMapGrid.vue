@@ -10,6 +10,15 @@
       />
       <div class="controls-divider" />
       <Button variant="secondary" size="sm" @click="centerOnPlayer">🎯 Centrer</Button>
+      <Button
+        v-if="selectedTileForCenter"
+        variant="secondary"
+        size="sm"
+        :title="`Centrer sur la case sélectionnée (${selectedTileForCenter.position.x}, ${selectedTileForCenter.position.y})`"
+        @click="centerOnTile(selectedTileForCenter.position.x, selectedTileForCenter.position.y)"
+      >
+        🎯 Sélection
+      </Button>
       <div class="controls-divider" />
       <!-- Vue isométrique — architecture du pen « Stack Sprite », choix persisté -->
       <Button
@@ -59,6 +68,7 @@
               :key="tile.id"
               class="map-tile"
               :class="getTileClasses(tile)"
+              :title="tileTitle(tile)"
               v-clickable="tile.type !== 'plains' && !isChunkLocked(tile)"
               @click="tile.type !== 'plains' && !isChunkLocked(tile) && selectTile(tile.id)"
             >
@@ -90,6 +100,17 @@
               >
                 ↺
               </div>
+              <!-- Indicateur : trésor de ruines encore fouillable -->
+              <div
+                class="treasure-badge"
+                v-if="
+                  tile.type === 'ruins' &&
+                  tile.hasTreasure &&
+                  (gameSettings.disableFogOfWar || (tile.explored && !isChunkLocked(tile)))
+                "
+              >
+                💎
+              </div>
             </div>
           </div>
 
@@ -106,6 +127,7 @@
               v-for="chunk in visibleLockedChunks"
               :key="chunk.id"
               class="chunk-locked-bubble"
+              :class="{ 'chunk-locked-bubble--nofragment': mapFragments === 0 }"
               :style="chunk.style"
               v-clickable
               @click.stop="emit('unlock-chunk', chunk.id)"
@@ -113,7 +135,15 @@
               <div class="chunk-bubble-inner">
                 <span class="chunk-bubble-lock">🔒</span>
                 <span class="chunk-bubble-label">Zone {{ chunk.id }}</span>
-                <span class="chunk-bubble-hint">Cliquer pour révéler</span>
+                <!-- Coût et stock affichés AVANT le clic — le joueur ne découvre
+                     plus le manque de fragments via un toast d'erreur après coup -->
+                <span class="chunk-bubble-hint">
+                  {{
+                    mapFragments > 0
+                      ? `Révéler — 1 🗺️ (vous en avez ${mapFragments})`
+                      : 'Aucun fragment de carte 🗺️'
+                  }}
+                </span>
               </div>
               <!-- Connecteurs en losange au milieu de chaque bord visible -->
               <span v-if="chunk.diamondTop" class="chunk-diamond chunk-diamond--top" />
@@ -182,25 +212,29 @@
               </path>
             </svg>
 
-            <!-- Badge des troupes du joueur en marche -->
+            <!-- Badge des troupes du joueur en marche — cliquable : ouvre la fiche
+                 de la case d'intérêt (cible en aller, case quittée en retour) -->
             <div
               v-for="marker in marchingMarkers"
               :key="marker.id"
-              class="march-marker"
+              class="march-marker march-marker--clickable"
               :class="{ 'march-marker--returning': marker.isReturning }"
               :style="markerStyle(marker)"
-              :title="marker.isReturning ? 'Retour vers le village' : 'Troupes en marche'"
+              :title="marker.title"
+              @click="selectTile(marker.focusTileId)"
             >
               <span class="march-marker-badge">{{ marker.isReturning ? '↩️' : '🪖' }}</span>
             </div>
 
-            <!-- Badge des menaces ennemies en approche -->
+            <!-- Badge des menaces ennemies en approche — cliquable : ouvre la
+                 fiche de la forteresse hostile responsable du raid -->
             <div
               v-for="threat in enemyThreats"
               :key="`threat-badge-${threat.id}`"
-              class="march-marker march-marker--enemy"
+              class="march-marker march-marker--enemy march-marker--clickable"
               :style="markerStyle(threat)"
-              :title="`Attaque ennemie dans ${Math.ceil(threat.msRemaining / 1000)}s`"
+              :title="threat.title"
+              @click="selectTile(threat.id)"
             >
               <span class="march-marker-badge">💀</span>
             </div>
@@ -224,8 +258,10 @@ import {
   HOSTILE_ATTACK_INTERVAL_MS,
 } from '../../stores/mapStore'
 import { useMapViewport, ZOOM_PRESETS } from '../../composables/useMapViewport'
+import { useGameStore } from '../../stores/gameStore'
 import { gameSettings } from '../../stores/gameSettingsStore'
 import { GARRISON_REGEN_DURATION_MS } from '../../config'
+import { formatDuration } from '../../utils/formatDuration'
 import SectionLabel from '@/components/ui/SectionLabel.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import Button from '@/components/ui/Button.vue'
@@ -254,6 +290,7 @@ const emit = defineEmits<{
 
 // Store
 const mapStore = useMapStore()
+const gameStore = useGameStore()
 
 // Composables
 const {
@@ -264,10 +301,19 @@ const {
   panFraction,
   setZoomPreset,
   centerOnPlayer,
+  centerOnTile,
   startPan,
   handlePan,
   endPan,
 } = useMapViewport()
+
+/** Stock de fragments de carte du joueur — affiché dans les bulles de cadran verrouillé */
+const mapFragments = computed(() => gameStore.gameState.inventory.mapFragments)
+
+/** Tuile actuellement sélectionnée (si fournie par le parent) — pour le bouton de recentrage */
+const selectedTileForCenter = computed(() =>
+  props.selectedTileId ? (mapStore.getTileById(props.selectedTileId) ?? null) : null,
+)
 
 const isLoading = ref(false)
 
@@ -497,6 +543,10 @@ interface MarchingMarker {
   x: number
   y: number
   isReturning: boolean
+  /** Case d'intérêt du mouvement : cible en aller, case quittée en retour (clic sur le badge) */
+  focusTileId: string
+  /** Tooltip : destination + temps restant */
+  title: string
 }
 
 /** Position interpolée de chaque mouvement de troupes actif, entre sa case source et sa case cible */
@@ -512,11 +562,17 @@ const marchingMarkers = computed<MarchingMarker[]>(() => {
     const progress =
       duration <= 0 ? 1 : Math.min(1, Math.max(0, (now - movement.departureTime) / duration))
 
+    const remaining = formatDuration(Math.max(0, movement.arrivalTime - now))
+    const isReturning = !!movement.isReturning
     result.push({
       id: movement.id,
       x: source.position.x + (target.position.x - source.position.x) * progress,
       y: source.position.y + (target.position.y - source.position.y) * progress,
-      isReturning: !!movement.isReturning,
+      isReturning,
+      focusTileId: isReturning ? movement.sourceTileId : movement.targetTileId,
+      title: isReturning
+        ? `Retour vers le village — arrivée dans ${remaining}`
+        : `Troupes en marche vers ${mapStore.getTileName(target.type)} (${target.position.x}, ${target.position.y}) — arrivée dans ${remaining}`,
     })
   }
   return result
@@ -590,6 +646,8 @@ interface EnemyThreat {
   isReturning: boolean
   d: string
   msRemaining: number
+  /** Tooltip : forteresse d'origine + compte à rebours + affordance de clic */
+  title: string
 }
 
 /**
@@ -610,13 +668,15 @@ const enemyThreats = computed<EnemyThreat[]>(() => {
     const departureTime = zone.nextAttackAt - HOSTILE_ATTACK_INTERVAL_MS
     const progress = Math.min(1, Math.max(0, (now - departureTime) / HOSTILE_ATTACK_INTERVAL_MS))
 
+    const msRemaining = Math.max(0, zone.nextAttackAt - now)
     result.push({
       id: zone.fortressTileId,
       x: fortress.position.x + (home.x - fortress.position.x) * progress,
       y: fortress.position.y + (home.y - fortress.position.y) * progress,
       isReturning: false,
       d: curvedPathD(fortress.position.x, fortress.position.y, home.x, home.y),
-      msRemaining: Math.max(0, zone.nextAttackAt - now),
+      msRemaining,
+      title: `Raid ennemi depuis la forteresse (${fortress.position.x}, ${fortress.position.y}) — impact dans ${Math.ceil(msRemaining / 1000)}s — cliquer pour voir la forteresse`,
     })
   }
   return result
@@ -654,6 +714,26 @@ const getTileClasses = (tile: MapTile) => {
 
 const selectTile = (tileId: string) => emit('selectTile', tileId)
 const getTileIcon = (type: MapTile['type']) => mapStore.getTileIcon(type)
+
+/** Libellés français des états d'hostilité — pour les tooltips de tuile */
+const HOSTILITY_TITLE_LABELS: Record<HostilityState, string> = {
+  neutral: 'zone d’influence neutre',
+  warned: 'zone d’influence avertie',
+  hostile: 'zone d’influence HOSTILE',
+}
+
+/** Tooltip d'une tuile : nom du terrain + coordonnées + état d'influence connu.
+    Rien sur les cadrans verrouillés (le brouillard ne doit pas fuiter d'info). */
+const tileTitle = (tile: MapTile): string => {
+  if (isChunkLocked(tile) && !gameSettings.disableFogOfWar) return ''
+  if (!tile.explored && !gameSettings.disableFogOfWar)
+    return `(${tile.position.x}, ${tile.position.y}) — inexploré`
+  let title = `${mapStore.getTileName(tile.type)} (${tile.position.x}, ${tile.position.y})`
+  if (tile.hasTreasure) title += ' — 💎 trésor à fouiller'
+  const influence = influenceZoneMap.value.get(tile.id)
+  if (influence) title += ` — ${HOSTILITY_TITLE_LABELS[influence]}`
+  return title
+}
 
 /** Retourne l'identifiant du cadran de la tuile */
 const getChunkIdForTile = (tile: MapTile): string =>
@@ -842,6 +922,7 @@ const influenceZoneMap = computed(() => {
 .map-viewport--iso .tile-icon,
 .map-viewport--iso .current-marker,
 .map-viewport--iso .garrison-regen-badge,
+.map-viewport--iso .treasure-badge,
 .map-viewport--iso .march-marker-badge,
 .map-viewport--iso .chunk-bubble-inner {
   transform: rotateZ(calc(-1 * var(--iso-z, 45deg))) scaleY(var(--iso-unsquash, 1.74));
@@ -1101,6 +1182,30 @@ const influenceZoneMap = computed(() => {
   line-height: 1;
 }
 
+/* Trésor de ruines encore fouillable — même gabarit que le badge de régénération */
+.treasure-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: clamp(8px, 1.2vw, 11px);
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 3px;
+  padding: 0 2px;
+  z-index: 5;
+  line-height: 1;
+  animation: treasure-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes treasure-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
 @keyframes regen-spin {
   0% {
     opacity: 1;
@@ -1144,6 +1249,13 @@ const influenceZoneMap = computed(() => {
     left 0.2s linear,
     top 0.2s linear;
   z-index: 2;
+}
+
+/* Marqueur cliquable : ré-active les événements que l'overlay parent désactive
+   (pointer-events: none) pour laisser passer les clics vers les tuiles ailleurs */
+.march-marker--clickable {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 /* Badge circulaire autour de l'icône — la rend lisible sur n'importe quel fond de tuile.
@@ -1333,6 +1445,18 @@ const influenceZoneMap = computed(() => {
     0 8px 22px rgba(var(--color-black-rgb), 0.45),
     0 0 18px rgba(var(--map-gold-rgb), 0.3),
     inset 0 0 12px rgba(var(--map-gold-rgb), 0.08);
+}
+
+/* Aucun fragment en stock : la bulle reste visible mais signale l'impossibilité */
+.chunk-locked-bubble--nofragment {
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+  opacity: 0.75;
+}
+
+.chunk-locked-bubble--nofragment .chunk-bubble-hint {
+  color: var(--color-warning);
+  font-style: normal;
 }
 
 .chunk-bubble-inner {

@@ -3,6 +3,7 @@ import { debounce } from '@/utils/debounce'
 import { useGameStore } from './gameStore'
 import { useMapStore, TERRAIN_MOVE_COST } from './mapStore'
 import type { SavedBattleReport } from '../combat/types'
+import { registerUnitRole, type Role } from '../combat/roles'
 import { BUILDING_DEFINITIONS, getBuildingUpgrade, getHQLevel } from '../data/buildings'
 import type { BuildingType } from '../data/buildings'
 import {
@@ -12,7 +13,9 @@ import {
   CAPACITY_PER_HQ_LEVEL,
 } from '../config'
 import { gameSettings } from './gameSettingsStore'
+import { registerPressureClock } from '@/game/timePressure'
 import { useToastStore } from './toastStore'
+import router from '@/router'
 
 /**
  * Capacité de stockage par ressource selon le niveau du Bâtiment Principal.
@@ -53,7 +56,7 @@ export interface MissionBuilding {
 // Unités militaires
 export interface MilitaryUnit {
   id: string
-  type: 'infantry' | 'archer' | 'cavalry' | 'siege'
+  type: string // id d'unité : générique ('infantry'…) ou spécifique à une race ('roman_legionnaire'…)
   count: number
   attack: number
   defense: number
@@ -71,10 +74,14 @@ export interface UnitDefinition {
   stats: { attack: number; defense: number; health: number }
   baseTrainingTime: number // secondes pour 1 unité, caserne niveau 1
   barrackLevelRequired: number
+  /** Rôle tactique (déclenche le triangle de contres, voir src/combat/roles.ts) */
+  role: Role
+  /** Race à laquelle cette unité est réservée, ou `null` pour les unités génériques (PNJ/ennemis) */
+  raceId: string | null
 }
 
 // Source unique de vérité — toute la config des unités est ici
-export const UNIT_DEFINITIONS: Record<MilitaryUnit['type'], UnitDefinition> = {
+export const UNIT_DEFINITIONS: Record<string, UnitDefinition> = {
   infantry: {
     type: 'infantry',
     name: 'Infanterie',
@@ -83,6 +90,8 @@ export const UNIT_DEFINITIONS: Record<MilitaryUnit['type'], UnitDefinition> = {
     stats: { attack: 40, defense: 35, health: 100 },
     baseTrainingTime: 10, // secondes
     barrackLevelRequired: 1,
+    role: 'infantry',
+    raceId: null,
   },
   archer: {
     type: 'archer',
@@ -92,6 +101,8 @@ export const UNIT_DEFINITIONS: Record<MilitaryUnit['type'], UnitDefinition> = {
     stats: { attack: 25, defense: 15, health: 80 },
     baseTrainingTime: 15,
     barrackLevelRequired: 2,
+    role: 'archer',
+    raceId: null,
   },
   cavalry: {
     type: 'cavalry',
@@ -101,6 +112,8 @@ export const UNIT_DEFINITIONS: Record<MilitaryUnit['type'], UnitDefinition> = {
     stats: { attack: 100, defense: 50, health: 150 },
     baseTrainingTime: 30,
     barrackLevelRequired: 3,
+    role: 'cavalry',
+    raceId: null,
   },
   siege: {
     type: 'siege',
@@ -110,8 +123,158 @@ export const UNIT_DEFINITIONS: Record<MilitaryUnit['type'], UnitDefinition> = {
     stats: { attack: 200, defense: 20, health: 300 },
     baseTrainingTime: 90,
     barrackLevelRequired: 5,
+    role: 'siege',
+    raceId: null,
+  },
+
+  // --- Unités spécifiques aux races (voir plan de refonte du combat) ---
+  // Gaulois — équilibrés et rapides, coût neutre, aucune faiblesse flagrante.
+  gaul_phalange: {
+    type: 'gaul_phalange',
+    name: 'Phalange',
+    icon: '🛡️',
+    cost: { wood: 20, clay: 10, iron: 30, crop: 15 },
+    stats: { attack: 40, defense: 40, health: 100 },
+    baseTrainingTime: 10,
+    barrackLevelRequired: 1,
+    role: 'infantry',
+    raceId: 'gauls',
+  },
+  gaul_franc_archer: {
+    type: 'gaul_franc_archer',
+    name: 'Franc-archer',
+    icon: '🏹',
+    cost: { wood: 24, clay: 12, iron: 19, crop: 15 },
+    stats: { attack: 30, defense: 20, health: 85 },
+    baseTrainingTime: 12,
+    barrackLevelRequired: 2,
+    role: 'archer',
+    raceId: 'gauls',
+  },
+  gaul_foudre: {
+    type: 'gaul_foudre',
+    name: 'Foudre gauloise',
+    icon: '🐎',
+    cost: { wood: 47, clay: 28, iron: 57, crop: 38 },
+    stats: { attack: 95, defense: 45, health: 140 },
+    baseTrainingTime: 28,
+    barrackLevelRequired: 3,
+    role: 'cavalry',
+    raceId: 'gauls',
+  },
+  gaul_belier: {
+    type: 'gaul_belier',
+    name: 'Bélier gaulois',
+    icon: '🏰',
+    cost: { wood: 94, clay: 76, iron: 113, crop: 57 },
+    stats: { attack: 190, defense: 25, health: 280 },
+    baseTrainingTime: 80,
+    barrackLevelRequired: 5,
+    role: 'siege',
+    raceId: 'gauls',
+  },
+
+  // Romains — chers et lents, mais plus que proportionnellement puissants.
+  roman_legionnaire: {
+    type: 'roman_legionnaire',
+    name: 'Légionnaire',
+    icon: '🛡️',
+    cost: { wood: 25, clay: 13, iron: 38, crop: 19 },
+    stats: { attack: 46, defense: 55, health: 120 },
+    baseTrainingTime: 13,
+    barrackLevelRequired: 1,
+    role: 'infantry',
+    raceId: 'romans',
+  },
+  roman_sagittaire: {
+    type: 'roman_sagittaire',
+    name: 'Sagittaire',
+    icon: '🏹',
+    cost: { wood: 33, clay: 17, iron: 28, crop: 22 },
+    stats: { attack: 42, defense: 32, health: 110 },
+    baseTrainingTime: 18,
+    barrackLevelRequired: 2,
+    role: 'archer',
+    raceId: 'romans',
+  },
+  roman_cavalier_lourd: {
+    type: 'roman_cavalier_lourd',
+    name: 'Cavalier lourd',
+    icon: '🐎',
+    cost: { wood: 64, clay: 38, iron: 77, crop: 51 },
+    stats: { attack: 125, defense: 65, health: 170 },
+    baseTrainingTime: 38,
+    barrackLevelRequired: 3,
+    role: 'cavalry',
+    raceId: 'romans',
+  },
+  roman_onagre: {
+    type: 'roman_onagre',
+    name: 'Onagre romain',
+    icon: '🏰',
+    cost: { wood: 117, clay: 93, iron: 140, crop: 70 },
+    stats: { attack: 230, defense: 30, health: 330 },
+    baseTrainingTime: 105,
+    barrackLevelRequired: 5,
+    role: 'siege',
+    raceId: 'romans',
+  },
+
+  // Germains — bon marché et rapides à produire, mais fragiles (surtout en défense).
+  german_guerrier: {
+    type: 'german_guerrier',
+    name: 'Guerrier',
+    icon: '🛡️',
+    cost: { wood: 15, clay: 7, iron: 22, crop: 11 },
+    stats: { attack: 42, defense: 20, health: 90 },
+    baseTrainingTime: 7,
+    barrackLevelRequired: 1,
+    role: 'infantry',
+    raceId: 'germans',
+  },
+  german_chasseur: {
+    type: 'german_chasseur',
+    name: 'Chasseur',
+    icon: '🏹',
+    cost: { wood: 15, clay: 8, iron: 12, crop: 10 },
+    stats: { attack: 25, defense: 10, health: 65 },
+    baseTrainingTime: 9,
+    barrackLevelRequired: 2,
+    role: 'archer',
+    raceId: 'germans',
+  },
+  german_cavalier_hache: {
+    type: 'german_cavalier_hache',
+    name: 'Cavalier-hache',
+    icon: '🐎',
+    cost: { wood: 36, clay: 22, iron: 43, crop: 29 },
+    stats: { attack: 105, defense: 25, health: 120 },
+    baseTrainingTime: 20,
+    barrackLevelRequired: 3,
+    role: 'cavalry',
+    raceId: 'germans',
+  },
+  german_belier: {
+    type: 'german_belier',
+    name: 'Bélier germain',
+    icon: '🏰',
+    cost: { wood: 69, clay: 56, iron: 83, crop: 42 },
+    stats: { attack: 170, defense: 12, health: 220 },
+    baseTrainingTime: 55,
+    barrackLevelRequired: 4,
+    role: 'siege',
+    raceId: 'germans',
   },
 }
+
+// Synchronise le registre de rôles (src/combat/roles.ts) avec UNIT_DEFINITIONS,
+// pour que le moteur de combat (qui ne connaît que les rôles, pas les races)
+// reconnaisse aussi bien les 4 unités génériques que les 12 unités de race.
+Object.values(UNIT_DEFINITIONS).forEach((def) => registerUnitRole(def.type, def.role))
+
+/** Retourne les 4 unités entraînables par une race donnée (pour la caserne). */
+export const getUnitDefinitionsForRace = (raceId: string): UnitDefinition[] =>
+  Object.values(UNIT_DEFINITIONS).filter((def) => def.raceId === raceId)
 
 /**
  * Calcule le temps de construction d'une unité selon le niveau de la caserne.
@@ -173,6 +336,14 @@ export interface MissionState {
   lastUpdateTime: number
   /** Temps in-game cumulé en ms (plafonne le temps offline) */
   gameElapsedMs: number
+  /**
+   * Temps de jeu RÉELLEMENT ACTIF en ms — n'avance que pendant que le joueur joue
+   * (les absences, même courtes, ne comptent pas, contrairement à gameElapsedMs
+   * qui crédite jusqu'à MAX_OFFLINE_MS au retour). Pilote la pression du temps :
+   * fermer le jeu ne fait jamais monter la menace. Absent d'une vieille
+   * sauvegarde → 0, la pression repart de zéro.
+   */
+  pressureElapsedMs: number
 
   isTransitioning: boolean
   battleReports: SavedBattleReport[]
@@ -203,21 +374,49 @@ const computeBaseProduction = (
 /**
  * Nombre d'infanterie de départ. 100 en mode triche debug (pratique pour tester le combat
  * sans attendre), sinon une petite garnison de départ raisonnable — voir gameSettingsStore.ts.
+ * S'y ajoutent les bonus des artefacts actifs portant le pouvoir 'starting_garrison_bonus'
+ * (artefacts de puissances variées — voir ARTIFACT_POOL dans src/data/artifacts.ts).
  */
-const getStartingInfantryCount = (): number => (gameSettings.cheatStartingGarrison ? 100 : 10)
+const computeStartingGarrisonCount = (): number => {
+  const base = gameSettings.cheatStartingGarrison ? 100 : 10
+  const inventory = useGameStore().gameState.inventory
+  const artifactBonus = inventory.artifacts
+    .filter((a) => inventory.activeArtifacts.includes(a.id))
+    .reduce(
+      (sum, a) =>
+        sum + (a.specialPower?.type === 'starting_garrison_bonus' ? a.specialPower.value : 0),
+      0,
+    )
+  return base + artifactBonus
+}
 
-const createStartingUnits = (): MilitaryUnit[] => [
-  {
-    id: 'infantry-start',
-    type: 'infantry',
-    count: getStartingInfantryCount(),
-    attack: UNIT_DEFINITIONS.infantry.stats.attack,
-    defense: UNIT_DEFINITIONS.infantry.stats.defense,
-    health: UNIT_DEFINITIONS.infantry.stats.health,
-    cost: UNIT_DEFINITIONS.infantry.cost,
-    trainingTime: UNIT_DEFINITIONS.infantry.baseTrainingTime,
-  },
-]
+/**
+ * Garnison de départ : injectée UNE seule fois par ville fraîche, via resetMissionState()
+ * uniquement — jamais au chargement d'une sauvegarde. Une garnison vide est un état légitime
+ * (toutes les troupes parties en mouvement) : la ré-injecter au load dupliquait les soldats
+ * offerts à chaque rechargement de page (bug "les 10 soldats reviennent").
+ * L'unité est l'infanterie de la race du joueur (générique 'infantry' si aucune race —
+ * ex. tout premier chargement de l'app).
+ */
+const createStartingUnits = (raceId: string | null, count: number): MilitaryUnit[] => {
+  if (count <= 0) return []
+  const startingDef =
+    (raceId && getUnitDefinitionsForRace(raceId).find((def) => def.role === 'infantry')) ||
+    UNIT_DEFINITIONS.infantry
+
+  return [
+    {
+      id: 'infantry-start',
+      type: startingDef.type,
+      count,
+      attack: startingDef.stats.attack,
+      defense: startingDef.stats.defense,
+      health: startingDef.stats.health,
+      cost: startingDef.cost,
+      trainingTime: startingDef.baseTrainingTime,
+    },
+  ]
+}
 
 /**
  * Bâtiments de départ d'une ville fraîche (nouvelle partie ou mission suivante).
@@ -286,14 +485,25 @@ const initialState: MissionState = {
     // s'additionnent jamais" dans l'onglet Ressources).
     production: computeBaseProduction(createStartingBuildings()),
     buildings: createStartingBuildings(),
-    units: createStartingUnits(),
+    // PAS de garnison par défaut ici : les soldats de départ sont injectés une
+    // seule fois par resetMissionState() quand une partie démarre réellement
+    // (voir gameStore.startNewGame) — jamais par l'état initial ni par le load.
+    units: [],
     trainingQueue: [],
   },
   lastUpdateTime: Date.now(),
   gameElapsedMs: 0,
+  pressureElapsedMs: 0,
   isTransitioning: false,
   battleReports: [],
 }
+
+/**
+ * Au-delà de ce delta entre deux ticks, le joueur était absent (onglet caché,
+ * jeu fermé…) : le temps ne compte pas comme du jeu actif pour la pression.
+ * Les ticks normaux arrivent toutes les ~1 s, la marge est donc très large.
+ */
+const ACTIVE_PLAY_DELTA_MAX_MS = 60_000
 
 // Store réactif
 const missionState = reactive<MissionState>({ ...initialState })
@@ -451,12 +661,17 @@ export const useMissionStore = () => {
         lastCapacityToastAt = now
         useToastStore().showInfo(
           '⚠️ Stockage plein — améliorez votre Bâtiment Principal pour augmenter la capacité !',
-          { duration: 3000 },
+          { duration: 3000, onClick: () => router.push({ name: 'campaign-village' }) },
         )
       }
 
       // Avancer le temps in-game (plafondé)
       missionState.gameElapsedMs += cappedDeltaMs
+      // Temps de jeu actif (pression du temps) : les absences ne comptent pas —
+      // seule la présence réelle du joueur fait monter la menace des villages IA
+      if (realDeltaMs <= ACTIVE_PLAY_DELTA_MAX_MS) {
+        missionState.pressureElapsedMs += realDeltaMs
+      }
       missionState.lastUpdateTime = now
 
       displayTrigger.timestamp = now
@@ -471,6 +686,11 @@ export const useMissionStore = () => {
     const realDelta = Date.now() - (missionState.lastUpdateTime || Date.now())
     return missionState.gameElapsedMs + Math.min(realDelta, MAX_OFFLINE_MS)
   }
+
+  // Pression du temps : le compteur de jeu ACTIF pilote la croissance des villages IA
+  // (jamais getGameTimestamp, qui crédite jusqu'à 2 h d'absence au retour).
+  // Injection nécessaire — timePressure est importé par mapStore, que ce store importe.
+  registerPressureClock(() => missionState.pressureElapsedMs)
 
   // --- Rapports de bataille ---
 
@@ -944,6 +1164,7 @@ export const useMissionStore = () => {
       },
       lastUpdateTime: missionState.lastUpdateTime,
       gameElapsedMs: missionState.gameElapsedMs,
+      pressureElapsedMs: missionState.pressureElapsedMs,
       battleReports: missionState.battleReports,
     }
     localStorage.setItem('novavian-missions', JSON.stringify(data))
@@ -957,6 +1178,11 @@ export const useMissionStore = () => {
   const flushMissionState = () => debouncedWriteMissionState.flush()
 
   const loadMissionState = () => {
+    // Écrire d'abord toute sauvegarde en attente : ce load est appelé en cours de partie
+    // (montage de CampaignLayout / ReportsView) et la sauvegarde est débouncée (400ms) —
+    // sans flush, on relirait un localStorage périmé et on ressusciterait des troupes
+    // déjà parties en mouvement.
+    flushMissionState()
     const saved = localStorage.getItem('novavian-missions')
     if (saved) {
       try {
@@ -971,15 +1197,23 @@ export const useMissionStore = () => {
           if (!missionState.town.trainingQueue) {
             missionState.town.trainingQueue = []
           }
-          // Migration : s'assurer que l'infanterie de départ est présente
-          if (!missionState.town.units || missionState.town.units.length === 0) {
-            missionState.town.units = createStartingUnits()
+          // Migration anciens saves : champ `units` absent. Surtout NE PAS ré-injecter
+          // quand le tableau existe mais est vide — une garnison vide est légitime
+          // (toutes les troupes en mouvement) et ré-injecter ici faisait revenir les
+          // soldats offerts à chaque rechargement de page.
+          if (!missionState.town.units) {
+            missionState.town.units = createStartingUnits(
+              useGameStore().gameState.race?.id ?? null,
+              computeStartingGarrisonCount(),
+            )
           }
         }
 
         if (data.gameElapsedMs !== undefined) {
           missionState.gameElapsedMs = data.gameElapsedMs
         }
+        // Vieux saves sans ce champ → 0 : la pression du temps repart de zéro
+        missionState.pressureElapsedMs = data.pressureElapsedMs ?? 0
         if (data.battleReports) {
           missionState.battleReports = data.battleReports
         }
@@ -1012,11 +1246,16 @@ export const useMissionStore = () => {
         // Dérivée des bâtiments ci-dessus — voir computeBaseProduction
         production: computeBaseProduction(freshBuildings),
         buildings: freshBuildings,
-        units: createStartingUnits(),
+        // Seul point d'injection de la garnison de départ (une fois par ville fraîche).
+        units: createStartingUnits(
+          useGameStore().gameState.race?.id ?? null,
+          computeStartingGarrisonCount(),
+        ),
         trainingQueue: [],
       },
       lastUpdateTime: Date.now(),
       gameElapsedMs: 0,
+      pressureElapsedMs: 0,
       isTransitioning: false,
       battleReports: [],
     }

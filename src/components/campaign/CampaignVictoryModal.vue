@@ -79,6 +79,14 @@
     </div>
 
     <template #footer>
+      <Button
+        v-if="nodeRewardArtifact"
+        variant="secondary"
+        title="Équiper la relique gagnée"
+        @click="emit('goInventory')"
+      >
+        🎒 Voir dans l'inventaire
+      </Button>
       <Button @click="emit('close')">Continuer l'aventure →</Button>
     </template>
   </BaseDialog>
@@ -110,7 +118,7 @@ const props = defineProps<{
   artifactBonuses: ArtifactBonus[]
 }>()
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; goInventory: [] }>()
 
 const totalGold = computed(() => {
   let total = props.bonusGold + props.nodeRewardGold

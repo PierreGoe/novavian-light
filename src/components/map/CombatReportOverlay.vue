@@ -22,6 +22,18 @@
             <div class="banner-text">
               <h2 class="banner-title">{{ bannerTitle }}</h2>
               <p class="banner-subtitle">{{ bannerSubtitle }}</p>
+              <!-- Lieu du combat (rapports sauvegardés uniquement) — cliquable
+                   vers la fiche de la case sur la carte -->
+              <button
+                v-if="reportTile"
+                type="button"
+                class="banner-location"
+                title="Voir la case sur la carte"
+                @click="goToTile"
+              >
+                📍 {{ reportTileName }} ({{ reportTile.position.x }},
+                {{ reportTile.position.y }}) →
+              </button>
             </div>
           </div>
           <div class="banner-fade-bottom"></div>
@@ -142,9 +154,14 @@
             <span>🏜️ Village vide — aucune ressource à piller</span>
           </div>
 
-          <Button class="report-close-btn" variant="secondary" @click="emit('close')"
-            >Fermer</Button
-          >
+          <div class="report-footer">
+            <Button class="report-close-btn" variant="secondary" @click="emit('close')"
+              >Fermer</Button
+            >
+            <button type="button" class="report-all-link" @click="goToReports">
+              📜 Voir tous les rapports
+            </button>
+          </div>
         </div>
       </section>
     </div>
@@ -153,13 +170,43 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import type { CombatReport, SavedBattleReport } from '../../combat/types'
 import { UNIT_DEFINITIONS } from '../../stores/missionStore'
+import { useMapStore } from '../../stores/mapStore'
 import Badge from '@/components/ui/Badge.vue'
 import SectionLabel from '@/components/ui/SectionLabel.vue'
 import Button from '@/components/ui/Button.vue'
 
 const props = defineProps<{ report: CombatReport | SavedBattleReport | null }>()
+
+const router = useRouter()
+const mapStore = useMapStore()
+
+/** Tuile du combat — disponible uniquement sur un SavedBattleReport (tileId) */
+const reportTile = computed(() => {
+  if (!props.report || !('tileId' in props.report) || !props.report.tileId) return null
+  return mapStore.getTileById(props.report.tileId) ?? null
+})
+
+/** Nom de la cible tel qu'enregistré dans le rapport sauvegardé */
+const reportTileName = computed(() =>
+  props.report && 'tileName' in props.report ? props.report.tileName : '',
+)
+
+/** Ouvre la fiche de la case du combat sur la carte */
+const goToTile = () => {
+  if (!reportTile.value) return
+  mapStore.selectTile(reportTile.value.id)
+  router.push({ name: 'campaign-map' })
+  emit('close')
+}
+
+/** Bascule vers l'historique complet des rapports */
+const goToReports = () => {
+  router.push({ name: 'reports' })
+  emit('close')
+}
 
 // Focus posé sur le fond dès l'ouverture, pour que la touche Échap soit captée
 const backdropRef = ref<HTMLElement | null>(null)
@@ -440,6 +487,25 @@ const lootTotal = computed(() => {
   font-style: italic;
 }
 
+/* Lieu du combat — lien posé sur la bannière sombre : couleurs fixes (HUD),
+   indépendantes du thème clair, comme le reste de la vignette */
+.banner-location {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.banner-location:hover {
+  color: #ffffff;
+}
+
 .banner-fade-bottom {
   position: absolute;
   bottom: 0;
@@ -572,10 +638,34 @@ const lootTotal = computed(() => {
   flex-shrink: 0;
 }
 
+.report-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
 .report-close-btn {
   display: block;
   width: 100%;
-  margin-top: 20px;
+}
+
+/* Lien secondaire vers l'historique complet des rapports */
+.report-all-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.report-all-link:hover {
+  filter: brightness(1.15);
 }
 
 .slide-fade-enter-active,

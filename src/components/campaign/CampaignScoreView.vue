@@ -9,6 +9,7 @@
       :node-reward-artifact="pendingNodeRewardArtifact"
       :artifact-bonuses="pendingArtifactBonuses"
       @close="onModalClose"
+      @go-inventory="onModalGoInventory"
     />
     <ConfirmDialog
       v-model:open="showCompleteConfirm"
@@ -46,8 +47,12 @@
             <Badge tone="accent">📜 Accès à la prochaine mission</Badge>
           </div>
           <div class="victory-actions">
-            <Button :disabled="completing" @click="handleComplete">
-              🏁 Valider et terminer la campagne
+            <Button
+              :disabled="completing"
+              :title="completing ? 'Distribution des récompenses en cours' : undefined"
+              @click="handleComplete"
+            >
+              {{ completing ? '⏳ Validation…' : '🏁 Valider et terminer la campagne' }}
             </Button>
             <Button v-if="!continuing" variant="secondary" @click="continuing = true">
               ⚔️ Continuer quand même
@@ -63,8 +68,13 @@
     <!-- Bouton "Terminer" persistant si le joueur a choisi de continuer -->
     <div v-if="objectiveReached && continuing" class="finish-bar">
       <span>🏆 Objectif atteint — tu joues en mode libre</span>
-      <Button size="sm" :disabled="completing" @click="handleComplete">
-        🏁 Terminer la campagne
+      <Button
+        size="sm"
+        :disabled="completing"
+        :title="completing ? 'Distribution des récompenses en cours' : undefined"
+        @click="handleComplete"
+      >
+        {{ completing ? '⏳ Validation…' : '🏁 Terminer la campagne' }}
       </Button>
     </div>
 
@@ -103,7 +113,10 @@
             <span class="src-icon">⚔️</span>
             <span class="src-label"
               >Victoire en combat
-              <em class="src-cap">(max {{ COMBAT_VICTORY_VP_CAP }} PV au total)</em></span
+              <em class="src-cap"
+                >({{ victoryPointsDetail.combatVictoryVp }}/{{ COMBAT_VICTORY_VP_CAP }} PV du
+                plafond déjà obtenus)</em
+              ></span
             >
             <span class="src-pts">+1 PV</span>
           </li>
@@ -111,7 +124,10 @@
             <span class="src-icon">🏚️</span>
             <span class="src-label"
               >Village ennemi détruit
-              <em class="src-cap">(max {{ VILLAGE_VP_CAP }} PV au total)</em></span
+              <em class="src-cap"
+                >({{ victoryPointsDetail.villageVp }}/{{ VILLAGE_VP_CAP }} PV du plafond déjà
+                obtenus)</em
+              ></span
             >
             <span class="src-pts">+2 PV</span>
           </li>
@@ -179,14 +195,22 @@
       />
 
       <DataTable v-else :headers="['Type', 'Action', 'Date', 'PV']">
-        <tr v-for="event in history" :key="event.id">
+        <tr
+          v-for="event in history"
+          :key="event.id"
+          :class="{ 'hist-row--link': eventTile(event) }"
+          :title="eventTile(event) ? 'Voir la case sur la carte' : undefined"
+          @click="viewEventOnMap(event)"
+        >
           <td>
             <span class="hist-icon" role="img" :aria-label="getTypeLabel(event.type)">{{
               getTypeIcon(event.type)
             }}</span>
           </td>
           <td class="hist-reason">{{ event.reason }}</td>
-          <td class="hist-date">{{ formatDate(event.date) }}</td>
+          <td class="hist-date" :title="formatDateFull(event.date)">
+            {{ formatDate(event.date) }}
+          </td>
           <td class="hist-pts">+{{ event.amount }}</td>
         </tr>
       </DataTable>
@@ -195,7 +219,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   useGameStore,
@@ -203,8 +227,8 @@ import {
   VILLAGE_VP_CAP,
   COMBAT_VICTORY_VP_CAP,
 } from '@/stores/gameStore'
-import type { VictoryPointType, Artifact } from '@/stores/gameStore'
-import { useToastStore } from '@/stores/toastStore'
+import type { VictoryPointType, VictoryEvent, Artifact } from '@/stores/gameStore'
+import { useMapStore } from '@/stores/mapStore'
 import CampaignVictoryModal from './CampaignVictoryModal.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import Button from '@/components/ui/Button.vue'
@@ -218,7 +242,13 @@ const CAMPAIGN_BONUS_GOLD = 100
 
 const router = useRouter()
 const gameStore = useGameStore()
-const toastStore = useToastStore()
+const mapStore = useMapStore()
+
+// La vue est hors de CampaignLayout : charger la carte si nécessaire pour
+// pouvoir localiser les gains de PV liés à une tuile (sans écraser un état chargé).
+onMounted(() => {
+  if (mapStore.mapState.mapTiles.length === 0) mapStore.loadMapState()
+})
 
 const continuing = ref(false)
 
@@ -238,9 +268,25 @@ interface ArtifactBonus {
 const pendingArtifactBonuses = ref<ArtifactBonus[]>([])
 
 const totalCombatVP = computed(() => gameStore.victoryPoints.value.combat)
+const victoryPointsDetail = computed(() => gameStore.victoryPoints.value)
 const objectiveReached = computed(() => gameStore.campaignObjectiveReached.value)
 const combatDone = computed(() => totalCombatVP.value >= COMBAT_VP_GOAL)
 const history = computed(() => gameStore.victoryHistory.value)
+
+// --- Localisation d'un gain de PV sur la carte ---
+// tileId est un champ optionnel récent de VictoryEvent : les anciens événements
+// persistés n'en ont pas — accès défensif via un cast local.
+const eventTile = (event: VictoryEvent) => {
+  const tileId = (event as { tileId?: string }).tileId
+  return tileId ? mapStore.getTileById(tileId) : undefined
+}
+
+const viewEventOnMap = (event: VictoryEvent) => {
+  const tile = eventTile(event)
+  if (!tile) return
+  mapStore.selectTile(tile.id)
+  router.push({ name: 'campaign-map' })
+}
 
 // Récompense promise par le node actuel
 const currentNodeReward = computed(() => {
@@ -317,6 +363,13 @@ function onModalClose() {
   router.push('/mission-tree')
 }
 
+// Variante « voir la relique » : même fermeture, mais direction l'inventaire
+function onModalGoInventory() {
+  showVictoryModal.value = false
+  completing.value = false
+  router.push({ name: 'inventory' })
+}
+
 function getTypeIcon(type: VictoryPointType): string {
   return type === 'combat' ? '⚔️' : '🏆'
 }
@@ -331,6 +384,19 @@ function formatDate(iso: string): string {
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+  })
+}
+
+/** Date complète (avec année et secondes) — affichée au survol de la colonne Date */
+function formatDateFull(iso: string): string {
+  return new Date(iso).toLocaleString('fr-FR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   })
 }
 </script>
@@ -566,6 +632,15 @@ function formatDate(iso: string): string {
   font-weight: 700;
   color: var(--color-danger);
   text-align: right;
+}
+
+/* Ligne d'historique localisable sur la carte */
+.hist-row--link {
+  cursor: pointer;
+}
+
+.hist-row--link:hover td {
+  background: rgba(var(--color-accent-rgb), 0.06);
 }
 
 /* ── Animations ── */

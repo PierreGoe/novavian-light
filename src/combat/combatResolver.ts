@@ -7,6 +7,7 @@
 // ============================================================
 
 import type { Army, CombatReport, CombatUnit, ArmyLosses, CombatModifier } from './types'
+import { computeWeightedAttackPower, describeCounterEffect } from './roles'
 
 // --- Interface (contrat stable) ---
 
@@ -16,11 +17,17 @@ export interface ICombatResolver {
 
 // --- Helpers internes ---
 
-/** Calcule la puissance totale d'attaque d'une armée (avec modifiers) */
-function computeAttackPower(army: Army): number {
+/**
+ * Calcule la puissance totale d'attaque d'une armée face à une armée adverse
+ * (avec modifiers ET triangle des contres — voir computeWeightedAttackPower
+ * dans roles.ts). Le multiplicateur de contre dépend de la composition de
+ * `opposingArmy`, donc cette fonction est asymétrique : appeler une fois par
+ * sens (attaquant→défenseur, puis défenseur→attaquant pour la riposte).
+ */
+function computeAttackPower(army: Army, opposingArmy: Army): number {
   const { mult, flat } = aggregateModifiers(army.modifiers)
 
-  const raw = army.units.reduce((sum, u) => sum + u.attack * u.count, 0)
+  const raw = computeWeightedAttackPower(army.units, opposingArmy.units)
   return Math.max(0, Math.floor(raw * mult.attack + flat.attack))
 }
 
@@ -85,9 +92,9 @@ function computeLosses(army: Army, incomingDamage: number): ArmyLosses {
 
 class NaiveCombatResolver implements ICombatResolver {
   resolve(attacker: Army, defender: Army): CombatReport {
-    const attackPower = computeAttackPower(attacker)
+    const attackPower = computeAttackPower(attacker, defender)
     const attackDefense = computeDefensePower(attacker) // unused for now but ready
-    const defenderPower = computeAttackPower(defender) // defender's garrison attacks back
+    const defenderPower = computeAttackPower(defender, attacker) // defender's garrison attacks back
     const defenderDefense = computeDefensePower(defender)
 
     // Dégâts infligés :
@@ -110,9 +117,13 @@ class NaiveCombatResolver implements ICombatResolver {
     const attackerKilledTotal = Object.values(attackerLosses.killed).reduce((s, n) => s + n, 0)
     const defenderKilledTotal = Object.values(defenderLosses.killed).reduce((s, n) => s + n, 0)
 
-    const summary = attackerVictory
-      ? `Victoire ! Vous avez conquis ${defender.label}. Pertes : ${attackerKilledTotal} unité(s). Ennemis éliminés : ${defenderKilledTotal}.`
-      : `Défaite. ${defender.label} a repoussé l'attaque. Vous avez perdu ${attackerKilledTotal} unité(s).`
+    const counterNote = describeCounterEffect('Votre armée', attacker.units, 'leur armée', defender.units)
+
+    const summary =
+      (attackerVictory
+        ? `Victoire ! Vous avez conquis ${defender.label}. Pertes : ${attackerKilledTotal} unité(s). Ennemis éliminés : ${defenderKilledTotal}.`
+        : `Défaite. ${defender.label} a repoussé l'attaque. Vous avez perdu ${attackerKilledTotal} unité(s).`) +
+      counterNote
 
     return {
       attackerVictory,

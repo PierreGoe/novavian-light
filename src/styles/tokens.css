@@ -3,6 +3,7 @@
      accent ponctuel réservé aux vrais temps forts (CTA primaire, état actif),
      pas une teinte dominante. */
   --color-bg-canvas: #faf8f5;
+  --color-bg-canvas-rgb: 250, 248, 245;
   --color-bg-surface: #ffffff;
   --color-text: #2a1f14;
   --color-text-muted: #6b5d4d;

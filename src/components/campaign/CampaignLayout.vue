@@ -32,7 +32,9 @@
             v-for="key in TRAVIAN_RESOURCE_ORDER"
             :key="key"
             class="resource-item"
+            :class="{ 'resource-item--full': isResourceFull(key) }"
             :aria-label="TRAVIAN_RESOURCES[key].label"
+            :title="resourceTooltip(key)"
           >
             <span class="resource-icon" aria-hidden="true">{{
               TRAVIAN_RESOURCES[key].emoji
@@ -55,7 +57,15 @@
         <div class="resource-divider" role="separator" aria-orientation="vertical"></div>
 
         <div class="resource-group">
-          <div class="resource-item" :aria-label="PLAYER_RESOURCES.mapFragment.label">
+          <div
+            class="resource-item resource-item--link"
+            role="button"
+            tabindex="0"
+            :aria-label="PLAYER_RESOURCES.mapFragment.label"
+            title="Fragments de carte — révèlent un cadran verrouillé sur la carte (cliquer pour y aller)"
+            @click="router.push({ name: 'campaign-map' })"
+            @keydown.enter="router.push({ name: 'campaign-map' })"
+          >
             <span class="resource-icon" aria-hidden="true">{{
               PLAYER_RESOURCES.mapFragment.emoji
             }}</span>
@@ -76,6 +86,7 @@
       </div>
 
       <div class="header-actions">
+        <ThreatIndicator />
         <VictoryPointsDisplay />
         <div class="time-display">
           <span class="time-item" title="Temps de mission (plafonne à 2h en offline)">
@@ -111,9 +122,11 @@ import { useMapStore } from '@/stores/mapStore'
 import { useGameStore } from '@/stores/gameStore'
 import { getHQLevel } from '@/data/buildings'
 import { TRAVIAN_RESOURCES, TRAVIAN_RESOURCE_ORDER, PLAYER_RESOURCES } from '@/data/resources'
+import type { TravianResourceKey } from '@/data/resources'
 import { formatNumber } from '@/utils/formatNumber'
 import { useExplorationTicker } from '@/composables/useExplorationTicker'
 import VictoryPointsDisplay from './VictoryPointsDisplay.vue'
+import ThreatIndicator from './ThreatIndicator.vue'
 import TimersPanel from './TimersPanel.vue'
 import CombatReportOverlay from '../map/CombatReportOverlay.vue'
 import ResourceCounter from '@/components/ui/ResourceCounter.vue'
@@ -143,6 +156,30 @@ const unitsTooltip = computed(() => {
   if (units.length === 0) return 'Aucune troupe disponible'
   return units.map((u) => `${UNIT_DEFINITIONS[u.type].name} : ${u.count}`).join(' · ')
 })
+/** Vrai si la ressource est au plafond de stockage (production perdue) */
+const isResourceFull = (key: TravianResourceKey): boolean =>
+  Math.floor(missionStore.displayResources.value[key]) >= capacity.value
+
+/**
+ * Tooltip riche d'un compteur de ressource : valeurs exactes (non abrégées),
+ * taux de production et temps estimé avant stockage plein.
+ */
+const resourceTooltip = (key: TravianResourceKey): string => {
+  const exact = Math.floor(missionStore.displayResources.value[key])
+  const rate = Math.floor(town.value?.production?.[key] || 0)
+  const lines = [
+    `${TRAVIAN_RESOURCES[key].label} : ${exact.toLocaleString('fr-FR')} / ${capacity.value.toLocaleString('fr-FR')}`,
+    `Production : +${rate}/min`,
+  ]
+  if (exact >= capacity.value) {
+    lines.push('Stockage plein — production perdue')
+  } else if (rate > 0) {
+    const msUntilFull = ((capacity.value - exact) / rate) * 60_000
+    lines.push(`Plein dans ${formatDuration(msUntilFull)}`)
+  }
+  return lines.join('\n')
+}
+
 const missionDifficulty = computed(() => currentMission.value?.difficulty)
 const DIFFICULTY_TONES = {
   easy: 'success',
@@ -302,6 +339,22 @@ onUnmounted(() => {
   border-radius: 6px;
   border: 1px solid rgba(var(--color-accent-rgb), 0.3);
   line-height: 1.1;
+}
+
+/* Ressource au plafond : teinte d'alerte — la production est perdue */
+.resource-item--full {
+  background: rgba(var(--color-warning-rgb), 0.14);
+  border-color: rgba(var(--color-warning-rgb), 0.55);
+}
+
+/* Compteur cliquable (fragments de carte → vue carte) */
+.resource-item--link {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.resource-item--link:hover {
+  background: rgba(var(--color-accent-rgb), 0.16);
 }
 
 .resource-icon {

@@ -3,6 +3,8 @@
     v-if="count > 0"
     class="count-badge"
     :class="[`count-badge--${variant}`, `count-badge--${position}`]"
+    :title="label"
+    :aria-label="label"
   >
     {{ count }}
   </span>
@@ -14,6 +16,8 @@ withDefaults(
     count: number
     variant?: 'default' | 'active'
     position?: 'top-right' | 'bottom-right'
+    /** Libellé accessible du chiffre (title + aria-label) — ex. « 3 rapports non lus » */
+    label?: string
   }>(),
   {
     variant: 'default',

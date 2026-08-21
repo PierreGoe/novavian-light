@@ -24,6 +24,10 @@ export interface GameSettings {
   enemyBaseInfantry: number
   /** Nombre de base d'infanterie dans une forteresse ennemie */
   enemyStrongholdInfantry: number
+  /** Active la pression du temps : les villages IA se développent au fil de la mission */
+  timePressureEnabled: boolean
+  /** Vitesse de montée de la pression (1 = normal ; >1 utile pour tester) */
+  timePressureSpeed: number
 
   // --- Carte & affichage ---
   /** Affiche les zones d'influence des forteresses ennemies (halo rouge) */
@@ -57,6 +61,8 @@ const DEFAULT_SETTINGS: GameSettings = {
   rankRevealRange: 10,
   enemyBaseInfantry: 3,
   enemyStrongholdInfantry: 8,
+  timePressureEnabled: true,
+  timePressureSpeed: 1,
   showInfluenceZones: true,
   mapIsoView: false,
   mapIsoAngles: { x: 55, z: 45 },

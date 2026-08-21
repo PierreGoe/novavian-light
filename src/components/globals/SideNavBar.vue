@@ -41,6 +41,7 @@
               v-if="link.to === '/reports'"
               :count="unreadReportsCount"
               variant="active"
+              :label="`${unreadReportsCount} rapport(s) non lu(s)`"
             />
           </span>
           <Transition name="fade-text">
@@ -78,7 +79,10 @@
     <!-- Stats joueur (visibles uniquement en jeu) -->
     <div class="nav-stats" v-if="isInGame">
       <!-- Or -->
-      <div class="stat-item stat-gold" :title="effectiveCollapsed ? `${formatNumber(gold)} Or` : ''">
+      <div
+        class="stat-item stat-gold"
+        :title="`Or : ${formatNumber(gold)} — dépensable au Bazar et à la Forge`"
+      >
         <span class="stat-icon" ref="goldIconRef">🪙</span>
         <Transition name="fade-text">
           <span v-if="!effectiveCollapsed" class="stat-value">{{ formatNumber(gold) }}</span>
@@ -98,7 +102,7 @@
       </div>
 
       <!-- Race -->
-      <div class="stat-item stat-race" v-if="race" :title="effectiveCollapsed ? race.name : ''">
+      <div class="stat-item stat-race" v-if="race" :title="raceTooltip">
         <span class="stat-icon">{{ race.icon }}</span>
         <Transition name="fade-text">
           <span v-if="!effectiveCollapsed" class="stat-value">{{ race.name }}</span>
@@ -182,7 +186,12 @@
     >
       <span class="bottom-nav-icon">
         {{ link.icon }}
-        <CountBadge v-if="link.to === '/reports'" :count="unreadReportsCount" variant="active" />
+        <CountBadge
+          v-if="link.to === '/reports'"
+          :count="unreadReportsCount"
+          variant="active"
+          :label="`${unreadReportsCount} rapport(s) non lu(s)`"
+        />
       </span>
       <span class="bottom-nav-label">{{ link.label }}</span>
     </router-link>
@@ -194,6 +203,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 import { useMissionStore } from '@/stores/missionStore'
+import { STARTING_ARTIFACTS } from '@/data/artifacts'
 import { formatNumber } from '@/utils/formatNumber'
 import { useMediaQuery, NARROW_DESKTOP_QUERY } from '@/composables/useMediaQuery'
 import NavToggleButton from '@/components/ui/NavToggleButton.vue'
@@ -281,6 +291,26 @@ const unreadReportsCount = computed(() => missionStore.unreadReportsCount.value)
 const gold = computed(() => gameStore.gameState.inventory.gold)
 const leadership = computed(() => gameStore.gameState.inventory.leadership)
 const race = computed(() => gameStore.gameState.race)
+
+/** Tooltip de la race : rappelle l'artefact de départ et ses bonus — même
+ * source de vérité que RaceSelector (STARTING_ARTIFACTS), présentés sinon
+ * uniquement au moment de la sélection de race. */
+const raceTooltip = computed(() => {
+  if (!race.value) return ''
+  const artifact = STARTING_ARTIFACTS[race.value.id]
+  if (!artifact) return race.value.name
+  const e = artifact.effects
+  const parts: string[] = []
+  if (e.economy) parts.push(`+${e.economy}% Éco`)
+  if (e.military) parts.push(`+${e.military}% Mil`)
+  if (e.defense) parts.push(`+${e.defense}% Déf`)
+  if (e.resourceBonus?.wood) parts.push(`+${e.resourceBonus.wood}% Bois`)
+  if (e.resourceBonus?.stone) parts.push(`+${e.resourceBonus.stone}% Pierre`)
+  if (e.resourceBonus?.iron) parts.push(`+${e.resourceBonus.iron}% Fer`)
+  if (e.resourceBonus?.crop) parts.push(`+${e.resourceBonus.crop}% Céréales`)
+  const fx = parts.length > 0 ? ` (${parts.join(', ')})` : ''
+  return `${race.value.name} — ${artifact.icon} ${artifact.name}${fx}`
+})
 
 const leadershipStatus = computed(() => gameStore.leadershipStatus.value.level)
 const leadershipTooltip = computed(() => {

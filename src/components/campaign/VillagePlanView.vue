@@ -32,8 +32,10 @@
           :state="getBuildingState('barracks')"
           :selected="selectedType === 'barracks'"
           :status-text="getStatusText('barracks')"
+          :status-detail="getStatusDetail('barracks')"
           :construction-progress="getConstructionProgress('barracks')"
           :action-affordable="canAffordQuickAction('barracks')"
+          :missing-resources="missingResourcesText('barracks')"
           @select="toggleSelect('barracks')"
           @quick-action="quickAction('barracks')"
         />
@@ -48,8 +50,11 @@
           :size="layout.colSpan > 1 ? 'lg' : 'sm'"
           :selected="selectedType === layout.type"
           :status-text="getStatusText(layout.type)"
+          :status-detail="getStatusDetail(layout.type)"
+          :description="BUILDING_DEFINITIONS[layout.type].description"
           :construction-progress="getConstructionProgress(layout.type)"
           :action-affordable="canAffordQuickAction(layout.type)"
+          :missing-resources="missingResourcesText(layout.type)"
           @select="toggleSelect(layout.type)"
           @quick-action="quickAction(layout.type)"
         />
@@ -114,11 +119,17 @@
             </div>
           </div>
 
+          <!-- Temps estimé si ressources insuffisantes (même affichage que l'amélioration) -->
+          <div v-if="!canAffordBuild && timeUntilAffordable(selectedBuildCost)" class="upgrade-eta">
+            ⏱️ Disponible dans {{ timeUntilAffordable(selectedBuildCost) }}
+          </div>
+
           <!-- Bouton construire -->
           <Button
             variant="success"
             class="upgrade-btn"
             :disabled="!canAffordBuild"
+            :title="!canAffordBuild ? missingResourcesText(selectedDef!.type) : undefined"
             @click="doBuild()"
           >
             {{ canAffordBuild ? 'Construire' : 'Ressources insuffisantes' }}
@@ -136,7 +147,14 @@
             <div class="construction-eta">
               ⏱️ Terminé dans {{ getRemainingConstructionTime(selectedDef.type) }}
             </div>
-            <Button variant="success" class="upgrade-btn" disabled>🏗️ Chantier en cours…</Button>
+            <Button
+              variant="success"
+              class="upgrade-btn"
+              disabled
+              :title="`Un seul chantier à la fois — libre dans ${getRemainingConstructionTime(selectedDef!.type)}`"
+            >
+              🏗️ Chantier en cours…
+            </Button>
           </div>
 
           <template v-else>
@@ -219,6 +237,9 @@
                 variant="success"
                 class="upgrade-btn"
                 :disabled="selectedState !== 'upgradable'"
+                :title="
+                  selectedState === 'waiting' ? missingResourcesText(selectedDef!.type) : undefined
+                "
                 @click="doUpgrade()"
               >
                 {{
@@ -236,7 +257,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useMissionStore } from '@/stores/missionStore'
 import { useToastStore } from '@/stores/toastStore'
 import {
@@ -284,6 +305,20 @@ const cellStyle = (layout: VillageCardLayout) => ({
 
 // Bâtiment sélectionné pour le panneau de détails
 const selectedType = ref<BuildingType | null>(null)
+
+// Bâtiment à mettre en avant à la demande du parent (clic sur une ligne
+// « Bâtiments producteurs » de l'onglet Ressources de TownView).
+const props = withDefaults(defineProps<{ focusType?: BuildingType | null }>(), {
+  focusType: null,
+})
+
+watch(
+  () => props.focusType,
+  (type) => {
+    if (type) selectedType.value = type
+  },
+  { immediate: true },
+)
 
 const toggleSelect = (type: BuildingType) => {
   selectedType.value = selectedType.value === type ? null : type
@@ -344,6 +379,44 @@ const getStatusText = (type: BuildingType): string => {
   }
 }
 
+// Détaille les ressources manquantes pour le prochain palier d'un bâtiment
+// (construction niveau 1 si pas construit, sinon amélioration) — alimente les
+// tooltips des boutons désactivés et du statut « ⏳ ressources ».
+const missingResourcesText = (type: BuildingType): string => {
+  const res = town.value?.resources
+  if (!res) return ''
+  const cost = getBuildingUpgrade(type, getBuilding(type)?.level ?? 0)
+  const parts: string[] = []
+  const check = (icon: string, current: number, needed: number) => {
+    if (current < needed) parts.push(`${Math.ceil(needed - current)} ${icon}`)
+  }
+  check('🪵', res.wood, cost.wood)
+  check('🧱', res.clay, cost.clay)
+  check('⚒️', res.iron, cost.iron)
+  check('🌾', res.crop, cost.crop)
+  return parts.length > 0 ? `il manque ${parts.join(', ')}` : ''
+}
+
+// Phrase complète expliquant le statut condensé affiché sur la carte (« QG 5 »,
+// « ⏳ ressources », « max »…) — exposée en title au survol.
+const getStatusDetail = (type: BuildingType): string => {
+  const def = BUILDING_DEFINITIONS[type]
+  switch (getBuildingState(type)) {
+    case 'locked':
+      return `Débloqué au niveau ${def.hqLevelRequired} du Bâtiment Principal (QG actuel : niveau ${hqLevel.value})`
+    case 'available':
+      return 'Emplacement libre — construisez ce bâtiment pour en profiter'
+    case 'constructing':
+      return `Chantier en cours — terminé dans ${getRemainingConstructionTime(type)}`
+    case 'upgradable':
+      return `Amélioration possible vers le niveau ${(getBuilding(type)?.level ?? 0) + 1}`
+    case 'waiting':
+      return `Ressources insuffisantes — ${missingResourcesText(type)}`
+    case 'maxed':
+      return `Niveau maximum atteint (${def.maxLevel})`
+  }
+}
+
 // Le bouton d'action rapide reste visible même sans les ressources requises
 // (état `waiting`) — il est juste désactivé/grisé plutôt que masqué, pour ne
 // pas cacher l'affordance qu'une action existe.
@@ -391,13 +464,17 @@ const getProductionIcon = (type: BuildingType): string => {
 
 const getUpgradeCost = (type: BuildingType, level: number) => getBuildingUpgrade(type, level)
 
-// Calcule le temps avant d'avoir les ressources pour améliorer le bâtiment sélectionné
-const getTimeUntilUpgrade = (): string | null => {
-  if (!selectedBuilding.value || !selectedDef.value) return null
+// Calcule le temps avant d'avoir les ressources pour un coût donné — utilisé
+// pour l'ETA d'amélioration ET de construction initiale.
+const timeUntilAffordable = (cost: {
+  wood: number
+  clay: number
+  iron: number
+  crop: number
+}): string | null => {
   const resources = town.value?.resources
   const production = town.value?.production
   if (!resources || !production) return null
-  const cost = getUpgradeCost(selectedDef.value.type, selectedBuilding.value.level)
   const minutesNeeded: number[] = []
 
   const check = (current: number, needed: number, rate: number) => {
@@ -419,6 +496,12 @@ const getTimeUntilUpgrade = (): string | null => {
   const s = totalSec % 60
   if (h > 0) return `${h}h ${m}min`
   return s === 0 ? `${m}min` : `${m}min ${s}s`
+}
+
+// Temps avant de pouvoir améliorer le bâtiment sélectionné
+const getTimeUntilUpgrade = (): string | null => {
+  if (!selectedBuilding.value || !selectedDef.value) return null
+  return timeUntilAffordable(getUpgradeCost(selectedDef.value.type, selectedBuilding.value.level))
 }
 
 // --- Progression du chantier (construction / amélioration en cours) ---

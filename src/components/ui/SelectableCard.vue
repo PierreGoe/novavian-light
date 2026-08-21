@@ -78,18 +78,33 @@ function activate() {
 
 .selectable-card--selected {
   border-color: var(--color-accent);
-  background: rgba(var(--color-accent-rgb), 0.05);
+  /* Le fond doit rester opaque même sur un arrière-plan chargé (image de
+     l'écran d'accueil) : on superpose la teinte accent à une base pleine
+     plutôt que de s'appuyer sur une seule couleur semi-transparente. */
+  background-color: var(--color-bg-surface);
+  background-image: linear-gradient(
+    rgba(var(--color-accent-rgb), 0.08),
+    rgba(var(--color-accent-rgb), 0.08)
+  );
 }
 
 .selectable-card--disabled {
-  opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* On atténue seulement le contenu (icône/texte), pas la carte entière : elle
+   reste opaque et lisible quel que soit ce qu'il y a derrière. */
+.selectable-card--disabled .selectable-card-icon,
+.selectable-card--disabled .selectable-card-body {
+  opacity: 0.55;
 }
 
 .selectable-card-badge {
   position: absolute;
   top: -0.6rem;
   right: 0.75rem;
+  background: var(--color-bg-surface);
+  border-radius: 999px;
 }
 
 .selectable-card-icon {

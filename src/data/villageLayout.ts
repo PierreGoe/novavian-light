@@ -13,8 +13,8 @@ export interface VillageCardLayout {
   rowSpan: number
 }
 
-// 4 colonnes × 3 lignes : QG + Casernes en 2×2 côte à côte, les 4 bâtiments de
-// ressource remplissent exactement la 3ᵉ ligne — grille pleine, sans trou.
+// 4 colonnes : QG + Casernes en 2×2 côte à côte, les 4 bâtiments de ressource
+// remplissent exactement la 3ᵉ ligne, le mur d'enceinte s'étale sous eux.
 export const VILLAGE_LAYOUT: VillageCardLayout[] = [
   { type: 'headquarters', colSpan: 2, rowSpan: 2 },
   { type: 'barracks', colSpan: 2, rowSpan: 2 },
@@ -22,4 +22,5 @@ export const VILLAGE_LAYOUT: VillageCardLayout[] = [
   { type: 'farm', colSpan: 1, rowSpan: 1 },
   { type: 'quarry', colSpan: 1, rowSpan: 1 },
   { type: 'mine', colSpan: 1, rowSpan: 1 },
+  { type: 'wall', colSpan: 4, rowSpan: 1 },
 ]

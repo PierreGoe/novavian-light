@@ -56,6 +56,23 @@ export const UNIT_CARRY_CAPACITY: Record<string, number> = {
   archer: 12,
   cavalry: 40,
   siege: 5,
+
+  // Capacité dérivée proportionnellement au coût de chaque unité de race,
+  // selon les mêmes ratios que les unités génériques ci-dessus.
+  gaul_phalange: 20,
+  gaul_franc_archer: 9,
+  gaul_foudre: 38,
+  gaul_belier: 5,
+
+  roman_legionnaire: 25,
+  roman_sagittaire: 13,
+  roman_cavalier_lourd: 51,
+  roman_onagre: 6,
+
+  german_guerrier: 15,
+  german_chasseur: 6,
+  german_cavalier_hache: 29,
+  german_belier: 3,
 }
 
 /** Capacité de transport par défaut pour les types inconnus */

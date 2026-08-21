@@ -6,6 +6,7 @@ import { TERRAIN_CONFIG } from '@/utils/map/TerrainTypes'
 import { GARRISON_REGEN_DURATION_MS, RECENT_PILLAGE_THRESHOLD_MS } from '@/config'
 import { gameSettings } from '@/stores/gameSettingsStore'
 import { computePillage } from '@/combat/loot'
+import { getVillageDev, getHostileAttackIntervalMs, PRESSURE } from '@/game/timePressure'
 import { TERRAIN_BONUS } from '@/data/resources'
 import { debounce } from '@/utils/debounce'
 export type { EnemyLootStock, PillageResult } from '@/combat/loot'
@@ -35,6 +36,15 @@ export interface FortressZone {
   nextAttackAt?: number
   /** Timestamp de la dernière application du decay (pour calcul lazy) */
   lastDecayAt?: number
+  /**
+   * Fatigue militaire 0–100 : monte quand le joueur repousse (ou saigne) un raid
+   * de la zone, décroît avec le temps. Au-delà de FATIGUE_EXHAUSTED_THRESHOLD la
+   * zone est épuisée et ne peut plus lancer d'attaque — c'est la récompense
+   * stratégique d'une défense réussie (mur + armée défensive).
+   */
+  fatigue?: number
+  /** Timestamp de la dernière application du decay de fatigue (calcul lazy) */
+  lastFatigueDecayAt?: number
 }
 
 // ====================================================================
@@ -67,6 +77,40 @@ export const HOSTILITY_REDUCE_RAID_REPELLED = 15
 
 /** Ressources pillées par attaque hostile, par village contrôlé */
 const HOSTILE_LOOT_PER_POWER = 4
+
+// --- Fatigue militaire des zones (récompense de la défense réussie) ---
+
+/** Fatigue gagnée par la zone quand le joueur repousse un raid */
+export const FATIGUE_GAIN_RAID_REPELLED = 40
+/** Fatigue max gagnée sur un raid réussi mais coûteux (proportionnelle aux pertes) */
+export const FATIGUE_GAIN_COSTLY_VICTORY_MAX = 20
+/** Au-delà de ce seuil, la zone est épuisée : incapable d'attaquer tant que la fatigue ne redescend pas */
+export const FATIGUE_EXHAUSTED_THRESHOLD = 60
+/** Décroissance de fatigue par tick de HOSTILITY_DECAY_INTERVAL_MS */
+const FATIGUE_DECAY_PER_TICK = 4
+/** Malus de puissance de raid : raidPower × (1 − fatigue / FATIGUE_POWER_MALUS_DIVISOR) — −50 % à 100 de fatigue */
+export const FATIGUE_POWER_MALUS_DIVISOR = 200
+
+/**
+ * Fourchette du trésor caché dans les ruines générées à la création de la carte.
+ * Récompense d'exploration unique (une fouille par ruine et par partie) pensée
+ * pour booster l'économie de début de partie sans risque de farm répété.
+ * Les villages rasés en cours de partie deviennent des ruines SANS trésor.
+ */
+export const RUIN_TREASURE_RANGE = {
+  gold: { min: 30, max: 80 },
+  wood: { min: 50, max: 120 },
+  iron: { min: 50, max: 120 },
+  crop: { min: 50, max: 120 },
+} as const
+
+/** Butin tiré d'un trésor de ruines (dans la fourchette RUIN_TREASURE_RANGE) */
+export interface RuinTreasureLoot {
+  gold: number
+  wood: number
+  iron: number
+  crop: number
+}
 
 // Types pour la carte et l'exploration
 export type TerrainType =
@@ -124,6 +168,24 @@ export const UNIT_MOVE_SPEED: Record<string, number> = {
   archer: 0.08, // Moins mobile (équipement + carquois)
   cavalry: 0.25, // Très rapide
   siege: 0.03, // Engins de siège — extrêmement lent
+
+  // Gaulois — mobilité supérieure sur chaque rôle (identité de race)
+  gaul_phalange: 0.11,
+  gaul_franc_archer: 0.13,
+  gaul_foudre: 0.3, // l'unité la plus rapide du jeu
+  gaul_belier: 0.05,
+
+  // Romains — lourds et lents, contrepartie de leur puissance brute
+  roman_legionnaire: 0.09,
+  roman_sagittaire: 0.09,
+  roman_cavalier_lourd: 0.2,
+  roman_onagre: 0.025,
+
+  // Germains — rapides à produire, vitesse dans la moyenne haute
+  german_guerrier: 0.11,
+  german_chasseur: 0.12,
+  german_cavalier_hache: 0.27,
+  german_belier: 0.04,
 }
 
 /** Unité de garnison persistée sur une tuile ennemie */
@@ -143,6 +205,12 @@ export interface TileGarrison {
   maxUnits?: GarrisonUnit[]
   /** Timestamp réel du début de régénération (undefined = pas en cours) */
   regenStartedAt?: number
+  /**
+   * Développement D_v du village au dernier (re)dimensionnement de la garnison
+   * (pression du temps). Absent = 1. Ne redescend jamais : une garnison déjà
+   * grossie reste grossie même si l'horloge de mission repart de zéro.
+   */
+  lastGrowthDev?: number
 }
 
 import type { EnemyLootStock } from '@/combat/loot'
@@ -181,6 +249,14 @@ export interface MapTile {
    * Non défini = intact (équivalent à 0).
    */
   destructionLevel?: number
+  /**
+   * Vrai tant que le trésor des ruines n'a pas été fouillé.
+   * Posé uniquement sur les ruines générées à la création de la carte —
+   * les villages/forteresses rasés en cours de partie n'en portent pas.
+   */
+  hasTreasure?: boolean
+  /** Timestamp réel de la fouille du trésor (absent = jamais fouillé ou ruine sans trésor) */
+  treasureLootedAt?: number
 }
 
 export interface ExplorationState {
@@ -262,10 +338,11 @@ const generateLootStock = (isStronghold: boolean): EnemyLootStock => {
 // grandeur de variation) pour produire une fourchette honnête, PAS une copie
 // exacte de son aléatoire (archer conditionnel à 50%, cavalerie fixe, etc.).
 //
-// ⚠️ À REVOIR si `generateEnemyGarrison` change de formule (une évolution
-// parallèle y ajoute un multiplicateur de difficulté) — ajuster les
+// ⚠️ À REVOIR si `generateEnemyGarrison` change de formule — ajuster les
 // constantes ci-dessous en conséquence, elles sont volontairement isolées et
-// nommées pour rester faciles à recaler.
+// nommées pour rester faciles à recaler. Les deux appliquent le même
+// multiplicateur de pression du temps `getVillageDev(tile)` (src/game/
+// timePressure.ts) : si l'un des deux change, recaler l'autre.
 
 /** Variation aléatoire max reproduite de `generateEnemyGarrison` (Math.floor(Math.random() * 3) → 0..2) */
 const GARRISON_ESTIMATE_INFANTRY_VARIATION_MAX = 2
@@ -316,15 +393,25 @@ export interface GarrisonStrengthEstimate {
  *   estimation).
  */
 export const estimateGarrisonStrength = (tile: MapTile): GarrisonStrengthEstimate => {
+  const dev = getVillageDev(tile)
+
   // Cas 1 — garnison réelle déjà connue (tuile déjà attaquée au moins une fois)
   if (tile.garrison) {
     const total = tile.garrison.units.reduce((sum, u) => sum + u.count, 0)
+    // Croissance en attente : la garnison ne sera re-grossie qu'au prochain combat
+    // (applyVillageGrowth), on reflète ici ce qui attendra réellement l'attaquant.
+    // max(1, …) : une garnison déjà grossie ne redescend jamais.
+    const growthPending = Math.max(1, dev / (tile.garrison.lastGrowthDev ?? 1))
+    const effective = Math.round(total * growthPending)
+    const isGrowing = effective > total
     return {
-      isExact: true,
-      approxUnits: total,
-      approxUnitsMax: total,
-      label: garrisonStrengthLabel(total),
-      text: `${total} unité${total > 1 ? 's' : ''} (garnison connue)`,
+      isExact: !isGrowing,
+      approxUnits: effective,
+      approxUnitsMax: effective,
+      label: garrisonStrengthLabel(effective),
+      text: isGrowing
+        ? `~${effective} unités (garnison en expansion)`
+        : `${total} unité${total > 1 ? 's' : ''} (garnison connue)`,
     }
   }
 
@@ -334,15 +421,17 @@ export const estimateGarrisonStrength = (tile: MapTile): GarrisonStrengthEstimat
     ? gameSettings.enemyStrongholdInfantry
     : gameSettings.enemyBaseInfantry
 
-  const minUnits = baseInfantry
-  let maxUnits = baseInfantry + GARRISON_ESTIMATE_INFANTRY_VARIATION_MAX
+  const minUnits = Math.round(baseInfantry * dev)
+  let maxUnits = Math.round((baseInfantry + GARRISON_ESTIMATE_INFANTRY_VARIATION_MAX) * dev)
 
   if (isStronghold) {
     // Forteresse : archers + cavalerie systématiquement présents dans le générateur réel
-    maxUnits += GARRISON_ESTIMATE_STRONGHOLD_ARCHER_MAX + GARRISON_ESTIMATE_STRONGHOLD_CAVALRY
+    maxUnits += Math.round(
+      (GARRISON_ESTIMATE_STRONGHOLD_ARCHER_MAX + GARRISON_ESTIMATE_STRONGHOLD_CAVALRY) * dev,
+    )
   } else {
     // Village : archers présents environ 1 fois sur 2 → seulement inclus dans la borne haute
-    maxUnits += GARRISON_ESTIMATE_VILLAGE_ARCHER_MAX
+    maxUnits += Math.round(GARRISON_ESTIMATE_VILLAGE_ARCHER_MAX * dev)
   }
 
   const approxUnits = Math.round((minUnits + maxUnits) / 2)
@@ -505,6 +594,8 @@ const generateInitialMap = (): MapTile[] => {
           type === 'village_enemy' || type === 'stronghold'
             ? generateLootStock(type === 'stronghold')
             : undefined,
+        // Les ruines d'origine cachent un trésor fouillable une fois par partie
+        hasTreasure: type === 'ruins' ? true : undefined,
       })
     }
   }
@@ -862,6 +953,31 @@ export const useMapStore = () => {
   }
 
   /**
+   * Fouille le trésor d'une ruine : tire un butin dans RUIN_TREASURE_RANGE et
+   * marque la ruine comme fouillée (une seule fouille par ruine et par partie).
+   * Retourne null si la tuile n'est pas une ruine au trésor intact.
+   */
+  const lootRuinTreasure = (tileId: string): RuinTreasureLoot | null => {
+    const tile = getTileById(tileId)
+    if (!tile || tile.type !== 'ruins' || !tile.hasTreasure) return null
+
+    const roll = (range: { min: number; max: number }) =>
+      range.min + Math.floor(Math.random() * (range.max - range.min + 1))
+
+    const loot: RuinTreasureLoot = {
+      gold: roll(RUIN_TREASURE_RANGE.gold),
+      wood: roll(RUIN_TREASURE_RANGE.wood),
+      iron: roll(RUIN_TREASURE_RANGE.iron),
+      crop: roll(RUIN_TREASURE_RANGE.crop),
+    }
+
+    tile.hasTreasure = undefined
+    tile.treasureLootedAt = Date.now()
+    saveMapState()
+    return loot
+  }
+
+  /**
    * Régénère le stock de ressources de tous les villages ennemis encore sur la carte.
    * Appelé périodiquement par le timer ENEMY_REGEN_INTERVAL_MS.
    * Le stock remonte progressivement vers son maximum (reconstitution de 10% par tick).
@@ -875,7 +991,19 @@ export const useMapStore = () => {
         changed = true
         continue
       }
-      const max = generateLootStock(tile.type === 'stronghold')
+      // Plafond déterministe (plus de re-tirage aléatoire à chaque tick) qui
+      // grossit avec le développement du village : un village qui a prospéré
+      // est aussi plus rentable à piller.
+      const isStronghold = tile.type === 'stronghold'
+      const base = Math.round(
+        (isStronghold ? 200 * (tile.level ?? 1) : 80) * getVillageDev(tile),
+      )
+      const max: EnemyLootStock = {
+        gold: base,
+        wood: base,
+        iron: Math.floor(base * 0.7),
+        crop: base,
+      }
       const rate = 0.1 // 10% de régén par tick
       let tileChanged = false
       for (const key of ['gold', 'wood', 'iron', 'crop'] as const) {
@@ -930,6 +1058,33 @@ export const useMapStore = () => {
       changed = true
     }
     if (changed) saveMapState()
+  }
+
+  /**
+   * Pression du temps — re-dimensionne une garnison existante si le développement
+   * du village a suffisamment monté depuis le dernier ajustement (GARRISON_GROWTH_STEP).
+   * Appelée paresseusement juste avant un combat : pas de boucle périodique.
+   * Ne réduit jamais une garnison (ratio plancher à 1) — une garnison grossie le reste,
+   * même quand l'horloge de mission repart de zéro.
+   */
+  const applyVillageGrowth = (tile: MapTile): void => {
+    if (!tile.garrison) return
+    if (tile.type !== 'village_enemy' && tile.type !== 'stronghold') return
+
+    const dev = getVillageDev(tile)
+    const lastDev = tile.garrison.lastGrowthDev ?? 1
+    if (dev < lastDev * PRESSURE.GARRISON_GROWTH_STEP) return
+
+    const ratio = dev / lastDev
+    const grow = (units: GarrisonUnit[]) =>
+      units.map((u) => ({ ...u, count: Math.max(1, Math.round(u.count * ratio)) }))
+
+    // Une garnison vide (vaincue, pas encore régénérée) ne renaît pas par la
+    // croissance — seuls les effectifs existants et le plafond de régén grossissent.
+    if (tile.garrison.units.length > 0) tile.garrison.units = grow(tile.garrison.units)
+    if (tile.garrison.maxUnits) tile.garrison.maxUnits = grow(tile.garrison.maxUnits)
+    tile.garrison.lastGrowthDev = dev
+    saveMapState()
   }
 
   // ------------------------------------
@@ -1189,6 +1344,8 @@ export const useMapStore = () => {
         hostilityLevel: existing?.hostilityLevel ?? 0,
         hostilityState: existing?.hostilityState ?? 'neutral',
         nextAttackAt: existing?.nextAttackAt,
+        fatigue: existing?.fatigue,
+        lastFatigueDecayAt: existing?.lastFatigueDecayAt,
       }
     }
 
@@ -1230,7 +1387,7 @@ export const useMapStore = () => {
     zone.hostilityState = getHostilityStateFromLevel(zone.hostilityLevel)
 
     if (prevState !== 'hostile' && zone.hostilityState === 'hostile') {
-      zone.nextAttackAt = Date.now() + HOSTILE_ATTACK_INTERVAL_MS
+      zone.nextAttackAt = Date.now() + getHostileAttackIntervalMs(HOSTILE_ATTACK_INTERVAL_MS)
     }
 
     saveMapState()
@@ -1282,9 +1439,37 @@ export const useMapStore = () => {
     for (const zone of Object.values(mapState.fortressZones)) {
       if (zone.hostilityState !== 'hostile') continue
       if (!zone.nextAttackAt || zone.nextAttackAt > now) continue
+
+      // Garde brouillard : une forteresse jamais explorée ne raide JAMAIS le
+      // joueur, quel que soit son état d'hostilité — un raid surgi du brouillard
+      // total serait à la fois injuste et une fuite d'information sur la carte.
+      const fortressTile = getTileById(zone.fortressTileId)
+      if (!fortressTile?.explored) {
+        zone.nextAttackAt = now + getHostileAttackIntervalMs(HOSTILE_ATTACK_INTERVAL_MS)
+        continue
+      }
+
+      // Zone épuisée (défenses du joueur repoussées) : incapable d'attaquer.
+      // On repousse nextAttackAt du temps de récupération réel pour que les
+      // countdowns UI (bannière, timers) restent honnêtes.
+      const fatigue = getEffectiveFatigue(zone.fortressTileId)
+      if (fatigue >= FATIGUE_EXHAUSTED_THRESHOLD) {
+        const ticksToRecover = Math.ceil(
+          (fatigue - FATIGUE_EXHAUSTED_THRESHOLD + 1) / FATIGUE_DECAY_PER_TICK,
+        )
+        zone.nextAttackAt =
+          now +
+          Math.max(
+            ticksToRecover * HOSTILITY_DECAY_INTERVAL_MS,
+            getHostileAttackIntervalMs(HOSTILE_ATTACK_INTERVAL_MS),
+          )
+        continue
+      }
+
       triggered.push(zone)
       // Planifier la prochaine attaque sans déclencher de sauvegarde immédiate
-      zone.nextAttackAt = now + HOSTILE_ATTACK_INTERVAL_MS
+      // (intervalle resserré par la pression du temps)
+      zone.nextAttackAt = now + getHostileAttackIntervalMs(HOSTILE_ATTACK_INTERVAL_MS)
     }
 
     return triggered
@@ -1300,6 +1485,16 @@ export const useMapStore = () => {
     let stateChanged = false
 
     for (const zone of Object.values(mapState.fortressZones)) {
+      // Decay de la fatigue militaire (même mécanique lazy, compteur séparé)
+      if (zone.fatigue && zone.fatigue > 0) {
+        const lastFatigueDecay = zone.lastFatigueDecayAt ?? now
+        const fatigueTicks = Math.floor((now - lastFatigueDecay) / HOSTILITY_DECAY_INTERVAL_MS)
+        if (fatigueTicks > 0) {
+          zone.lastFatigueDecayAt = now
+          zone.fatigue = Math.max(0, zone.fatigue - fatigueTicks * FATIGUE_DECAY_PER_TICK)
+        }
+      }
+
       if (zone.hostilityLevel <= 0) continue
       const lastDecay = zone.lastDecayAt ?? now
       const elapsed = now - lastDecay
@@ -1335,6 +1530,36 @@ export const useMapStore = () => {
   }
 
   /**
+   * Fatigue militaire effective d'une zone (decay lazy appliqué en lecture seule).
+   * Utilisable à tout moment pour l'affichage ou les décisions de raid.
+   */
+  const getEffectiveFatigue = (fortressTileId: string): number => {
+    const zone = mapState.fortressZones[fortressTileId]
+    if (!zone?.fatigue || zone.fatigue <= 0) return 0
+    const lastDecay = zone.lastFatigueDecayAt ?? Date.now()
+    const ticks = Math.floor((Date.now() - lastDecay) / HOSTILITY_DECAY_INTERVAL_MS)
+    return Math.max(0, zone.fatigue - ticks * FATIGUE_DECAY_PER_TICK)
+  }
+
+  /**
+   * Ajoute de la fatigue militaire à une zone (défense réussie du joueur, ou raid
+   * victorieux mais coûteux). Matérialise d'abord le decay en cours pour repartir
+   * d'une valeur juste, plafonne à 100.
+   */
+  const addZoneFatigue = (fortressTileId: string, amount: number): void => {
+    const zone = mapState.fortressZones[fortressTileId]
+    if (!zone || amount <= 0) return
+
+    zone.fatigue = Math.min(100, getEffectiveFatigue(fortressTileId) + amount)
+    zone.lastFatigueDecayAt = Date.now()
+    saveMapState()
+  }
+
+  /** true si la zone est trop épuisée pour lancer une attaque */
+  const isZoneExhausted = (fortressTileId: string): boolean =>
+    getEffectiveFatigue(fortressTileId) >= FATIGUE_EXHAUSTED_THRESHOLD
+
+  /**
    * Retourne le timestamp de la prochaine attaque hostile (min de toutes les zones).
    * Retourne undefined si aucune zone n'est hostile.
    */
@@ -1355,13 +1580,73 @@ export const useMapStore = () => {
   }
 
   /**
+   * Développement total d'une zone : somme des D_v de ses villages encore debout
+   * + bonus de niveau de forteresse. Vaut `zone.power` quand la pression est neutre
+   * (G = 1) ; chute quand le joueur rase des villages de la zone (contre-jeu).
+   */
+  const getZoneDevelopment = (zone: FortressZone): number => {
+    let dev = 0
+    for (const villageId of zone.villageIds) {
+      const village = getTileById(villageId)
+      if (!village || village.type !== 'village_enemy') continue
+      dev += getVillageDev(village)
+    }
+    const fortress = getTileById(zone.fortressTileId)
+    return dev + ((fortress?.level ?? 1) - 1)
+  }
+
+  /**
+   * Phase « conquérante » de la pression du temps : les zones dont un village
+   * s'est assez développé deviennent menaçantes d'elles-mêmes, sans provocation.
+   * On pose un PLANCHER d'hostilité (le decay ne peut plus pacifier la zone tant
+   * que ses villages ne sont pas rasés). Limité aux zones dont la forteresse est
+   * explorée — un raid surgi du brouillard total serait injuste.
+   * Retourne true si une zone a changé d'état.
+   */
+  const applyConquerorPressure = (): boolean => {
+    let stateChanged = false
+
+    for (const zone of Object.values(mapState.fortressZones)) {
+      const fortress = getTileById(zone.fortressTileId)
+      if (!fortress || fortress.type !== 'stronghold' || !fortress.explored) continue
+
+      let maxDev = 0
+      for (const villageId of zone.villageIds) {
+        const village = getTileById(villageId)
+        if (!village || village.type !== 'village_enemy') continue
+        maxDev = Math.max(maxDev, getVillageDev(village))
+      }
+
+      let floor = 0
+      if (maxDev >= PRESSURE.CONQUEROR_HOSTILE_DEV) floor = HOSTILITY_THRESHOLD_HOSTILE
+      else if (maxDev >= PRESSURE.CONQUEROR_WARNED_DEV) floor = HOSTILITY_THRESHOLD_WARNED
+      if (floor === 0 || zone.hostilityLevel >= floor) continue
+
+      const prevState = zone.hostilityState
+      zone.hostilityLevel = floor
+      // Le plancher vient d'être posé : repartir le decay d'ici (sinon un vieux
+      // lastDecayAt le rognerait immédiatement au prochain applyLazyDecay)
+      zone.lastDecayAt = Date.now()
+      zone.hostilityState = getHostilityStateFromLevel(zone.hostilityLevel)
+
+      if (prevState !== 'hostile' && zone.hostilityState === 'hostile') {
+        zone.nextAttackAt = Date.now() + getHostileAttackIntervalMs(HOSTILE_ATTACK_INTERVAL_MS)
+      }
+      if (prevState !== zone.hostilityState) stateChanged = true
+    }
+
+    if (stateChanged) saveMapState()
+    return stateChanged
+  }
+
+  /**
    * Calcule le montant des ressources pillées par une attaque hostile.
-   * Proportionnel au nombre de villages contrôlés.
+   * Proportionnel au développement réel des villages de la zone (pression du temps).
    */
   const computeHostileRaid = (
     zone: FortressZone,
   ): { wood: number; clay: number; iron: number; crop: number } => {
-    const base = Math.max(5, zone.power * HOSTILE_LOOT_PER_POWER)
+    const base = Math.max(5, Math.round(getZoneDevelopment(zone) * HOSTILE_LOOT_PER_POWER))
     return {
       wood: base,
       clay: base,
@@ -1445,8 +1730,10 @@ export const useMapStore = () => {
 
     // Phase 2 — Pillage & garnison régénérable
     pillageVillage,
+    lootRuinTreasure,
     tickLootRegen,
     tickGarrisonRegen,
+    applyVillageGrowth,
 
     // Destruction de village
     applyVillageDestruction,
@@ -1471,6 +1758,11 @@ export const useMapStore = () => {
     getEffectiveHostility,
     getNextRaidTimestamp,
     computeHostileRaid,
+    getZoneDevelopment,
+    applyConquerorPressure,
+    getEffectiveFatigue,
+    addZoneFatigue,
+    isZoneExhausted,
 
     // Persistance
     saveMapState,

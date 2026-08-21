@@ -17,6 +17,7 @@
           },
         ]"
         :style="{ left: `${nodeCenterX(node)}px` }"
+        :data-node-id="node.id"
         tabindex="0"
         @click="emit('toggleNode', node)"
         @keydown.enter="emit('toggleNode', node)"
@@ -52,7 +53,7 @@
               v-if="!node.accessible && !node.completed && !node.inProgress"
               class="popover-locked"
             >
-              🔒 Terminez un nœud connecté pour débloquer
+              {{ lockedHint(node) }}
             </p>
             <p v-else-if="node.completed" class="popover-completed">✓ Terminé</p>
             <Button v-else size="sm" variant="primary" @click="commitNode(node)">
@@ -77,6 +78,8 @@ const props = defineProps<{
   currentPlayerRow: number
   selectedNodeId: string
   activeNodeId: string | null
+  /** Tous les nœuds de la carte — pour nommer les prérequis d'un nœud verrouillé */
+  allNodes?: MapNode[]
 }>()
 
 const emit = defineEmits<{ selectNode: [node: MapNode]; toggleNode: [node: MapNode] }>()
@@ -89,6 +92,18 @@ const isLayerActive = computed(() =>
 
 const commitNode = (node: MapNode) => {
   emit('selectNode', node)
+}
+
+/**
+ * Message de verrouillage citant les nœuds prérequis : les parents sont les
+ * nœuds dont les connexions pointent vers celui-ci (elles descendent la carte).
+ */
+const lockedHint = (node: MapNode): string => {
+  const parents = (props.allNodes ?? [])
+    .filter((n) => n.connections.includes(node.id))
+    .map((n) => `« ${n.title} »`)
+  if (parents.length === 0) return '🔒 Terminez un nœud connecté pour débloquer'
+  return `🔒 Terminez ${parents.join(' ou ')} pour débloquer`
 }
 
 const getActionLabel = (node: MapNode): string => {

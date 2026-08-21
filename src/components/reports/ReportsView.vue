@@ -26,7 +26,11 @@
         :model-value="filter"
         @update:model-value="filter = $event as FilterKey"
       />
-      <SearchInput v-model="search" placeholder="Rechercher une cible…" class="reports-search" />
+      <SearchInput
+        v-model="search"
+        placeholder="Rechercher une cible ou un résumé…"
+        class="reports-search"
+      />
     </div>
 
     <EmptyState v-if="filteredReports.length === 0" :message="emptyMessage" icon="🕊️" />
@@ -48,6 +52,9 @@
               <div class="row-title-line">
                 <span v-if="!report.read" class="unread-dot" title="Non lu"></span>
                 <span class="row-title">{{ report.tileName }}</span>
+                <span v-if="reportCoords(report)" class="row-coords">{{
+                  reportCoords(report)
+                }}</span>
                 <span v-if="report.playerIsDefender" class="row-tag">Défense</span>
               </div>
               <span class="row-summary">{{ report.summary }}</span>
@@ -56,6 +63,14 @@
           </div>
 
           <template #actions>
+            <button
+              v-if="reportTile(report)"
+              class="row-btn"
+              title="Voir sur la carte"
+              @click.stop="viewOnMap(report)"
+            >
+              🗺️
+            </button>
             <button
               v-if="!report.read"
               class="row-btn"
@@ -100,7 +115,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useMissionStore } from '@/stores/missionStore'
+import { useMapStore } from '@/stores/mapStore'
 import type { SavedBattleReport } from '@/combat/types'
 import CombatReportOverlay from '@/components/map/CombatReportOverlay.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -111,11 +128,34 @@ import ListRow from '@/components/ui/ListRow.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
 const missionStore = useMissionStore()
+const mapStore = useMapStore()
+const router = useRouter()
 
 // La page peut être ouverte directement (lien de menu, rechargement) sans que la carte
 // ou la campagne n'aient été montées au préalable — recharger explicitement garantit que
 // les rapports sauvegardés en localStorage sont bien reflétés dans le store.
-onMounted(() => missionStore.loadMissionState())
+onMounted(() => {
+  missionStore.loadMissionState()
+  // Idem pour la carte (nécessaire pour localiser les combats) — sans écraser
+  // un état déjà chargé par la campagne.
+  if (mapStore.mapState.mapTiles.length === 0) mapStore.loadMapState()
+})
+
+// --- Localisation du combat sur la carte ---
+// La tuile peut ne plus exister (village rasé, carte régénérée) : dans ce cas,
+// ni coordonnées ni action « Voir sur la carte ».
+const reportTile = (report: SavedBattleReport) => mapStore.getTileById(report.tileId)
+
+const reportCoords = (report: SavedBattleReport): string | null => {
+  const tile = reportTile(report)
+  return tile ? `(${tile.position.x}, ${tile.position.y})` : null
+}
+
+/** Ouvre la fiche de la tuile du combat sur la carte de campagne */
+const viewOnMap = (report: SavedBattleReport) => {
+  mapStore.selectTile(report.tileId)
+  router.push({ name: 'campaign-map' })
+}
 
 type FilterKey = 'all' | 'unread' | 'victory' | 'defeat'
 
@@ -153,7 +193,10 @@ const filteredReports = computed(() => {
   else if (filter.value === 'defeat') list = list.filter((r) => !r.attackerVictory)
 
   const q = search.value.trim().toLowerCase()
-  if (q) list = list.filter((r) => r.tileName.toLowerCase().includes(q))
+  if (q)
+    list = list.filter(
+      (r) => r.tileName.toLowerCase().includes(q) || r.summary.toLowerCase().includes(q),
+    )
 
   return list
 })
@@ -314,6 +357,13 @@ const formatReportDate = (iso: string): string => {
 
 .row-defeat .row-title {
   color: var(--color-danger-light);
+}
+
+.row-coords {
+  font-size: 0.72rem;
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 .row-tag {

@@ -18,6 +18,7 @@ export type BuildingType =
   | 'farm' // Ferme — produit des céréales
   | 'quarry' // Carrière — produit de l'argile (nécessite HQ niv. 4)
   | 'mine' // Mine de fer — produit du fer (nécessite HQ niv. 4)
+  | 'wall' // Mur d'enceinte — bonus de défense contre les raids ennemis
 
 // Entrée d'un niveau dans la table d'upgrade
 export interface UpgradeLevelEntry {
@@ -200,7 +201,43 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     ],
     productionPerLevel: { resource: 'iron', amount: 72 },
   },
+
+  wall: {
+    type: 'wall',
+    name: "Mur d'enceinte",
+    icon: '🧱',
+    description:
+      'Protège la ville : +8 % de défense par niveau pour vos troupes lors des raids ennemis.',
+    maxLevel: 10,
+    hqLevelRequired: 2,
+    // Coût principal : argile + bois (matériaux de fortification)
+    // prettier-ignore
+    levels: [
+      { wood:  70, clay:  110, iron:  40, crop:  25, buildTime:   30 }, // 0 → 1
+      { wood: 115, clay:  180, iron:  65, crop:  40, buildTime:   60 }, // 1 → 2
+      { wood: 185, clay:  290, iron: 105, crop:  65, buildTime:  120 }, // 2 → 3
+      { wood: 295, clay:  465, iron: 170, crop: 105, buildTime:  240 }, // 3 → 4
+      { wood: 470, clay:  745, iron: 270, crop: 170, buildTime:  480 }, // 4 → 5
+      { wood: 750, clay: 1190, iron: 430, crop: 270, buildTime:  900 }, // 5 → 6
+      { wood: 1200, clay: 1905, iron: 690, crop: 430, buildTime: 1500 }, // 6 → 7
+      { wood: 1920, clay: 3050, iron: 1105, crop: 690, buildTime: 2400 }, // 7 → 8
+      { wood: 3075, clay: 4880, iron: 1765, crop: 1105, buildTime: 3600 }, // 8 → 9
+      { wood: 4920, clay: 7805, iron: 2825, crop: 1765, buildTime: 5400 }, // 9 → 10
+    ],
+    productionPerLevel: null,
+  },
 }
+
+/** Bonus de défense du mur d'enceinte appliqué aux troupes en ville : +8 % par niveau */
+export const WALL_DEFENSE_BONUS_PER_LEVEL = 0.08
+
+/** Niveau actuel du mur d'enceinte (0 = pas de mur ou premier chantier pas fini) */
+export const getWallLevel = (buildings: { type: string; level: number }[]): number =>
+  buildings.find((b) => b.type === 'wall')?.level ?? 0
+
+/** Multiplicateur de défense conféré par le mur (1 = pas de bonus) */
+export const getWallDefenseMultiplier = (buildings: { type: string; level: number }[]): number =>
+  1 + getWallLevel(buildings) * WALL_DEFENSE_BONUS_PER_LEVEL
 
 /**
  * Retourne l'entrée de la table de niveaux pour un bâtiment et un niveau donné.
